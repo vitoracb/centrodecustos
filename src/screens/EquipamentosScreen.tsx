@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Plus,
   ChevronRight,
@@ -16,6 +17,10 @@ import {
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useEquipment } from '../context/EquipmentContext';
+import { useRouter } from 'expo-router';
+import { EquipmentFormModal } from '../components/EquipmentFormModal';
+import { useMemo } from 'react';
 
 const centerLabels = {
   valenca: 'Valença',
@@ -23,43 +28,38 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-const equipmentList = [
-  {
-    id: 'eq-1',
-    name: 'Trator John Deere 5090E',
-    brand: 'John Deere',
-    year: 2021,
-    purchaseDate: '12/05/2023',
-    nextReview: '10/03/2025',
-  },
-  {
-    id: 'eq-2',
-    name: 'Colheitadeira Case IH 7150',
-    brand: 'Case IH',
-    year: 2020,
-    purchaseDate: '03/11/2022',
-    nextReview: '22/01/2025',
-  },
-];
-
 export const EquipamentosScreen = () => {
   const { selectedCenter } = useCostCenter();
+  const { getEquipmentsByCenter, addEquipment } = useEquipment();
+  const router = useRouter();
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  
+  // Filtra equipamentos pelo centro de custo selecionado
+  const equipmentList = useMemo(
+    () => getEquipmentsByCenter(selectedCenter),
+    [selectedCenter, getEquipmentsByCenter]
+  );
 
   return (
-    <View style={styles.container}>
-      <CostCenterSelector />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Equipamentos</Text>
-          <Text style={styles.subtitle}>
-            Gestão completa dos ativos do centro {centerLabels[selectedCenter]}
-          </Text>
-        </View>
+    <SafeAreaView style={styles.safeContainer} edges={['top']}>
+      <View style={styles.container}>
+        <CostCenterSelector />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Equipamentos</Text>
+            <Text style={styles.subtitle}>
+              Gestão completa dos ativos do centro {centerLabels[selectedCenter]}
+            </Text>
+          </View>
 
-        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          activeOpacity={0.9}
+          onPress={() => setIsFormVisible(true)}
+        >
           <Plus color="#FFFFFF" size={20} />
           <Text style={styles.primaryButtonText}>Novo Equipamento</Text>
         </TouchableOpacity>
@@ -77,6 +77,20 @@ export const EquipamentosScreen = () => {
               key={equipment.id}
               style={styles.card}
               activeOpacity={0.9}
+              onPress={() =>
+                router.push({
+                  pathname: `/equipamentos/${equipment.id}`,
+                  params: {
+                    id: equipment.id,
+                    name: equipment.name,
+                    brand: equipment.brand,
+                    year: String(equipment.year),
+                    purchaseDate: equipment.purchaseDate,
+                    nextReview: equipment.nextReview,
+                    center: centerLabels[selectedCenter],
+                  },
+                })
+              }
             >
               <View style={styles.cardHeader}>
                 <View>
@@ -120,14 +134,34 @@ export const EquipamentosScreen = () => {
           ))}
         </View>
       </ScrollView>
-    </View>
+      <EquipmentFormModal
+        visible={isFormVisible}
+        onClose={() => setIsFormVisible(false)}
+        onSubmit={(data) => {
+          addEquipment({
+            name: data.name,
+            brand: data.brand,
+            year: Number(data.year) || new Date().getFullYear(),
+            purchaseDate: data.purchaseDate,
+            nextReview: 'Sem previsão',
+            center: selectedCenter,
+          });
+        }}
+      />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F7',
+    paddingTop: 8,
   },
   scroll: {
     flex: 1,

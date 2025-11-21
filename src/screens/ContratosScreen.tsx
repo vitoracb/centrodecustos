@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { FilePlus, FileText, ChevronRight } from 'lucide-react-native';
@@ -43,18 +44,19 @@ export const ContratosScreen = () => {
   const [currentMonth, setCurrentMonth] = useState('Novembro 2024');
 
   return (
-    <View style={styles.container}>
-      <CostCenterSelector />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Contratos</Text>
-          <Text style={styles.subtitle}>
-            Controle de contratos do centro {centerLabels[selectedCenter]}
-          </Text>
-        </View>
+    <SafeAreaView style={styles.safeContainer} edges={['top']}>
+      <View style={styles.container}>
+        <CostCenterSelector />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Contratos</Text>
+            <Text style={styles.subtitle}>
+              Controle de contratos do centro {centerLabels[selectedCenter]}
+            </Text>
+          </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -117,15 +119,21 @@ export const ContratosScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F7',
+    paddingTop: 8,
   },
   scroll: {
     flex: 1,

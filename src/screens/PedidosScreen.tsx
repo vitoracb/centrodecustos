@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { Plus, ChevronRight, UploadCloud, FileText } from 'lucide-react-native';
@@ -53,25 +54,26 @@ export const PedidosScreen = () => {
   const { selectedCenter } = useCostCenter();
 
   return (
-    <View style={styles.container}>
-      <CostCenterSelector />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Pedidos</Text>
-          <Text style={styles.subtitle}>
-            Controle os pedidos do centro {centerLabels[selectedCenter]}
-          </Text>
-        </View>
+    <SafeAreaView style={styles.safeContainer} edges={['top']}>
+      <View style={styles.container}>
+        <CostCenterSelector />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Pedidos</Text>
+            <Text style={styles.subtitle}>
+              Controle os pedidos do centro {centerLabels[selectedCenter]}
+            </Text>
+          </View>
 
         <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
           <Plus color="#FFFFFF" size={20} />
           <Text style={styles.primaryButtonText}>Novo Pedido</Text>
         </TouchableOpacity>
 
-        <View style={styles.section}>
+          <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lista de Pedidos</Text>
             <TouchableOpacity>
@@ -129,15 +131,21 @@ export const PedidosScreen = () => {
             </TouchableOpacity>
           ))}
         </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F7',
+    paddingTop: 8,
   },
   scroll: {
     flex: 1,

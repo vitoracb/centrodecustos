@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -189,48 +190,55 @@ export const FinanceiroScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <CostCenterSelector />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Financeiro</Text>
-          <Text style={styles.subtitle}>
-            Controle financeiramente o centro {centerLabels[selectedCenter]}
-          </Text>
-        </View>
+    <SafeAreaView style={styles.safeContainer} edges={['top']}>
+      <View style={styles.container}>
+        <CostCenterSelector />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Financeiro</Text>
+            <Text style={styles.subtitle}>
+              Controle financeiramente o centro {centerLabels[selectedCenter]}
+            </Text>
+          </View>
 
-        <View style={styles.tabContainer}>
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabButton, isActive && styles.tabButtonActive]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text
-                  style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+          <View style={styles.tabContainer}>
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tabButton, isActive && styles.tabButtonActive]}
+                  onPress={() => setActiveTab(tab)}
                 >
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  <Text
+                    style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        {renderContent()}
-      </ScrollView>
-    </View>
+          {renderContent()}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F7',
+    paddingTop: 8,
   },
   scroll: {
     flex: 1,
