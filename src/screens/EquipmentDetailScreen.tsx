@@ -8,6 +8,7 @@ import {
   Alert,
   GestureResponderEvent,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -21,11 +22,21 @@ import {
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useEquipment } from '../context/EquipmentContext';
+import { useFinancial } from '../context/FinancialContext';
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { PhotoUploadModal } from '../components/PhotoUploadModal';
 import { ReviewFormModal } from '../components/ReviewFormModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import dayjs from 'dayjs';
+import { CostCenter } from '../context/CostCenterContext';
+
+const centerLabels: Record<CostCenter, string> = {
+  valenca: 'Valença',
+  cna: 'CNA',
+  cabralia: 'Cabrália',
+};
 
 const mockTabs = {
   despesas: [
@@ -116,6 +127,8 @@ export const EquipmentDetailScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
+  const { getEquipmentById, updateEquipment } = useEquipment();
+  const { addExpense } = useFinancial();
   const [documents, setDocuments] = useState(mockTabs.documentos);
   const [expenses, setExpenses] = useState(mockTabs.despesas);
   const [photos, setPhotos] = useState(mockTabs.fotos);
@@ -134,17 +147,30 @@ export const EquipmentDetailScreen = () => {
     mimeType?: string | null;
   } | null>(null);
   const equipment = useMemo(() => {
+    const equipmentId = params.id ?? 'eq-1';
+    const contextEquipment = getEquipmentById(equipmentId);
+    
+    if (contextEquipment) {
+      return contextEquipment;
+    }
+    
+    // Fallback para dados dos params se não encontrar no contexto
     return {
-      id: params.id ?? 'eq-1',
+      id: equipmentId,
       name: params.name ?? 'Trator John Deere 5090E',
       brand: params.brand ?? 'John Deere',
       year: Number(params.year) || 2021,
       purchaseDate: params.purchaseDate ?? '12/05/2023',
-      center: params.center ?? selectedCenter.toUpperCase(),
-      status: 'Ativo',
+      center: (params.center as any) ?? selectedCenter,
+      status: 'ativo' as const,
       nextReview: params.nextReview ?? '10/03/2025',
     };
-  }, [params, selectedCenter]);
+  }, [params, selectedCenter, getEquipmentById]);
+
+  const handleStatusToggle = () => {
+    const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
+    updateEquipment(equipment.id, { status: newStatus });
+  };
   const [activeTab, setActiveTab] = useState<TabKey>('despesas');
 
   const closeDocumentModal = () => {
@@ -279,12 +305,13 @@ export const EquipmentDetailScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <CostCenterSelector />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
-      >
+    <SafeAreaView style={styles.safeContainer} edges={['top']}>
+      <View style={styles.container}>
+        <CostCenterSelector />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+        >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -304,7 +331,22 @@ export const EquipmentDetailScreen = () => {
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Status</Text>
-              <Text style={styles.infoValue}>{equipment.status}</Text>
+              <TouchableOpacity
+                style={[
+                  styles.statusButton,
+                  equipment.status === 'ativo' ? styles.statusButtonActive : styles.statusButtonInactive,
+                ]}
+                onPress={handleStatusToggle}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    equipment.status === 'ativo' ? styles.statusTextActive : styles.statusTextInactive,
+                  ]}
+                >
+                  {equipment.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                </Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Data da compra</Text>
@@ -314,7 +356,7 @@ export const EquipmentDetailScreen = () => {
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Centro</Text>
-              <Text style={styles.infoValue}>{equipment.center}</Text>
+              <Text style={styles.infoValue}>{centerLabels[equipment.center]}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Próxima revisão</Text>
@@ -473,18 +515,27 @@ export const EquipmentDetailScreen = () => {
           visible={isExpenseModalVisible}
           onClose={() => setExpenseModalVisible(false)}
           onSubmit={(data) => {
-            setExpenses((prev) => [
-              {
-                id: `desp-${prev.length + 1}`,
-                title: data.description,
-                date: data.date,
-                amount: data.amount,
-                category: data.category,
-                method: data.method,
-                status: data.status,
-              },
-              ...prev,
-            ]);
+            // Adiciona a despesa no contexto FinancialContext
+            addExpense({
+              name: data.name,
+              category: data.category,
+              date: data.date,
+              value: data.value,
+              center: selectedCenter,
+              equipmentId: data.equipmentId,
+              gestaoSubcategory: data.gestaoSubcategory,
+              observations: data.observations,
+              documents: data.documents,
+            });
+            setExpenseModalVisible(false);
+          }}
+          initialData={{
+            category: 'manutencao',
+            equipmentId: equipment.id,
+            name: '',
+            date: dayjs().format('DD/MM/YYYY'),
+            value: 0,
+            documents: [],
           }}
         />
         <PhotoUploadModal
@@ -576,15 +627,21 @@ export const EquipmentDetailScreen = () => {
             }
           }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F7',
+    paddingTop: 8,
   },
   scroll: {
     flex: 1,
@@ -645,6 +702,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  statusButton: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  statusButtonActive: {
+    backgroundColor: '#E9FAF0',
+  },
+  statusButtonInactive: {
+    backgroundColor: '#FDECEC',
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  statusTextActive: {
+    color: '#34C759',
+  },
+  statusTextInactive: {
+    color: '#FF3B30',
   },
   tabContainer: {
     flexDirection: 'row',

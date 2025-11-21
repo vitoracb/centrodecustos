@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { CostCenter } from './CostCenterContext';
 
+export type EquipmentStatus = 'ativo' | 'inativo';
+
 export interface Equipment {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Equipment {
   purchaseDate: string;
   nextReview: string;
   center: CostCenter;
+  status: EquipmentStatus;
 }
 
 interface EquipmentContextType {
@@ -17,6 +20,7 @@ interface EquipmentContextType {
   updateEquipment: (id: string, equipment: Partial<Equipment>) => void;
   deleteEquipment: (id: string) => void;
   getEquipmentsByCenter: (center: CostCenter) => Equipment[];
+  getEquipmentById: (id: string) => Equipment | undefined;
 }
 
 const EquipmentContext = createContext<EquipmentContextType | undefined>(
@@ -45,6 +49,7 @@ const initialEquipments: Equipment[] = [
     purchaseDate: '12/05/2023',
     nextReview: '10/03/2025',
     center: 'valenca',
+    status: 'ativo',
   },
   {
     id: 'eq-2',
@@ -54,6 +59,7 @@ const initialEquipments: Equipment[] = [
     purchaseDate: '03/11/2022',
     nextReview: '22/01/2025',
     center: 'valenca',
+    status: 'ativo',
   },
   {
     id: 'eq-3',
@@ -63,6 +69,7 @@ const initialEquipments: Equipment[] = [
     purchaseDate: '15/08/2021',
     nextReview: '15/08/2025',
     center: 'cna',
+    status: 'ativo',
   },
 ];
 
@@ -73,6 +80,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     const newEquipment: Equipment = {
       ...equipment,
       id: `eq-${Date.now()}`,
+      status: equipment.status || 'ativo', // Default para ativo se não especificado
     };
     setEquipments((prev) => [newEquipment, ...prev]);
   };
@@ -91,6 +99,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     return equipments.filter((eq) => eq.center === center);
   };
 
+  const getEquipmentById = (id: string) => {
+    return equipments.find((eq) => eq.id === id);
+  };
+
   return (
     <EquipmentContext.Provider
       value={{
@@ -99,6 +111,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         updateEquipment,
         deleteEquipment,
         getEquipmentsByCenter,
+        getEquipmentById,
       }}
     >
       {children}

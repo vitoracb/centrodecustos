@@ -93,8 +93,29 @@ export const EquipamentosScreen = () => {
               }
             >
               <View style={styles.cardHeader}>
-                <View>
-                  <Text style={styles.cardTitle}>{equipment.name}</Text>
+                <View style={styles.cardHeaderLeft}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={styles.cardTitle}>{equipment.name}</Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        equipment.status === 'ativo'
+                          ? styles.statusBadgeActive
+                          : styles.statusBadgeInactive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          equipment.status === 'ativo'
+                            ? styles.statusTextActive
+                            : styles.statusTextInactive,
+                        ]}
+                      >
+                        {equipment.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                      </Text>
+                    </View>
+                  </View>
                   <Text style={styles.cardSubtitle}>
                     {equipment.brand} · Ano {equipment.year}
                   </Text>
@@ -145,6 +166,7 @@ export const EquipamentosScreen = () => {
             purchaseDate: data.purchaseDate,
             nextReview: 'Sem previsão',
             center: selectedCenter,
+            status: 'ativo',
           });
         }}
       />
@@ -239,10 +261,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1C1C1E',
+  },
+  statusBadge: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusBadgeActive: {
+    backgroundColor: '#E9FAF0',
+  },
+  statusBadgeInactive: {
+    backgroundColor: '#FDECEC',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusTextActive: {
+    color: '#34C759',
+  },
+  statusTextInactive: {
+    color: '#FF3B30',
   },
   cardSubtitle: {
     fontSize: 14,

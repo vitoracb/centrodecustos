@@ -114,21 +114,38 @@ export const ExpenseFormModal = ({
       setSelectedEquipmentId('');
       setGestaoSubcategory('aluguel');
       setObservations('');
-    } else if (initialData) {
-      setName(initialData.name);
-      setCategory(initialData.category || 'manutencao');
-      const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
-      setDate(parsedDate.isValid() ? parsedDate.toDate() : new Date());
-      const formattedValue = new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-        minimumFractionDigits: 2,
-      }).format(initialData.value);
-      setValue(formattedValue);
-      setDocuments(initialData.documents || []);
-      setSelectedEquipmentId(initialData.equipmentId || '');
-      setGestaoSubcategory(initialData.gestaoSubcategory || 'aluguel');
-      setObservations(initialData.observations || '');
+    } else {
+      // Sempre inicializa com initialData se fornecido, senão usa valores padrão
+      if (initialData) {
+        setName(initialData.name || '');
+        setCategory(initialData.category || 'manutencao');
+        const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
+        setDate(parsedDate.isValid() ? parsedDate.toDate() : new Date());
+        if (initialData.value > 0) {
+          const formattedValue = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+          }).format(initialData.value);
+          setValue(formattedValue);
+        } else {
+          setValue('');
+        }
+        setDocuments(initialData.documents || []);
+        setSelectedEquipmentId(initialData.equipmentId || '');
+        setGestaoSubcategory(initialData.gestaoSubcategory || 'aluguel');
+        setObservations(initialData.observations || '');
+      } else {
+        // Valores padrão quando não há initialData
+        setName('');
+        setCategory('manutencao');
+        setDate(new Date());
+        setValue('');
+        setDocuments([]);
+        setSelectedEquipmentId('');
+        setGestaoSubcategory('aluguel');
+        setObservations('');
+      }
     }
   }, [visible, initialData]);
 
