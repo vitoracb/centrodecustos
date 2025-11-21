@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
-import { FilePlus, FileText, ChevronRight } from 'lucide-react-native';
+import { useContracts } from '../context/ContractContext';
+import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon } from 'lucide-react-native';
+import { ContractFormModal } from '../components/ContractFormModal';
+import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
+import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ContractDocument } from '../context/ContractContext';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import dayjs from 'dayjs';
+import 'dayjs/locale/pt-br';
+
+dayjs.locale('pt-br');
 
 const centerLabels = {
   valenca: 'Valença',
@@ -17,31 +30,161 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-const contractsMock = [
-  {
-    id: 'ct-1',
-    name: 'Serviços de TI',
-    category: 'principal',
-    date: '18/09/2024',
-    docs: 3,
-  },
-  {
-    id: 'ct-2',
-    name: 'Manutenção terceirizada',
-    category: 'terceirizados',
-    date: '02/10/2024',
-    docs: 5,
-  },
-];
-
 const categoryLabels = {
   principal: 'Principal',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Terceirizado',
+};
+
+const formatCurrency = (value?: number): string => {
+  if (!value) return 'Não informado';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+  }).format(value);
 };
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const [currentMonth, setCurrentMonth] = useState('Novembro 2024');
+  const { getContractsByCenter, addContract, addDocumentToContract } = useContracts();
+  const contracts = useMemo(
+    () => getContractsByCenter(selectedCenter),
+    [getContractsByCenter, selectedCenter]
+  );
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  const [filters, setFilters] = useState<ContractFilters>({});
+  const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
+  const [activeContractId, setActiveContractId] = useState<string | null>(null);
+  const [isPickingFile, setIsPickingFile] = useState(false);
+  const [documentsModalVisible, setDocumentsModalVisible] = useState(false);
+  const [selectedContractDocuments, setSelectedContractDocuments] = useState<ContractDocument[]>([]);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ uri: string; name?: string; mimeType?: string | null } | null>(null);
+
+  const filteredContracts = useMemo(() => {
+    let filtered = [...contracts];
+
+    // Filtrar por nome
+    if (filters.name) {
+      const searchTerm = filters.name.toLowerCase();
+      filtered = filtered.filter((contract) =>
+        contract.name.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Filtrar por categoria
+    if (filters.category) {
+      filtered = filtered.filter((contract) => contract.category === filters.category);
+    }
+
+    // Filtrar por período
+    if (filters.month !== null && filters.month !== undefined && filters.year) {
+      filtered = filtered.filter((contract) => {
+        const contractDate = dayjs(contract.date, 'DD/MM/YYYY');
+        return (
+          contractDate.month() === filters.month &&
+          contractDate.year() === filters.year
+        );
+      });
+    }
+
+    // Ordenar do mais novo para o mais antigo
+    return filtered.sort(
+      (a, b) =>
+        dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
+    );
+  }, [contracts, filters]);
+
+  const openAttachmentOptions = (contractId: string) => {
+    setActiveContractId(contractId);
+    setAttachmentModalVisible(true);
+  };
+
+  const closeAttachmentOptions = () => {
+    setAttachmentModalVisible(false);
+    setActiveContractId(null);
+  };
+
+  const openDocumentsList = (contractId: string) => {
+    const contract = contracts.find((c) => c.id === contractId);
+    if (contract) {
+      setSelectedContractDocuments(contract.documents ?? []);
+      setDocumentsModalVisible(true);
+    }
+  };
+
+  const closeDocumentsList = () => {
+    setDocumentsModalVisible(false);
+    setSelectedContractDocuments([]);
+  };
+
+  const openDocumentPreview = (document: ContractDocument) => {
+    setPreviewFile({
+      uri: document.fileUri,
+      name: document.fileName,
+      mimeType: document.mimeType,
+    });
+    setPreviewVisible(true);
+    closeDocumentsList();
+  };
+
+  const handleContractDocumentUpload = async () => {
+    if (!activeContractId) return;
+    try {
+      setIsPickingFile(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets?.length) {
+        const asset = result.assets[0];
+        addDocumentToContract(activeContractId, {
+          fileName: asset.name ?? 'Documento',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType,
+        });
+        closeAttachmentOptions();
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível selecionar o documento.');
+    } finally {
+      setIsPickingFile(false);
+    }
+  };
+
+  const handleContractPhotoUpload = async () => {
+    if (!activeContractId) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
+      return;
+    }
+    try {
+      setIsPickingFile(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets.length) {
+        const asset = result.assets[0];
+        addDocumentToContract(activeContractId, {
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+        });
+        closeAttachmentOptions();
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível selecionar a foto.');
+    } finally {
+      setIsPickingFile(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
@@ -60,38 +203,38 @@ export const ContratosScreen = () => {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Período</Text>
-              <Text style={styles.sectionSubtitle}>Selecione mês/ano</Text>
-            </View>
-            <View style={styles.monthNavigator}>
-              <TouchableOpacity style={styles.monthButton}>
-                <Text style={styles.monthButtonText}>←</Text>
-              </TouchableOpacity>
-              <Text style={styles.monthLabel}>{currentMonth}</Text>
-              <TouchableOpacity style={styles.monthButton}>
-                <Text style={styles.monthButtonText}>→</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Contratos</Text>
-            <TouchableOpacity style={styles.primaryButton}>
-              <FilePlus size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Novo Contrato</Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.filterButton, Object.keys(filters).length > 0 && styles.filterButtonActive]}
+                onPress={() => setFilterModalVisible(true)}
+              >
+                <Filter size={16} color={Object.keys(filters).length > 0 ? "#FFFFFF" : "#0A84FF"} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => setModalVisible(true)}
+              >
+                <FilePlus size={18} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>Novo Contrato</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {contractsMock.map((contract) => (
-            <TouchableOpacity key={contract.id} style={styles.card}>
+          {Object.keys(filters).length > 0 && (
+            <Text style={styles.filterInfo}>
+              {filteredContracts.length} contrato(s) encontrado(s)
+            </Text>
+          )}
+
+          {filteredContracts.length > 0 ? (
+            filteredContracts.map((contract) => (
+            <View key={contract.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{contract.name}</Text>
                   <Text style={styles.cardSubtitle}>
-                    Categoria: {categoryLabels[contract.category as 'principal']}
+                    Categoria: {categoryLabels[contract.category as keyof typeof categoryLabels] ?? 'Outros'}
                   </Text>
                 </View>
                 <ChevronRight size={18} color="#C7C7CC" />
@@ -102,24 +245,147 @@ export const ContratosScreen = () => {
                   <Text style={styles.metaValue}>{contract.date}</Text>
                 </View>
                 <View>
+                  <Text style={styles.metaLabel}>Valor</Text>
+                  <Text style={styles.metaValue}>{formatCurrency(contract.value)}</Text>
+                </View>
+                <View>
                   <Text style={styles.metaLabel}>Documentos</Text>
                   <Text style={styles.metaValue}>{contract.docs}</Text>
                 </View>
               </View>
               <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionPill}>
+                <TouchableOpacity 
+                  style={styles.actionPill}
+                  onPress={() => openDocumentsList(contract.id)}
+                >
                   <FileText size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Ver documentos</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionPill}>
+                <TouchableOpacity
+                  style={styles.actionPill}
+                  onPress={() => openAttachmentOptions(contract.id)}
+                >
                   <FilePlus size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Adicionar documento</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          ))}
+            </View>
+          ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                Nenhum contrato encontrado para os filtros aplicados.
+              </Text>
+            </View>
+          )}
         </View>
         </ScrollView>
+      <ContractFormModal
+        visible={isModalVisible}
+        onClose={() => setModalVisible(false)}
+        onSubmit={(data) => {
+          addContract({
+            name: data.name,
+            category: data.category,
+            date: data.date,
+            docs: data.docs,
+            value: data.value,
+            center: selectedCenter,
+            documents: data.documents,
+          });
+        }}
+      />
+      <ContractFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={(newFilters) => setFilters(newFilters)}
+        initialFilters={filters}
+      />
+      <Modal transparent animationType="fade" visible={attachmentModalVisible}>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={closeAttachmentOptions}
+          />
+          <View style={styles.optionSheet}>
+            <View style={styles.optionHandle} />
+            <Text style={styles.optionTitle}>Adicionar documento</Text>
+            <TouchableOpacity
+              style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
+              onPress={handleContractDocumentUpload}
+              disabled={isPickingFile}
+            >
+              <FileText size={18} color="#0A84FF" />
+              <Text style={styles.optionButtonText}>Selecionar documento</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
+              onPress={handleContractPhotoUpload}
+              disabled={isPickingFile}
+            >
+              <ImageIcon size={18} color="#0A84FF" />
+              <Text style={styles.optionButtonText}>Selecionar foto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.optionCancel} onPress={closeAttachmentOptions}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent animationType="slide" visible={documentsModalVisible}>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={closeDocumentsList}
+          />
+          <View style={styles.documentsSheet}>
+            <View style={styles.optionHandle} />
+            <Text style={styles.optionTitle}>Documentos do Contrato</Text>
+            <ScrollView style={styles.documentsList}>
+              {selectedContractDocuments.length > 0 ? (
+                selectedContractDocuments.map((doc, index) => (
+                  <TouchableOpacity
+                    key={`${doc.fileUri}-${index}`}
+                    style={styles.documentItem}
+                    onPress={() => openDocumentPreview(doc)}
+                  >
+                    <View style={styles.documentItemContent}>
+                      <FileText size={20} color="#0A84FF" />
+                      <View style={styles.documentItemText}>
+                        <Text style={styles.documentItemName} numberOfLines={1}>
+                          {doc.fileName}
+                        </Text>
+                      </View>
+                    </View>
+                    <ChevronRight size={18} color="#C7C7CC" />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.emptyDocuments}>
+                  <Text style={styles.emptyDocumentsText}>
+                    Nenhum documento adicionado ainda.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.optionCancel} onPress={closeDocumentsList}>
+              <Text style={styles.optionCancelText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <FilePreviewModal
+        visible={previewVisible}
+        onClose={() => {
+          setPreviewVisible(false);
+          setPreviewFile(null);
+        }}
+        fileUri={previewFile?.uri}
+        fileName={previewFile?.name}
+        mimeType={previewFile?.mimeType}
+      />
       </View>
     </SafeAreaView>
   );
@@ -175,33 +441,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
   },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#6C6C70',
-    marginTop: 4,
-  },
-  monthNavigator: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  monthButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F5F5F7',
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0A84FF',
+  filterButtonActive: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
-  monthLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1C1C1E',
+  filterInfo: {
+    fontSize: 13,
+    color: '#6C6C70',
+    marginTop: -8,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -272,5 +534,120 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  emptyState: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#F9F9FB',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    color: '#6C6C70',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  modalOverlay: {
+    flex: 1,
+  },
+  optionSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    gap: 14,
+  },
+  optionHandle: {
+    alignSelf: 'center',
+    width: 60,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#E5E5EA',
+  },
+  optionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#1C1C1E',
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    paddingVertical: 14,
+  },
+  optionButtonDisabled: {
+    opacity: 0.5,
+  },
+  optionButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  optionCancel: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  optionCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  documentsSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  documentsList: {
+    maxHeight: 400,
+    marginVertical: 16,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F7',
+    marginBottom: 10,
+  },
+  documentItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  documentItemText: {
+    flex: 1,
+  },
+  documentItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  emptyDocuments: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyDocumentsText: {
+    fontSize: 14,
+    color: '#6C6C70',
+    textAlign: 'center',
   },
 });

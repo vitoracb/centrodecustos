@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -12,10 +13,31 @@ import {
   ArrowUpCircle,
   Calculator,
   Plus,
-  Calendar,
+  Filter,
+  Edit3,
+  Trash2,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useFinancial, Receipt, Expense, ExpenseCategory } from '../context/FinancialContext';
+import { ReceiptFormModal } from '../components/ReceiptFormModal';
+import { ReceiptFilterModal, ReceiptFilters } from '../components/ReceiptFilterModal';
+import { ExpenseFormModal } from '../components/ExpenseFormModal';
+import { ExpenseFilterModal, ExpenseFilters } from '../components/ExpenseFilterModal';
+import { ExpensePieChart } from '../components/ExpensePieChart';
+import { ExpenseBarChart } from '../components/ExpenseBarChart';
+import dayjs from 'dayjs';
+import 'dayjs/locale/pt-br';
+
+dayjs.locale('pt-br');
+
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  manutencao: 'Manutenção',
+  funcionario: 'Funcionário',
+  gestao: 'Gestão',
+  terceirizados: 'Terceirizados',
+  diversos: 'Diversos',
+};
 
 const centerLabels = {
   valenca: 'Valença',
@@ -25,54 +47,170 @@ const centerLabels = {
 
 const TABS = ['Recebimentos', 'Despesas', 'Fechamento'] as const;
 
-const recebimentosMock = [
-  {
-    id: 'rec-1',
-    date: '05/11/2024',
-    value: 'R$ 12.500',
-    category: 'Serviços',
-    status: 'Confirmado',
-    method: 'Transferência',
-  },
-  {
-    id: 'rec-2',
-    date: '02/11/2024',
-    value: 'R$ 8.100',
-    category: 'Venda de equipamento',
-    status: 'Previsto',
-    method: 'Boleto',
-  },
-];
-
-const despesasMock = [
-  {
-    id: 'desp-1',
-    date: '06/11/2024',
-    value: 'R$ 3.250',
-    category: 'Manutenção',
-    status: 'Pago',
-    method: 'Cartão',
-  },
-  {
-    id: 'desp-2',
-    date: '03/11/2024',
-    value: 'R$ 4.800',
-    category: 'Combustível',
-    status: 'Previsto',
-    method: 'Transferência',
-  },
-];
-
-const summaryMock = {
-  month: 'Novembro 2024',
-  received: 'R$ 54.200',
-  expenses: 'R$ 38.450',
-  balance: 'R$ 15.750',
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+  }).format(value);
 };
+
+
 
 export const FinanceiroScreen = () => {
   const { selectedCenter } = useCostCenter();
+  const { getReceiptsByCenter, getExpensesByCenter, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense } = useFinancial();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Recebimentos');
+  const [isReceiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [isReceiptFilterVisible, setReceiptFilterVisible] = useState(false);
+  const [receiptFilters, setReceiptFilters] = useState<ReceiptFilters>({});
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
+  const [isExpenseFilterVisible, setExpenseFilterVisible] = useState(false);
+  const [expenseFilters, setExpenseFilters] = useState<ExpenseFilters>({});
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState(dayjs());
+  const [closureMode, setClosureMode] = useState<'mensal' | 'anual'>('mensal');
+
+  const allReceipts = useMemo(
+    () => getReceiptsByCenter(selectedCenter),
+    [getReceiptsByCenter, selectedCenter]
+  );
+
+  const allExpenses = useMemo(
+    () => getExpensesByCenter(selectedCenter),
+    [getExpensesByCenter, selectedCenter]
+  );
+
+  const filteredExpenses = useMemo(() => {
+    let filtered = [...allExpenses];
+
+    if (expenseFilters.month !== null && expenseFilters.month !== undefined && expenseFilters.year) {
+      filtered = filtered.filter((expense) => {
+        const [day, month, year] = expense.date.split('/').map(Number);
+        if (!day || !month || !year) {
+          const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+          if (!expenseDate.isValid()) return false;
+          const expenseMonth = expenseDate.month();
+          const expenseYear = expenseDate.year();
+          return expenseMonth === expenseFilters.month && expenseYear === expenseFilters.year;
+        }
+        const expenseMonth = month - 1;
+        return expenseMonth === expenseFilters.month && year === expenseFilters.year;
+      });
+    }
+
+    return filtered.sort(
+      (a, b) => {
+        const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+        const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+        if (!dateA.isValid() || !dateB.isValid()) return 0;
+        return dateB.valueOf() - dateA.valueOf();
+      }
+    );
+  }, [allExpenses, expenseFilters]);
+
+  const hasActiveExpenseFilters = useMemo(() => {
+    return !!(
+      expenseFilters.month !== null &&
+      expenseFilters.month !== undefined &&
+      expenseFilters.year
+    );
+  }, [expenseFilters]);
+
+  const periodSummary = useMemo(() => {
+    const selectedMonth = selectedPeriod.month();
+    const selectedYear = selectedPeriod.year();
+
+    const receiptsInPeriod = allReceipts.filter((receipt) => {
+      const [day, month, year] = receipt.date.split('/').map(Number);
+      if (!day || !month || !year) {
+        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
+        if (!receiptDate.isValid()) return false;
+        if (closureMode === 'anual') {
+          return receiptDate.year() === selectedYear;
+        }
+        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
+      }
+      if (closureMode === 'anual') {
+        return year === selectedYear;
+      }
+      return month - 1 === selectedMonth && year === selectedYear;
+    });
+
+    const expensesInPeriod = allExpenses.filter((expense) => {
+      const [day, month, year] = expense.date.split('/').map(Number);
+      if (!day || !month || !year) {
+        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+        if (!expenseDate.isValid()) return false;
+        if (closureMode === 'anual') {
+          return expenseDate.year() === selectedYear;
+        }
+        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
+      }
+      if (closureMode === 'anual') {
+        return year === selectedYear;
+      }
+      return month - 1 === selectedMonth && year === selectedYear;
+    });
+
+    const totalReceipts = receiptsInPeriod.reduce((sum, receipt) => sum + receipt.value, 0);
+    const totalExpenses = expensesInPeriod.reduce((sum, expense) => sum + expense.value, 0);
+    const balance = totalReceipts - totalExpenses;
+
+    return {
+      period: closureMode === 'anual' 
+        ? selectedPeriod.format('YYYY')
+        : selectedPeriod.format('MMMM [de] YYYY'),
+      received: formatCurrency(totalReceipts),
+      expenses: formatCurrency(totalExpenses),
+      balance: formatCurrency(balance),
+      balanceValue: balance, // Valor numérico para verificar se é positivo ou negativo
+      receiptsCount: receiptsInPeriod.length,
+      expensesCount: expensesInPeriod.length,
+    };
+  }, [allReceipts, allExpenses, selectedPeriod, closureMode]);
+
+  const filteredReceipts = useMemo(() => {
+    let filtered = [...allReceipts];
+
+    if (receiptFilters.month !== null && receiptFilters.month !== undefined && receiptFilters.year) {
+      filtered = filtered.filter((receipt) => {
+        // Parse da data no formato DD/MM/YYYY
+        const [day, month, year] = receipt.date.split('/').map(Number);
+        if (!day || !month || !year) {
+          // Fallback para dayjs se o split não funcionar
+          const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
+          if (!receiptDate.isValid()) {
+            return false;
+          }
+          // dayjs.month() retorna 0-11, então subtraímos 1 do mês do filtro
+          // Mas espera, o filtro já está em 0-11, então comparamos diretamente
+          return receiptDate.month() === receiptFilters.month && receiptDate.year() === receiptFilters.year;
+        }
+        // month vem como 1-12 do formato brasileiro, convertemos para 0-11
+        const receiptMonth = month - 1;
+        return receiptMonth === receiptFilters.month && year === receiptFilters.year;
+      });
+    }
+
+    return filtered.sort(
+      (a, b) => {
+        const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+        const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+        if (!dateA.isValid() || !dateB.isValid()) return 0;
+        return dateB.valueOf() - dateA.valueOf();
+      }
+    );
+  }, [allReceipts, receiptFilters]);
+
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      receiptFilters.month !== null &&
+      receiptFilters.month !== undefined &&
+      receiptFilters.year
+    );
+  }, [receiptFilters]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -81,34 +219,89 @@ export const FinanceiroScreen = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recebimentos</Text>
-              <TouchableOpacity style={styles.filterButton}>
-                <Calendar size={16} color="#0A84FF" />
-                <Text style={styles.filterLabel}>Últimos 30 dias</Text>
-              </TouchableOpacity>
-            </View>
-            {recebimentosMock.map((item) => (
-              <View key={item.id} style={styles.card}>
-                <View style={styles.cardRow}>
-                  <View style={styles.iconCircle}>
-                    <ArrowDownCircle size={18} color="#34C759" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{item.value}</Text>
-                    <Text style={styles.cardSubtitle}>
-                      {item.category} · {item.method}
-                    </Text>
-                  </View>
-                  <Text style={styles.cardDate}>{item.date}</Text>
-                </View>
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusText}>{item.status}</Text>
-                </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
+                  onPress={() => setReceiptFilterVisible(true)}
+                >
+                  <Filter size={16} color={hasActiveFilters ? "#FFFFFF" : "#0A84FF"} />
+                </TouchableOpacity>
               </View>
-            ))}
-            <TouchableOpacity style={styles.secondaryButton}>
+            </View>
+            {hasActiveFilters && (
+              <Text style={styles.filterInfo}>
+                {filteredReceipts.length} recebimento(s) encontrado(s)
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => {
+                setEditingReceipt(null);
+                setReceiptModalVisible(true);
+              }}
+            >
               <Plus size={18} color="#0A84FF" />
               <Text style={styles.secondaryButtonText}>Novo Recebimento</Text>
             </TouchableOpacity>
+            {filteredReceipts.length > 0 ? (
+              filteredReceipts.map((item) => (
+                <View key={item.id} style={styles.card}>
+                  <View style={styles.cardRow}>
+                    <View style={styles.iconCircle}>
+                      <ArrowDownCircle size={18} color="#34C759" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{formatCurrency(item.value)}</Text>
+                      <Text style={styles.cardSubtitle}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.cardDate}>{item.date}</Text>
+                    </View>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          setEditingReceipt(item);
+                          setReceiptModalVisible(true);
+                        }}
+                      >
+                        <Edit3 size={16} color="#0A84FF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => {
+                          Alert.alert(
+                            'Excluir recebimento',
+                            'Tem certeza que deseja excluir este recebimento?',
+                            [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Excluir',
+                                style: 'destructive',
+                                onPress: () => deleteReceipt(item.id),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Trash2 size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {item.status && (
+                    <View style={styles.statusPill}>
+                      <Text style={styles.statusText}>{item.status}</Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Nenhum recebimento encontrado para os filtros aplicados.
+                </Text>
+              </View>
+            )}
           </View>
         );
       case 'Despesas':
@@ -116,36 +309,100 @@ export const FinanceiroScreen = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Despesas</Text>
-              <TouchableOpacity style={styles.filterButton}>
-                <Calendar size={16} color="#0A84FF" />
-                <Text style={styles.filterLabel}>Últimos 30 dias</Text>
-              </TouchableOpacity>
-            </View>
-            {despesasMock.map((item) => (
-              <View key={item.id} style={styles.card}>
-                <View style={styles.cardRow}>
-                  <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
-                    <ArrowUpCircle size={18} color="#FF3B30" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{item.value}</Text>
-                    <Text style={styles.cardSubtitle}>
-                      {item.category} · {item.method}
-                    </Text>
-                  </View>
-                  <Text style={styles.cardDate}>{item.date}</Text>
-                </View>
-                <View style={[styles.statusPill, { backgroundColor: '#FFF3D6' }]}>
-                  <Text style={[styles.statusText, { color: '#FF9500' }]}>
-                    {item.status}
-                  </Text>
-                </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={[styles.filterButton, hasActiveExpenseFilters && styles.filterButtonActive]}
+                  onPress={() => setExpenseFilterVisible(true)}
+                >
+                  <Filter size={16} color={hasActiveExpenseFilters ? "#FFFFFF" : "#0A84FF"} />
+                </TouchableOpacity>
               </View>
-            ))}
-            <TouchableOpacity style={styles.secondaryButton}>
+            </View>
+            {hasActiveExpenseFilters && (
+              <Text style={styles.filterInfo}>
+                {filteredExpenses.length} despesa(s) encontrada(s)
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => {
+                setEditingExpense(null);
+                setExpenseModalVisible(true);
+              }}
+            >
               <Plus size={18} color="#0A84FF" />
               <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
             </TouchableOpacity>
+            <ExpensePieChart expenses={filteredExpenses} />
+            <ExpenseBarChart expenses={filteredExpenses} />
+            {filteredExpenses.length > 0 ? (
+              filteredExpenses.map((item) => (
+                <View key={item.id} style={styles.card}>
+                  <View style={styles.cardRow}>
+                    <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
+                      <ArrowUpCircle size={18} color="#FF3B30" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{formatCurrency(item.value)}</Text>
+                      <Text style={styles.cardSubtitle}>
+                        {item.name}
+                      </Text>
+                      <View style={styles.cardMeta}>
+                        <Text style={styles.cardDate}>{item.date}</Text>
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryText}>
+                            {CATEGORY_LABELS[item.category]}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          setEditingExpense(item);
+                          setExpenseModalVisible(true);
+                        }}
+                      >
+                        <Edit3 size={16} color="#0A84FF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => {
+                          Alert.alert(
+                            'Excluir despesa',
+                            'Tem certeza que deseja excluir esta despesa?',
+                            [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Excluir',
+                                style: 'destructive',
+                                onPress: () => deleteExpense(item.id),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Trash2 size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {item.status && (
+                    <View style={[styles.statusPill, { backgroundColor: '#FFF3D6' }]}>
+                      <Text style={[styles.statusText, { color: '#FF9500' }]}>
+                        {item.status}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Nenhuma despesa encontrada para os filtros aplicados.
+                </Text>
+              </View>
+            )}
           </View>
         );
       case 'Fechamento':
@@ -153,29 +410,138 @@ export const FinanceiroScreen = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Fechamento de Contas</Text>
-              <View style={styles.monthNavigator}>
-                <TouchableOpacity style={styles.monthButton}>
-                  <Text style={styles.monthButtonText}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.monthLabel}>{summaryMock.month}</Text>
-                <TouchableOpacity style={styles.monthButton}>
-                  <Text style={styles.monthButtonText}>→</Text>
-                </TouchableOpacity>
-              </View>
+            </View>
+            <View style={styles.modeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  closureMode === 'mensal' && styles.modeButtonActive,
+                ]}
+                onPress={() => setClosureMode('mensal')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    closureMode === 'mensal' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Mensal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  closureMode === 'anual' && styles.modeButtonActive,
+                ]}
+                onPress={() => setClosureMode('anual')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    closureMode === 'anual' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Anual
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.periodNavigatorContainer}>
+              {closureMode === 'mensal' ? (
+                <>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Mês</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>
+                        {selectedPeriod.format('MMMM')}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedPeriod((prev) => prev.add(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedPeriod((prev) => prev.add(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View style={[styles.periodNavigatorRow, { flex: 1 }]}>
+                  <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                  <View style={styles.periodNavigator}>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedPeriod((prev) => prev.add(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+            <View style={styles.periodInfo}>
+              <Text style={styles.periodInfoText}>
+                Período: {periodSummary.period}
+              </Text>
+              <Text style={styles.periodInfoSubtext}>
+                {periodSummary.receiptsCount} recebimento(s) • {periodSummary.expensesCount} despesa(s)
+              </Text>
             </View>
             <View style={styles.summaryGrid}>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryLabel}>Recebimentos</Text>
-                <Text style={styles.summaryValue}>{summaryMock.received}</Text>
+                <Text style={styles.summaryValue}>{periodSummary.received}</Text>
+                <Text style={styles.summaryCount}>
+                  {periodSummary.receiptsCount} {periodSummary.receiptsCount === 1 ? 'item' : 'itens'}
+                </Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryLabel}>Despesas</Text>
-                <Text style={styles.summaryValue}>{summaryMock.expenses}</Text>
+                <Text style={styles.summaryValue}>{periodSummary.expenses}</Text>
+                <Text style={styles.summaryCount}>
+                  {periodSummary.expensesCount} {periodSummary.expensesCount === 1 ? 'item' : 'itens'}
+                </Text>
               </View>
-              <View style={[styles.summaryCard, styles.balanceCard]}>
+              <View
+                style={[
+                  styles.summaryCard,
+                  periodSummary.balanceValue >= 0
+                    ? styles.balanceCardPositive
+                    : styles.balanceCardNegative,
+                ]}
+              >
                 <Calculator size={20} color="#FFFFFF" />
                 <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>
-                  {summaryMock.balance}
+                  {periodSummary.balance}
                 </Text>
                 <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>
                   Saldo do período
@@ -200,7 +566,7 @@ export const FinanceiroScreen = () => {
           <View style={styles.header}>
             <Text style={styles.title}>Financeiro</Text>
             <Text style={styles.subtitle}>
-              Controle financeiramente o centro {centerLabels[selectedCenter]}
+              Controle financeiro do centro {centerLabels[selectedCenter]}
             </Text>
           </View>
 
@@ -226,6 +592,103 @@ export const FinanceiroScreen = () => {
           {renderContent()}
         </ScrollView>
       </View>
+      <ReceiptFormModal
+        visible={isReceiptModalVisible}
+        onClose={() => {
+          setReceiptModalVisible(false);
+          setEditingReceipt(null);
+        }}
+        onSubmit={(data) => {
+          if (editingReceipt) {
+            updateReceipt({
+              ...editingReceipt,
+              name: data.name,
+              date: data.date,
+              value: data.value,
+            });
+          } else {
+            addReceipt({
+              name: data.name,
+              date: data.date,
+              value: data.value,
+              center: selectedCenter,
+            });
+          }
+          setEditingReceipt(null);
+        }}
+        initialData={
+          editingReceipt
+            ? {
+                name: editingReceipt.name,
+                date: editingReceipt.date,
+                value: editingReceipt.value,
+                id: editingReceipt.id,
+              }
+            : undefined
+        }
+      />
+      <ReceiptFilterModal
+        visible={isReceiptFilterVisible}
+        onClose={() => setReceiptFilterVisible(false)}
+        onApply={setReceiptFilters}
+        initialFilters={receiptFilters}
+      />
+      <ExpenseFormModal
+        visible={isExpenseModalVisible}
+        onClose={() => {
+          setExpenseModalVisible(false);
+          setEditingExpense(null);
+        }}
+        onSubmit={(data) => {
+          if (editingExpense) {
+            updateExpense({
+              ...editingExpense,
+              name: data.name,
+              category: data.category,
+              date: data.date,
+              value: data.value,
+              documents: data.documents,
+              equipmentId: data.equipmentId,
+              gestaoSubcategory: data.gestaoSubcategory,
+              observations: data.observations,
+            });
+          } else {
+            addExpense({
+              name: data.name,
+              category: data.category,
+              date: data.date,
+              value: data.value,
+              center: selectedCenter,
+              documents: data.documents,
+              equipmentId: data.equipmentId,
+              gestaoSubcategory: data.gestaoSubcategory,
+              observations: data.observations,
+            });
+          }
+          setEditingExpense(null);
+        }}
+        initialData={
+          editingExpense
+            ? {
+                name: editingExpense.name,
+                category: editingExpense.category,
+                date: editingExpense.date,
+                value: editingExpense.value,
+                documents: editingExpense.documents || [],
+                equipmentId: editingExpense.equipmentId,
+                gestaoSubcategory: editingExpense.gestaoSubcategory,
+                observations: editingExpense.observations,
+                id: editingExpense.id,
+              }
+            : undefined
+        }
+      />
+      <ExpenseFilterModal
+        visible={isExpenseFilterVisible}
+        onClose={() => setExpenseFilterVisible(false)}
+        onApply={setExpenseFilters}
+        initialFilters={expenseFilters}
+      />
     </SafeAreaView>
   );
 };
@@ -310,35 +773,64 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
   },
   filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: '#F5F5F7',
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: '#0A84FF',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
+  },
+  filterInfo: {
+    fontSize: 13,
+    color: '#6C6C70',
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  emptyState: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#F9F9FB',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    color: '#6C6C70',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   card: {
     borderWidth: 1,
     borderColor: '#E5E5EA',
     borderRadius: 16,
-    padding: 14,
-    gap: 12,
+    padding: 12,
+    gap: 8,
   },
   cardRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    gap: 10,
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#E9FAF0',
     alignItems: 'center',
     justifyContent: 'center',
@@ -351,10 +843,39 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 13,
     color: '#6C6C70',
+    marginTop: 2,
   },
   cardDate: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  cardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  categoryBadge: {
+    backgroundColor: '#F0F8FF',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  categoryText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  editButton: {
+    padding: 4,
+  },
+  deleteButton: {
+    padding: 4,
   },
   statusPill: {
     alignSelf: 'flex-start',
@@ -362,6 +883,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    marginTop: 4,
   },
   statusText: {
     fontSize: 12,
@@ -383,28 +905,88 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0A84FF',
   },
-  monthNavigator: {
+  modeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#E5E5EA',
+    borderRadius: 16,
+    padding: 6,
+    gap: 6,
+    marginBottom: 16,
+  },
+  modeButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  modeButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6C6C70',
+  },
+  modeButtonTextActive: {
+    color: '#0A84FF',
+  },
+  periodNavigatorContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  periodNavigatorRow: {
+    flex: 1,
+    gap: 8,
+  },
+  periodNavigatorLabel: {
+    fontSize: 12,
+    color: '#6C6C70',
+  },
+  periodNavigator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  monthButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    justifyContent: 'space-between',
     backgroundColor: '#F5F5F7',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
-  monthButtonText: {
+  periodNavButton: {
+    padding: 5,
+  },
+  periodNavButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#0A84FF',
   },
-  monthLabel: {
+  periodNavValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    textTransform: 'capitalize',
+  },
+  periodInfo: {
+    backgroundColor: '#F5F5F7',
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  periodInfoText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1C1C1E',
+    marginBottom: 4,
+  },
+  periodInfoSubtext: {
+    fontSize: 12,
+    color: '#6C6C70',
   },
   summaryGrid: {
     gap: 12,
@@ -425,8 +1007,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1C1C1E',
   },
+  summaryCount: {
+    fontSize: 11,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
   balanceCard: {
     backgroundColor: '#0A84FF',
     borderColor: '#0A84FF',
+  },
+  balanceCardPositive: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
+  },
+  balanceCardNegative: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#FF3B30',
   },
 });

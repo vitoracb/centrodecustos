@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,56 +8,208 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { ExpenseCategory, ExpenseDocument, GestaoSubcategory } from '../context/FinancialContext';
+import { useEquipment } from '../context/EquipmentContext';
+import { useCostCenter } from '../context/CostCenterContext';
+import { FileText, Image as ImageIcon, XCircle, ChevronDown } from 'lucide-react-native';
+
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  manutencao: 'Manutenção',
+  funcionario: 'Funcionário',
+  gestao: 'Gestão',
+  terceirizados: 'Terceirizados',
+  diversos: 'Diversos',
+};
+
+const GESTAO_SUBCATEGORY_LABELS: Record<GestaoSubcategory, string> = {
+  aluguel: 'Aluguel',
+  carro: 'Carro',
+  salario: 'Salário',
+  combustivel: 'Combustível',
+  diversos: 'Diversos',
+};
+
+interface ExpenseFormData {
+  name: string;
+  category: ExpenseCategory;
+  date: string;
+  value: number;
+  documents: ExpenseDocument[];
+  equipmentId?: string;
+  gestaoSubcategory?: GestaoSubcategory;
+  observations?: string;
+}
 
 interface ExpenseFormModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    description: string;
-    amount: string;
-    category: string;
-    method: string;
-    status: string;
-    date: string;
-  }) => void;
+  onSubmit: (data: ExpenseFormData) => void;
+  initialData?: ExpenseFormData & { id?: string };
 }
-
-const STATUS_OPTIONS = ['Previsto', 'Pago'];
 
 export const ExpenseFormModal = ({
   visible,
   onClose,
   onSubmit,
+  initialData,
 }: ExpenseFormModalProps) => {
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
-  const [method, setMethod] = useState('');
-  const [status, setStatus] = useState(STATUS_OPTIONS[0]);
-  const [date, setDate] = useState(new Date());
-  const [pickerVisible, setPickerVisible] = useState(false);
+  const { selectedCenter } = useCostCenter();
+  const { getEquipmentsByCenter } = useEquipment();
+  const equipments = getEquipmentsByCenter(selectedCenter);
 
-  const handleSave = () => {
-    if (!description.trim() || !amount.trim()) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<ExpenseCategory>('manutencao');
+  const [date, setDate] = useState(new Date());
+  const [value, setValue] = useState('');
+  const [documents, setDocuments] = useState<ExpenseDocument[]>([]);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
+  const [equipmentDropdownVisible, setEquipmentDropdownVisible] = useState(false);
+  const [gestaoSubcategoryDropdownVisible, setGestaoSubcategoryDropdownVisible] = useState(false);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
+  const [gestaoSubcategory, setGestaoSubcategory] = useState<GestaoSubcategory>('aluguel');
+  const [observations, setObservations] = useState('');
+
+  const formatCurrency = (text: string): string => {
+    const numbers = text.replace(/\D/g, '');
+    if (!numbers) return '';
+    
+    const amount = Number(numbers) / 100;
+    
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const handleValueChange = (text: string) => {
+    const formatted = formatCurrency(text);
+    setValue(formatted);
+  };
+
+  const parseCurrency = (formattedValue: string): number => {
+    const numbers = formattedValue.replace(/\D/g, '');
+    return Number(numbers) / 100;
+  };
+
+  useEffect(() => {
+    if (!visible) {
+      setName('');
+      setCategory('manutencao');
+      setDate(new Date());
+      setValue('');
+      setDocuments([]);
+      setPickerVisible(false);
+      setCategoryDropdownVisible(false);
+      setEquipmentDropdownVisible(false);
+      setGestaoSubcategoryDropdownVisible(false);
+      setSelectedEquipmentId('');
+      setGestaoSubcategory('aluguel');
+      setObservations('');
+    } else if (initialData) {
+      setName(initialData.name);
+      setCategory(initialData.category || 'manutencao');
+      const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
+      setDate(parsedDate.isValid() ? parsedDate.toDate() : new Date());
+      const formattedValue = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+      }).format(initialData.value);
+      setValue(formattedValue);
+      setDocuments(initialData.documents || []);
+      setSelectedEquipmentId(initialData.equipmentId || '');
+      setGestaoSubcategory(initialData.gestaoSubcategory || 'aluguel');
+      setObservations(initialData.observations || '');
+    }
+  }, [visible, initialData]);
+
+  const handlePickDocument = async (type: 'nota_fiscal' | 'recibo') => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.length) {
+      const asset = result.assets[0];
+      setDocuments((prev) => [
+        ...prev,
+        {
+          type,
+          fileName: asset.name ?? 'Documento',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType,
+        },
+      ]);
+    }
+  };
+
+  const handlePickPhoto = async (type: 'nota_fiscal' | 'recibo') => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permissão necessária', 'Por favor, conceda acesso à galeria de fotos para selecionar uma imagem.');
       return;
     }
-    onSubmit({
-      description,
-      amount,
-      category,
-      method,
-      status,
-      date: dayjs(date).format('DD/MM/YYYY'),
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: false,
     });
-    setDescription('');
-    setAmount('');
-    setCategory('');
-    setMethod('');
-    setStatus(STATUS_OPTIONS[0]);
-    setDate(new Date());
+    if (!result.canceled && result.assets.length) {
+      const asset = result.assets[0];
+      setDocuments((prev) => [
+        ...prev,
+        {
+          type,
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+        },
+      ]);
+    }
+  };
+
+  const handleRemoveDocument = (index: number) => {
+    setDocuments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
+      return;
+    }
+    if (!value || parseCurrency(value) <= 0) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa.');
+      return;
+    }
+    
+    // Validações específicas por categoria
+    if ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento.');
+      return;
+    }
+    if (category === 'gestao' && !gestaoSubcategory) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione uma subcategoria de gestão.');
+      return;
+    }
+
+    onSubmit({
+      name: name.trim(),
+      category,
+      date: dayjs(date).format('DD/MM/YYYY'),
+      value: parseCurrency(value),
+      documents,
+      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') ? selectedEquipmentId : undefined,
+      gestaoSubcategory: category === 'gestao' ? gestaoSubcategory : undefined,
+      observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
+    });
     onClose();
   };
 
@@ -67,33 +219,207 @@ export const ExpenseFormModal = ({
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => {
+            setCategoryDropdownVisible(false);
+            setEquipmentDropdownVisible(false);
+            setGestaoSubcategoryDropdownVisible(false);
+          }}
+        />
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Nova Despesa</Text>
+          <Text style={styles.title}>
+            {initialData ? 'Editar Despesa' : 'Nova Despesa'}
+          </Text>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Descrição *</Text>
-            <TextInput
-              style={styles.input}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Ex: Manutenção preventiva"
-            />
-          </View>
-
-          <View style={styles.row}>
-            <View style={[styles.field, styles.rowItem]}>
-              <Text style={styles.label}>Valor *</Text>
+          <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Nome *</Text>
               <TextInput
                 style={styles.input}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="R$ 0,00"
-                keyboardType="numeric"
+                value={name}
+                onChangeText={setName}
+                placeholder="Ex: Manutenção de equipamentos"
               />
             </View>
-            <View style={[styles.field, styles.rowItem]}>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Categoria *</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setCategoryDropdownVisible(!categoryDropdownVisible)}
+              >
+                <Text style={styles.inputText}>{CATEGORY_LABELS[category]}</Text>
+                <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+              </TouchableOpacity>
+              {categoryDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat, index, array) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.dropdownItem,
+                        category === cat && styles.dropdownItemSelected,
+                        index === array.length - 1 && styles.dropdownItemLast,
+                      ]}
+                      onPress={() => {
+                        setCategory(cat);
+                        setCategoryDropdownVisible(false);
+                        // Limpar campos condicionais ao mudar categoria
+                        setSelectedEquipmentId('');
+                        setGestaoSubcategory('aluguel');
+                        setObservations('');
+                        setEquipmentDropdownVisible(false);
+                        setGestaoSubcategoryDropdownVisible(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          category === cat && styles.dropdownItemTextSelected,
+                        ]}
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Dropdown de Equipamento para Manutenção, Funcionário e Terceirizados */}
+            {(category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Equipamento *</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setEquipmentDropdownVisible(!equipmentDropdownVisible)}
+                >
+                  <Text style={styles.inputText}>
+                    {selectedEquipmentId
+                      ? equipments.find((eq) => eq.id === selectedEquipmentId)?.name || 'Selecione um equipamento'
+                      : 'Selecione um equipamento'}
+                  </Text>
+                  <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+                </TouchableOpacity>
+                {equipmentDropdownVisible && (
+                  <View style={styles.dropdownList}>
+                    {equipments.length > 0 ? (
+                      equipments.map((equipment, index, array) => (
+                        <TouchableOpacity
+                          key={equipment.id}
+                          style={[
+                            styles.dropdownItem,
+                            selectedEquipmentId === equipment.id && styles.dropdownItemSelected,
+                            index === array.length - 1 && styles.dropdownItemLast,
+                          ]}
+                          onPress={() => {
+                            setSelectedEquipmentId(equipment.id);
+                            setEquipmentDropdownVisible(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownItemText,
+                              selectedEquipmentId === equipment.id && styles.dropdownItemTextSelected,
+                            ]}
+                          >
+                            {equipment.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <View style={styles.dropdownItem}>
+                        <Text style={styles.dropdownItemText}>
+                          Nenhum equipamento cadastrado
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Dropdown de Subcategoria para Gestão */}
+            {category === 'gestao' && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Subcategoria *</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setGestaoSubcategoryDropdownVisible(!gestaoSubcategoryDropdownVisible)}
+                >
+                  <Text style={styles.inputText}>{GESTAO_SUBCATEGORY_LABELS[gestaoSubcategory]}</Text>
+                  <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+                </TouchableOpacity>
+                {gestaoSubcategoryDropdownVisible && (
+                  <View style={styles.dropdownList}>
+                    {(Object.keys(GESTAO_SUBCATEGORY_LABELS) as GestaoSubcategory[]).map((subcat, index, array) => (
+                      <TouchableOpacity
+                        key={subcat}
+                        style={[
+                          styles.dropdownItem,
+                          gestaoSubcategory === subcat && styles.dropdownItemSelected,
+                          index === array.length - 1 && styles.dropdownItemLast,
+                        ]}
+                        onPress={() => {
+                          setGestaoSubcategory(subcat);
+                          setGestaoSubcategoryDropdownVisible(false);
+                          // Limpar observações se não for "diversos"
+                          if (subcat !== 'diversos') {
+                            setObservations('');
+                          }
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownItemText,
+                            gestaoSubcategory === subcat && styles.dropdownItemTextSelected,
+                          ]}
+                        >
+                          {GESTAO_SUBCATEGORY_LABELS[subcat]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Campo de Observações para Gestão > Diversos */}
+            {category === 'gestao' && gestaoSubcategory === 'diversos' && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Observações</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={observations}
+                  onChangeText={setObservations}
+                  placeholder="Descreva a despesa..."
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
+
+            {/* Campo de Observações para Diversos */}
+            {category === 'diversos' && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Observações</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={observations}
+                  onChangeText={setObservations}
+                  placeholder="Descreva a despesa..."
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
+
+            <View style={styles.field}>
               <Text style={styles.label}>Data</Text>
               <TouchableOpacity
                 style={styles.input}
@@ -102,52 +428,76 @@ export const ExpenseFormModal = ({
                 <Text style={styles.inputText}>{dayjs(date).format('DD/MM/YYYY')}</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Categoria</Text>
-            <TextInput
-              style={styles.input}
-              value={category}
-              onChangeText={setCategory}
-              placeholder="Ex: Serviços"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Forma de pagamento</Text>
-            <TextInput
-              style={styles.input}
-              value={method}
-              onChangeText={setMethod}
-              placeholder="Transferência, cartão..."
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.statusRow}>
-              {STATUS_OPTIONS.map((option) => {
-                const selected = status === option;
-                return (
-                  <TouchableOpacity
-                    key={option}
-                    style={[styles.statusChip, selected && styles.statusChipSelected]}
-                    onPress={() => setStatus(option)}
-                  >
-                    <Text
-                      style={[
-                        styles.statusChipText,
-                        selected && styles.statusChipTextSelected,
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.field}>
+              <Text style={styles.label}>Valor *</Text>
+              <TextInput
+                style={styles.input}
+                value={value}
+                onChangeText={handleValueChange}
+                placeholder="R$ 0,00"
+                keyboardType="numeric"
+              />
             </View>
-          </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Documentos</Text>
+              <View style={styles.documentButtonsRow}>
+                <TouchableOpacity
+                  style={styles.documentButton}
+                  onPress={() => handlePickDocument('nota_fiscal')}
+                >
+                  <FileText size={18} color="#0A84FF" />
+                  <Text style={styles.documentButtonText}>Nota Fiscal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.documentButton}
+                  onPress={() => handlePickDocument('recibo')}
+                >
+                  <FileText size={18} color="#0A84FF" />
+                  <Text style={styles.documentButtonText}>Recibo</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.documentButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.documentButton, styles.documentButtonSecondary]}
+                  onPress={() => handlePickPhoto('nota_fiscal')}
+                >
+                  <ImageIcon size={18} color="#0A84FF" />
+                  <Text style={styles.documentButtonText}>Foto Nota Fiscal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.documentButton, styles.documentButtonSecondary]}
+                  onPress={() => handlePickPhoto('recibo')}
+                >
+                  <ImageIcon size={18} color="#0A84FF" />
+                  <Text style={styles.documentButtonText}>Foto Recibo</Text>
+                </TouchableOpacity>
+              </View>
+              {documents.length > 0 && (
+                <View style={styles.documentsList}>
+                  {documents.map((doc, index) => (
+                    <View key={index} style={styles.documentItem}>
+                      <View style={styles.documentItemContent}>
+                        <FileText size={16} color="#0A84FF" />
+                        <View style={styles.documentItemText}>
+                          <Text style={styles.documentItemName} numberOfLines={1}>
+                            {doc.fileName}
+                          </Text>
+                          <Text style={styles.documentItemType}>
+                            {doc.type === 'nota_fiscal' ? 'Nota Fiscal' : 'Recibo'}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity onPress={() => handleRemoveDocument(index)}>
+                        <XCircle size={18} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
@@ -156,12 +506,25 @@ export const ExpenseFormModal = ({
             <TouchableOpacity
               style={[
                 styles.primaryButton,
-                (!description.trim() || !amount.trim()) && styles.disabledButton,
+                (!name.trim() ||
+                  !value ||
+                  parseCurrency(value) <= 0 ||
+                  ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) ||
+                  (category === 'gestao' && !gestaoSubcategory)) &&
+                  styles.disabledButton,
               ]}
-              disabled={!description.trim() || !amount.trim()}
+              disabled={
+                !name.trim() ||
+                !value ||
+                parseCurrency(value) <= 0 ||
+                ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) ||
+                (category === 'gestao' && !gestaoSubcategory)
+              }
               onPress={handleSave}
             >
-              <Text style={styles.primaryText}>Salvar</Text>
+              <Text style={styles.primaryText}>
+                {initialData ? 'Salvar alterações' : 'Salvar'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -201,6 +564,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     padding: 20,
     gap: 16,
+    maxHeight: '90%',
+  },
+  formScroll: {
+    flexGrow: 1,
   },
   handle: {
     alignSelf: 'center',
@@ -227,40 +594,105 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   inputText: {
     fontSize: 15,
     color: '#1C1C1E',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  rowItem: {
     flex: 1,
   },
-  statusRow: {
-    flexDirection: 'row',
-    gap: 10,
+  textArea: {
+    minHeight: 100,
+    paddingTop: 12,
   },
-  statusChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
+  dropdownIcon: {
+    marginLeft: 8,
+  },
+  dropdownList: {
+    marginTop: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E5EA',
+    overflow: 'hidden',
   },
-  statusChipSelected: {
-    backgroundColor: '#0A84FF',
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F7',
+  },
+  dropdownItemLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#F0F8FF',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#1C1C1E',
+  },
+  dropdownItemTextSelected: {
+    color: '#0A84FF',
+    fontWeight: '600',
+  },
+  documentButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  documentButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: '#0A84FF',
+    paddingVertical: 12,
   },
-  statusChipText: {
+  documentButtonSecondary: {
+    borderColor: '#E5E5EA',
+  },
+  documentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  documentsList: {
+    marginTop: 8,
+    gap: 8,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F7',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  documentItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  documentItemText: {
+    flex: 1,
+  },
+  documentItemName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6C6C70',
+    color: '#1C1C1E',
   },
-  statusChipTextSelected: {
-    color: '#FFFFFF',
+  documentItemType: {
+    fontSize: 11,
+    color: '#6C6C70',
+    marginTop: 2,
   },
   actions: {
     flexDirection: 'row',
@@ -307,4 +739,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
 });
-
