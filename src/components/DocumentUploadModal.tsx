@@ -12,6 +12,8 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { FileText, Image as ImageIcon } from 'lucide-react-native';
 
 interface DocumentData {
   name: string;
@@ -66,6 +68,7 @@ export const DocumentUploadModal = ({
   const handlePickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
@@ -73,6 +76,26 @@ export const DocumentUploadModal = ({
         fileName: asset.name ?? 'Documento',
         fileUri: asset.uri,
         mimeType: asset.mimeType,
+      });
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets.length) {
+      const asset = result.assets[0];
+      setFile({
+        fileName: asset.fileName ?? 'Foto',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
       });
     }
   };
@@ -134,11 +157,23 @@ export const DocumentUploadModal = ({
 
           <View style={styles.field}>
             <Text style={styles.label}>Arquivo</Text>
-            <TouchableOpacity style={styles.uploadButton} onPress={handlePickFile}>
-              <Text style={styles.uploadText}>
-                {file ? file.fileName : 'Selecionar arquivo (PDF/Imagem)'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.uploadButtonsContainer}>
+              <TouchableOpacity style={[styles.uploadButton, styles.uploadButtonHalf]} onPress={handlePickFile}>
+                <FileText size={18} color="#0A84FF" />
+                <Text style={styles.uploadText}>Selecionar arquivo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.uploadButton, styles.uploadButtonHalf]} onPress={handlePickPhoto}>
+                <ImageIcon size={18} color="#0A84FF" />
+                <Text style={styles.uploadText}>Selecionar foto</Text>
+              </TouchableOpacity>
+            </View>
+            {file && (
+              <View style={styles.fileInfo}>
+                <Text style={styles.fileInfoText} numberOfLines={1}>
+                  {file.fileName}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.actions}>
@@ -225,17 +260,39 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1C1C1E',
   },
+  uploadButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   uploadButton: {
+    flex: 1,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#0A84FF',
     paddingVertical: 12,
     paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  uploadButtonHalf: {
+    flex: 1,
   },
   uploadText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  fileInfo: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#F5F5F7',
+    borderRadius: 8,
+  },
+  fileInfoText: {
+    fontSize: 13,
+    color: '#6C6C70',
   },
   actions: {
     flexDirection: 'row',

@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
 import {
   LayoutDashboard,
   Package,
@@ -7,8 +8,12 @@ import {
   Users,
   FileText,
 } from 'lucide-react-native';
+import { useOrders } from '@/src/context/OrderContext';
 
 export default function TabLayout() {
+  const { getUnreadNotificationsCount } = useOrders();
+  const notificationCount = getUnreadNotificationsCount();
+
   return (
     <Tabs
       screenOptions={{
@@ -54,7 +59,16 @@ export default function TabLayout() {
         options={{
           title: 'Pedidos',
           tabBarIcon: ({ size, color }) => (
-            <ShoppingCart size={size} color={color} />
+            <View style={{ position: 'relative' }}>
+              <ShoppingCart size={size} color={color} />
+              {notificationCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -79,3 +93,25 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+});

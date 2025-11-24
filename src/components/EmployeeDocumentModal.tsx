@@ -8,11 +8,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { ChevronDown } from 'lucide-react-native';
 
 interface EmployeeDocumentData {
   employeeName: string;
@@ -21,6 +23,12 @@ interface EmployeeDocumentData {
   fileName: string;
   fileUri: string;
   mimeType?: string | null;
+  equipmentId?: string;
+}
+
+interface Equipment {
+  id: string;
+  name: string;
 }
 
 interface EmployeeDocumentModalProps {
@@ -28,6 +36,8 @@ interface EmployeeDocumentModalProps {
   onClose: () => void;
   onSubmit: (data: EmployeeDocumentData) => void;
   initialData?: EmployeeDocumentData | null;
+  equipments?: Equipment[];
+  showEquipmentSelector?: boolean;
 }
 
 export const EmployeeDocumentModal = ({
@@ -35,6 +45,8 @@ export const EmployeeDocumentModal = ({
   onClose,
   onSubmit,
   initialData,
+  equipments = [],
+  showEquipmentSelector = false,
 }: EmployeeDocumentModalProps) => {
   const [employeeName, setEmployeeName] = useState('');
   const [documentName, setDocumentName] = useState('');
@@ -45,9 +57,19 @@ export const EmployeeDocumentModal = ({
     fileUri: string;
     mimeType?: string | null;
   } | null>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const [equipmentDropdownOpen, setEquipmentDropdownOpen] = useState(false);
 
   useEffect(() => {
-    if (visible && initialData) {
+    if (!visible) {
+      setPickerVisible(false);
+      setEquipmentDropdownOpen(false);
+      setSelectedEquipment(null);
+      return;
+    }
+
+    // Inicializa dados do formulário
+    if (initialData) {
       setEmployeeName(initialData.employeeName);
       setDocumentName(initialData.documentName);
       const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
@@ -57,16 +79,27 @@ export const EmployeeDocumentModal = ({
         fileUri: initialData.fileUri,
         mimeType: initialData.mimeType,
       });
-    } else if (visible) {
+      
+      // Define equipamento se houver initialData com equipmentId
+      if (showEquipmentSelector && initialData.equipmentId && equipments.length > 0) {
+        const equipment = equipments.find((eq) => eq.id === initialData.equipmentId);
+        if (equipment) {
+          setSelectedEquipment(equipment);
+        }
+      }
+    } else {
       setEmployeeName('');
       setDocumentName('');
       setDate(new Date());
       setFile(null);
+      
+      // Seleciona o primeiro equipamento quando o modal abre sem initialData
+      if (showEquipmentSelector && equipments.length > 0) {
+        setSelectedEquipment(equipments[0]);
+      }
     }
-    if (!visible) {
-      setPickerVisible(false);
-    }
-  }, [visible, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const handlePickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -104,6 +137,7 @@ export const EmployeeDocumentModal = ({
 
   const handleSave = () => {
     if (!employeeName.trim() || !documentName.trim() || !file) return;
+    if (showEquipmentSelector && !selectedEquipment) return;
     onSubmit({
       employeeName: employeeName.trim(),
       documentName: documentName.trim(),
@@ -111,6 +145,7 @@ export const EmployeeDocumentModal = ({
       fileName: file.fileName,
       fileUri: file.fileUri,
       mimeType: file.mimeType,
+      equipmentId: selectedEquipment?.id,
     });
     onClose();
   };
@@ -128,15 +163,48 @@ export const EmployeeDocumentModal = ({
             {initialData ? 'Editar Funcionário' : 'Adicionar Funcionário'}
           </Text>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Nome do funcionário *</Text>
-            <TextInput
-              style={styles.input}
-              value={employeeName}
-              onChangeText={setEmployeeName}
-              placeholder="Ex: João Silva"
-            />
-          </View>
+          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {showEquipmentSelector && equipments.length > 0 && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Equipamento *</Text>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  activeOpacity={0.8}
+                  onPress={() => setEquipmentDropdownOpen(!equipmentDropdownOpen)}
+                >
+                  <Text style={styles.dropdownText}>
+                    {selectedEquipment ? selectedEquipment.name : 'Selecione um equipamento'}
+                  </Text>
+                  <ChevronDown size={18} color="#6C6C70" />
+                </TouchableOpacity>
+                {equipmentDropdownOpen && (
+                  <View style={styles.dropdownList}>
+                    {equipments.map((equipment) => (
+                      <TouchableOpacity
+                        key={equipment.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedEquipment(equipment);
+                          setEquipmentDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>{equipment.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Nome do funcionário *</Text>
+              <TextInput
+                style={styles.input}
+                value={employeeName}
+                onChangeText={setEmployeeName}
+                placeholder="Ex: João Silva"
+              />
+            </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Nome do documento *</Text>
@@ -185,10 +253,10 @@ export const EmployeeDocumentModal = ({
             <TouchableOpacity
               style={[
                 styles.primaryButton,
-                (!employeeName.trim() || !documentName.trim() || !file) &&
+                (!employeeName.trim() || !documentName.trim() || !file || (showEquipmentSelector && !selectedEquipment)) &&
                   styles.disabledButton,
               ]}
-              disabled={!employeeName.trim() || !documentName.trim() || !file}
+              disabled={!employeeName.trim() || !documentName.trim() || !file || (showEquipmentSelector && !selectedEquipment)}
               onPress={handleSave}
             >
               <Text style={styles.primaryText}>
@@ -196,6 +264,7 @@ export const EmployeeDocumentModal = ({
               </Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
 
@@ -233,6 +302,45 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     padding: 20,
     gap: 16,
+    maxHeight: '90%',
+  },
+  scrollContent: {
+    maxHeight: 500,
+  },
+  dropdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#F5F5F7',
+  },
+  dropdownText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    flex: 1,
+  },
+  dropdownList: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F3',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#1C1C1E',
   },
   handle: {
     alignSelf: 'center',

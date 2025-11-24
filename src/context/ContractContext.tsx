@@ -18,6 +18,7 @@ export interface Contract {
   value?: number;
   center: CostCenter;
   documents?: ContractDocument[];
+  createdAt?: number; // Timestamp quando foi criado
 }
 
 interface ContractContextType {
@@ -25,6 +26,7 @@ interface ContractContextType {
   addContract: (contract: Omit<Contract, 'id'>) => void;
   getContractsByCenter: (center: CostCenter) => Contract[];
   addDocumentToContract: (contractId: string, document: ContractDocument) => void;
+  getAllContracts: () => Contract[];
 }
 
 const ContractContext = createContext<ContractContextType | undefined>(undefined);
@@ -72,6 +74,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       id: `ct-${Date.now()}`,
       documents,
       docs: documents.length, // Sempre usa o tamanho do array de documentos
+      createdAt: Date.now(),
     };
     setContracts((prev) => [newContract, ...prev]);
   }, []);
@@ -99,9 +102,11 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     []
   );
 
+  const getAllContracts = useCallback(() => contracts, [contracts]);
+
   return (
     <ContractContext.Provider
-      value={{ contracts, addContract, getContractsByCenter, addDocumentToContract }}
+      value={{ contracts, addContract, getContractsByCenter, addDocumentToContract, getAllContracts }}
     >
       {children}
     </ContractContext.Provider>

@@ -10,6 +10,7 @@ export interface Receipt {
   category?: string;
   status?: string;
   method?: string;
+  createdAt?: number; // Timestamp quando foi criado
 }
 
 export type ExpenseCategory = 'manutencao' | 'funcionario' | 'gestao' | 'terceirizados' | 'diversos';
@@ -36,6 +37,7 @@ export interface Expense {
   observations?: string; // Para diversos
   status?: string;
   method?: string;
+  createdAt?: number; // Timestamp quando foi criado
 }
 
 interface FinancialContextType {
@@ -49,6 +51,8 @@ interface FinancialContextType {
   deleteExpense: (id: string) => void;
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
   getExpensesByCenter: (center: CostCenter) => Expense[];
+  getAllReceipts: () => Receipt[];
+  getAllExpenses: () => Expense[];
 }
 
 const FinancialContext = createContext<FinancialContextType | undefined>(undefined);
@@ -121,6 +125,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     const newReceipt: Receipt = {
       ...receipt,
       id: `rec-${Date.now()}`,
+      createdAt: Date.now(),
     };
     setReceipts((prev) => [newReceipt, ...prev]);
   }, []);
@@ -139,6 +144,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     const newExpense: Expense = {
       ...expense,
       id: `desp-${Date.now()}`,
+      createdAt: Date.now(),
     };
     setExpenses((prev) => [newExpense, ...prev]);
   }, []);
@@ -163,6 +169,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     [expenses]
   );
 
+  const getAllReceipts = useCallback(() => receipts, [receipts]);
+  const getAllExpenses = useCallback(() => expenses, [expenses]);
+
   return (
     <FinancialContext.Provider
       value={{
@@ -176,6 +185,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         deleteExpense,
         getReceiptsByCenter,
         getExpensesByCenter,
+        getAllReceipts,
+        getAllExpenses,
       }}
     >
       {children}

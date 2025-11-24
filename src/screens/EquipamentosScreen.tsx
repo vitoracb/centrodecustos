@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  GestureResponderEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -14,13 +16,14 @@ import {
   FileText,
   Camera,
   History,
+  Edit3,
+  Trash2,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useRouter } from 'expo-router';
 import { EquipmentFormModal } from '../components/EquipmentFormModal';
-import { useMemo } from 'react';
 
 const centerLabels = {
   valenca: 'Valença',
@@ -30,15 +33,52 @@ const centerLabels = {
 
 export const EquipamentosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, addEquipment } = useEquipment();
+  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment } = useEquipment();
   const router = useRouter();
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState<{
+    id: string;
+    name: string;
+    brand: string;
+    year: number;
+    purchaseDate: string;
+    nextReview: string;
+  } | null>(null);
   
   // Filtra equipamentos pelo centro de custo selecionado
   const equipmentList = useMemo(
     () => getEquipmentsByCenter(selectedCenter),
     [selectedCenter, getEquipmentsByCenter]
   );
+
+  const handleEdit = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
+    event.stopPropagation();
+    setEditingEquipment({
+      id: equipment.id,
+      name: equipment.name,
+      brand: equipment.brand,
+      year: equipment.year,
+      purchaseDate: equipment.purchaseDate,
+      nextReview: equipment.nextReview,
+    });
+    setIsFormVisible(true);
+  };
+
+  const handleDelete = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
+    event.stopPropagation();
+    Alert.alert(
+      'Excluir equipamento',
+      `Tem certeza que deseja excluir o equipamento "${equipment.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => deleteEquipment(equipment.id),
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
@@ -79,7 +119,7 @@ export const EquipamentosScreen = () => {
               activeOpacity={0.9}
               onPress={() =>
                 router.push({
-                  pathname: `/equipamentos/${equipment.id}`,
+                  pathname: '/equipamentos/[id]' as any,
                   params: {
                     id: equipment.id,
                     name: equipment.name,
@@ -120,7 +160,23 @@ export const EquipamentosScreen = () => {
                     {equipment.brand} · Ano {equipment.year}
                   </Text>
                 </View>
-                <ChevronRight size={18} color="#C7C7CC" />
+                <View style={styles.cardHeaderRight}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={(event) => handleEdit(equipment, event)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Edit3 size={18} color="#0A84FF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={(event) => handleDelete(equipment, event)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Trash2 size={18} color="#FF3B30" />
+                  </TouchableOpacity>
+                  <ChevronRight size={18} color="#C7C7CC" />
+                </View>
               </View>
               <View style={styles.cardMeta}>
                 <View>
@@ -157,18 +213,40 @@ export const EquipamentosScreen = () => {
       </ScrollView>
       <EquipmentFormModal
         visible={isFormVisible}
-        onClose={() => setIsFormVisible(false)}
-        onSubmit={(data) => {
-          addEquipment({
-            name: data.name,
-            brand: data.brand,
-            year: Number(data.year) || new Date().getFullYear(),
-            purchaseDate: data.purchaseDate,
-            nextReview: 'Sem previsão',
-            center: selectedCenter,
-            status: 'ativo',
-          });
+        onClose={() => {
+          setIsFormVisible(false);
+          setEditingEquipment(null);
         }}
+        onSubmit={(data) => {
+          if (editingEquipment) {
+            updateEquipment(editingEquipment.id, {
+              name: data.name,
+              brand: data.brand,
+              year: Number(data.year) || new Date().getFullYear(),
+              purchaseDate: data.purchaseDate,
+              nextReview: data.nextReview,
+            });
+          } else {
+            addEquipment({
+              name: data.name,
+              brand: data.brand,
+              year: Number(data.year) || new Date().getFullYear(),
+              purchaseDate: data.purchaseDate,
+              nextReview: data.nextReview,
+              center: selectedCenter,
+              status: 'ativo',
+            });
+          }
+          setIsFormVisible(false);
+          setEditingEquipment(null);
+        }}
+        initialData={editingEquipment ? {
+          name: editingEquipment.name,
+          brand: editingEquipment.brand,
+          year: String(editingEquipment.year),
+          purchaseDate: editingEquipment.purchaseDate,
+          nextReview: editingEquipment.nextReview,
+        } : undefined}
       />
       </View>
     </SafeAreaView>
@@ -263,6 +341,21 @@ const styles = StyleSheet.create({
   },
   cardHeaderLeft: {
     flex: 1,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#E5F1FF',
+  },
+  deleteButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 59, 48, 0.12)',
   },
   cardTitleRow: {
     flexDirection: 'row',

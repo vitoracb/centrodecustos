@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system';
 interface FilePreviewModalProps {
   visible: boolean;
   onClose: () => void;
+  onSave?: () => void;
   fileUri?: string;
   fileName?: string;
   mimeType?: string | null;
@@ -29,6 +30,7 @@ const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 export const FilePreviewModal = ({
   visible,
   onClose,
+  onSave,
   fileUri,
   fileName,
   mimeType,
@@ -74,7 +76,8 @@ export const FilePreviewModal = ({
         // Para content:// URIs no Android, precisamos copiar para o cache primeiro
         if (fileUri.startsWith('content://')) {
           const fileExtension = fileName?.split('.').pop() ?? (isPdf ? 'pdf' : 'bin');
-          const dest = `${FileSystem.cacheDirectory}${Date.now()}.${fileExtension}`;
+          const cacheDir = (FileSystem as any).cacheDirectory || '';
+          const dest = `${cacheDir}${Date.now()}.${fileExtension}`;
           try {
             await FileSystem.copyAsync({ from: fileUri, to: dest });
             uriToRead = dest;
@@ -90,7 +93,7 @@ export const FilePreviewModal = ({
         if (isPdf) {
           try {
             const base64 = await FileSystem.readAsStringAsync(uriToRead, {
-              encoding: FileSystem.EncodingType.Base64,
+              encoding: (FileSystem as any).EncodingType?.Base64 || 'base64' as any,
             });
             if (isMounted) {
               const html = `
@@ -129,7 +132,7 @@ export const FilePreviewModal = ({
           // Para outros arquivos, tenta base64
           try {
             const base64 = await FileSystem.readAsStringAsync(uriToRead, {
-              encoding: FileSystem.EncodingType.Base64,
+              encoding: (FileSystem as any).EncodingType?.Base64 || 'base64' as any,
             });
             if (isMounted) {
               const type = mimeType ?? 'application/octet-stream';
@@ -165,6 +168,8 @@ export const FilePreviewModal = ({
           mimeType: mimeType ?? undefined,
           UTI: mimeType ?? undefined,
         });
+        // Chama onSave se fornecido (para marcar como lido)
+        onSave?.();
       }
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível compartilhar o arquivo.');
@@ -292,18 +297,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.8)',
   },
   header: {
-    paddingTop: 24,
-    paddingBottom: 20,
+    paddingTop: 50,
+    paddingBottom: 28,
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 72,
+    minHeight: 100,
   },
   headerButton: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    minHeight: 52,
+    paddingVertical: 18,
+    minHeight: 60,
     justifyContent: 'center',
     alignItems: 'center',
   },

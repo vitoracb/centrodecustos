@@ -12,6 +12,8 @@ export interface Equipment {
   nextReview: string;
   center: CostCenter;
   status: EquipmentStatus;
+  createdAt?: number; // Timestamp quando foi criado
+  statusChangedAt?: number; // Timestamp quando o status mudou para inativo
 }
 
 interface EquipmentContextType {
@@ -21,6 +23,7 @@ interface EquipmentContextType {
   deleteEquipment: (id: string) => void;
   getEquipmentsByCenter: (center: CostCenter) => Equipment[];
   getEquipmentById: (id: string) => Equipment | undefined;
+  getAllEquipments: () => Equipment[];
 }
 
 const EquipmentContext = createContext<EquipmentContextType | undefined>(
@@ -81,13 +84,28 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
       ...equipment,
       id: `eq-${Date.now()}`,
       status: equipment.status || 'ativo', // Default para ativo se não especificado
+      createdAt: Date.now(),
     };
     setEquipments((prev) => [newEquipment, ...prev]);
   };
 
   const updateEquipment = (id: string, updates: Partial<Equipment>) => {
     setEquipments((prev) =>
-      prev.map((eq) => (eq.id === id ? { ...eq, ...updates } : eq))
+      prev.map((eq) => {
+        if (eq.id === id) {
+          // Se o status está mudando para inativo, registra o timestamp
+          if (updates.status === 'inativo' && eq.status === 'ativo') {
+            return { ...eq, ...updates, statusChangedAt: Date.now() };
+          }
+          // Se o status está mudando para ativo, remove o timestamp
+          if (updates.status === 'ativo' && eq.status === 'inativo') {
+            const { statusChangedAt, ...rest } = eq;
+            return { ...rest, ...updates };
+          }
+          return { ...eq, ...updates };
+        }
+        return eq;
+      })
     );
   };
 
@@ -103,6 +121,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     return equipments.find((eq) => eq.id === id);
   };
 
+  const getAllEquipments = () => {
+    return equipments;
+  };
+
   return (
     <EquipmentContext.Provider
       value={{
@@ -112,6 +134,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         deleteEquipment,
         getEquipmentsByCenter,
         getEquipmentById,
+        getAllEquipments,
       }}
     >
       {children}

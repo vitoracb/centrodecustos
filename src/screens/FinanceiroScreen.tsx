@@ -16,6 +16,7 @@ import {
   Filter,
   Edit3,
   Trash2,
+  FileText,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -26,6 +27,8 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { ExpenseFilterModal, ExpenseFilters } from '../components/ExpenseFilterModal';
 import { ExpensePieChart } from '../components/ExpensePieChart';
 import { ExpenseBarChart } from '../components/ExpenseBarChart';
+import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 
@@ -71,6 +74,14 @@ export const FinanceiroScreen = () => {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(dayjs());
   const [closureMode, setClosureMode] = useState<'mensal' | 'anual'>('mensal');
+  const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
+  const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{
+    uri: string;
+    name?: string;
+    mimeType?: string | null;
+  } | null>(null);
 
   const allReceipts = useMemo(
     () => getReceiptsByCenter(selectedCenter),
@@ -337,7 +348,17 @@ export const FinanceiroScreen = () => {
             <ExpenseBarChart expenses={filteredExpenses} />
             {filteredExpenses.length > 0 ? (
               filteredExpenses.map((item) => (
-                <View key={item.id} style={styles.card}>
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.card}
+                  onPress={() => {
+                    if (item.documents && item.documents.length > 0) {
+                      setSelectedExpenseDocuments(item.documents);
+                      setExpenseDocumentsModalVisible(true);
+                    }
+                  }}
+                  disabled={!item.documents || item.documents.length === 0}
+                >
                   <View style={styles.cardRow}>
                     <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
                       <ArrowUpCircle size={18} color="#FF3B30" />
@@ -394,7 +415,15 @@ export const FinanceiroScreen = () => {
                       </Text>
                     </View>
                   )}
-                </View>
+                  {item.documents && item.documents.length > 0 && (
+                    <View style={styles.documentsIndicator}>
+                      <FileText size={14} color="#0A84FF" />
+                      <Text style={styles.documentsIndicatorText}>
+                        {item.documents.length} documento(s) anexado(s)
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               ))
             ) : (
               <View style={styles.emptyState}>
@@ -688,6 +717,33 @@ export const FinanceiroScreen = () => {
         onClose={() => setExpenseFilterVisible(false)}
         onApply={setExpenseFilters}
         initialFilters={expenseFilters}
+      />
+      <ExpenseDocumentsModal
+        visible={expenseDocumentsModalVisible}
+        onClose={() => {
+          setExpenseDocumentsModalVisible(false);
+          setSelectedExpenseDocuments([]);
+        }}
+        documents={selectedExpenseDocuments || []}
+        onDocumentPress={(document) => {
+          setExpenseDocumentsModalVisible(false);
+          setPreviewFile({
+            uri: document.fileUri,
+            name: document.fileName,
+            mimeType: document.mimeType,
+          });
+          setPreviewVisible(true);
+        }}
+      />
+      <FilePreviewModal
+        visible={previewVisible}
+        onClose={() => {
+          setPreviewVisible(false);
+          setPreviewFile(null);
+        }}
+        fileUri={previewFile?.uri}
+        fileName={previewFile?.name}
+        mimeType={previewFile?.mimeType}
       />
     </SafeAreaView>
   );
@@ -1023,5 +1079,19 @@ const styles = StyleSheet.create({
   balanceCardNegative: {
     backgroundColor: '#FF3B30',
     borderColor: '#FF3B30',
+  },
+  documentsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F3',
+  },
+  documentsIndicatorText: {
+    fontSize: 12,
+    color: '#0A84FF',
+    fontWeight: '600',
   },
 });

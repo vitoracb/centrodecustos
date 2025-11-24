@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -14,6 +14,12 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import { CostCenter, useCostCenter } from '../context/CostCenterContext';
 
+const centerLabels = {
+  valenca: 'Valença',
+  cna: 'CNA',
+  cabralia: 'Cabrália',
+};
+
 interface EquipmentFormModalProps {
   visible: boolean;
   onClose: () => void;
@@ -22,14 +28,23 @@ interface EquipmentFormModalProps {
     brand: string;
     year: string;
     purchaseDate: string;
+    nextReview: string;
     costCenter: CostCenter;
   }) => void;
+  initialData?: {
+    name: string;
+    brand: string;
+    year: string;
+    purchaseDate: string;
+    nextReview: string;
+  };
 }
 
 export const EquipmentFormModal = ({
   visible,
   onClose,
   onSubmit,
+  initialData,
 }: EquipmentFormModalProps) => {
   const { selectedCenter } = useCostCenter();
   const [name, setName] = useState('');
@@ -37,6 +52,29 @@ export const EquipmentFormModal = ({
   const [year, setYear] = useState('');
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState(new Date());
+  const [nextReviewDatePickerVisible, setNextReviewDatePickerVisible] = useState(false);
+  const [nextReviewDate, setNextReviewDate] = useState(new Date());
+
+  // Atualiza os campos quando initialData muda ou quando o modal abre
+  useEffect(() => {
+    if (visible) {
+      if (initialData) {
+        setName(initialData.name);
+        setBrand(initialData.brand);
+        setYear(initialData.year);
+        const parsedPurchaseDate = dayjs(initialData.purchaseDate, 'DD/MM/YYYY');
+        setPurchaseDate(parsedPurchaseDate.isValid() ? parsedPurchaseDate.toDate() : new Date());
+        const parsedNextReview = dayjs(initialData.nextReview, 'DD/MM/YYYY');
+        setNextReviewDate(parsedNextReview.isValid() ? parsedNextReview.toDate() : new Date());
+      } else {
+        setName('');
+        setBrand('');
+        setYear('');
+        setPurchaseDate(new Date());
+        setNextReviewDate(new Date());
+      }
+    }
+  }, [visible, initialData]);
 
   const handleSave = () => {
     onSubmit?.({
@@ -44,6 +82,7 @@ export const EquipmentFormModal = ({
       brand,
       year,
       purchaseDate: dayjs(purchaseDate).format('DD/MM/YYYY'),
+      nextReview: dayjs(nextReviewDate).format('DD/MM/YYYY'),
       costCenter: selectedCenter,
     });
     onClose();
@@ -51,6 +90,7 @@ export const EquipmentFormModal = ({
     setBrand('');
     setYear('');
     setPurchaseDate(new Date());
+    setNextReviewDate(new Date());
   };
 
   return (
@@ -59,14 +99,24 @@ export const EquipmentFormModal = ({
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity 
+          style={styles.overlay} 
+          activeOpacity={1} 
+          onPress={() => {
+            setDatePickerVisible(false);
+            setNextReviewDatePickerVisible(false);
+            onClose();
+          }} 
+        />
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose}>
               <Text style={styles.headerAction}>Cancelar</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Novo Equipamento</Text>
+            <Text style={styles.title}>
+              {initialData ? 'Editar Equipamento' : 'Novo Equipamento'}
+            </Text>
             <TouchableOpacity onPress={handleSave}>
               <Text style={[styles.headerAction, styles.saveAction]}>Salvar</Text>
             </TouchableOpacity>
@@ -117,31 +167,73 @@ export const EquipmentFormModal = ({
               </View>
             </View>
 
-            <View style={styles.summary}>
-              <Text style={styles.summaryLabel}>Centro selecionado</Text>
-              <Text style={styles.summaryValue}>{selectedCenter}</Text>
+            <View style={styles.field}>
+              <Text style={styles.label}>Data da próxima revisão</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setNextReviewDatePickerVisible(true)}
+              >
+                <Text style={{ color: '#1C1C1E' }}>
+                  {dayjs(nextReviewDate).format('DD/MM/YYYY')}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {datePickerVisible && (
-              <View style={styles.datePickerWrapper}>
-                <DateTimePicker
-                  value={purchaseDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={(_, date) => {
-                    if (date) setPurchaseDate(date);
-                  }}
-                />
-                <TouchableOpacity
-                  style={styles.datePickerButton}
-                  onPress={() => setDatePickerVisible(false)}
-                >
-                  <Text style={styles.datePickerButtonText}>Fechar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <View style={styles.summary}>
+              <Text style={styles.summaryLabel}>Centro selecionado</Text>
+              <Text style={styles.summaryValue}>{centerLabels[selectedCenter]}</Text>
+            </View>
+
           </ScrollView>
         </View>
+        
+        {datePickerVisible && (
+          <View style={styles.datePickerOverlay}>
+            <View style={styles.datePickerWrapper}>
+              <DateTimePicker
+                value={purchaseDate}
+                mode="date"
+                display="spinner"
+                onChange={(_, date) => {
+                  if (date) {
+                    setPurchaseDate(date);
+                    setDatePickerVisible(false);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setDatePickerVisible(false)}
+              >
+                <Text style={styles.datePickerButtonText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {nextReviewDatePickerVisible && (
+          <View style={styles.datePickerOverlay}>
+            <View style={styles.datePickerWrapper}>
+              <DateTimePicker
+                value={nextReviewDate}
+                mode="date"
+                display="spinner"
+                onChange={(_, date) => {
+                  if (date) {
+                    setNextReviewDate(date);
+                    setNextReviewDatePickerVisible(false);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setNextReviewDatePickerVisible(false)}
+              >
+                <Text style={styles.datePickerButtonText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -236,10 +328,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
   },
+  datePickerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
   datePickerWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   datePickerButton: {
     paddingHorizontal: 16,

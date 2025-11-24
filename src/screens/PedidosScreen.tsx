@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useOrders, Order } from '../context/OrderContext';
+import { OrderFormModal } from '../components/OrderFormModal';
+import { OrderBudgetModal } from '../components/OrderBudgetModal';
+import { FilePreviewModal } from '../components/FilePreviewModal';
 import { Plus, ChevronRight, UploadCloud, FileText } from 'lucide-react-native';
 
 const centerLabels = {
@@ -17,29 +21,14 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-const ordersMock = [
-  {
-    id: 'ord-1',
-    name: 'Compra de equipamentos de irrigação',
-    date: '04/11/2024',
-    status: 'orçamento_pendente',
-    description: 'Sistema de irrigação automático',
-  },
-  {
-    id: 'ord-2',
-    name: 'Aquisição de EPI',
-    date: '28/10/2024',
-    status: 'orçamento_enviado',
-    description: 'Lotes de EPIs para safra',
-  },
-];
-
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   orçamento_pendente: 'Orçamento pendente',
   orçamento_enviado: 'Orçamento enviado',
+  aprovado: 'Aprovado',
+  rejeitado: 'Rejeitado',
 };
 
-const statusStyles = {
+const statusStyles: Record<string, { backgroundColor: string; color: string }> = {
   orçamento_pendente: {
     backgroundColor: '#FFF3D6',
     color: '#FF9500',
@@ -48,10 +37,35 @@ const statusStyles = {
     backgroundColor: '#E9FAF0',
     color: '#34C759',
   },
+  aprovado: {
+    backgroundColor: '#E9FAF0',
+    color: '#34C759',
+  },
+  rejeitado: {
+    backgroundColor: '#FDECEC',
+    color: '#FF3B30',
+  },
 };
 
 export const PedidosScreen = () => {
   const { selectedCenter } = useCostCenter();
+  const { getOrdersByCenter, addOrder, updateOrder, orders, markOrderAsRead } = useOrders();
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [isBudgetModalVisible, setBudgetModalVisible] = useState(false);
+  const [selectedOrderForBudget, setSelectedOrderForBudget] = useState<Order | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{
+    uri: string;
+    name?: string;
+    mimeType?: string | null;
+  } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  
+  // Filtra pedidos pelo centro de custo selecionado
+  const ordersList = useMemo(
+    () => getOrdersByCenter(selectedCenter),
+    [selectedCenter, orders]
+  );
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
@@ -68,7 +82,11 @@ export const PedidosScreen = () => {
             </Text>
           </View>
 
-        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          activeOpacity={0.9}
+          onPress={() => setIsFormVisible(true)}
+        >
           <Plus color="#FFFFFF" size={20} />
           <Text style={styles.primaryButtonText}>Novo Pedido</Text>
         </TouchableOpacity>
@@ -81,20 +99,37 @@ export const PedidosScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {ordersMock.map((order) => (
-            <TouchableOpacity key={order.id} style={styles.card}>
-              <View style={styles.cardHeader}>
+          {ordersList.length > 0 ? (
+            ordersList.map((order) => (
+            <View key={order.id} style={styles.card}>
+              <TouchableOpacity
+                style={styles.cardHeader}
+                onPress={() => {
+                  setSelectedOrder(order);
+                  // Se tiver orçamento enviado, abre o preview diretamente
+                  if (order.status === 'orçamento_enviado' && order.budget) {
+                    setPreviewFile({
+                      uri: order.budget.fileUri,
+                      name: order.budget.fileName,
+                      mimeType: order.budget.mimeType,
+                    });
+                    setPreviewVisible(true);
+                    // Marca como lido quando abre o preview
+                    markOrderAsRead(order.id);
+                  }
+                }}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{order.name}</Text>
                   <Text style={styles.cardSubtitle}>{order.description}</Text>
                 </View>
                 <ChevronRight size={18} color="#C7C7CC" />
-              </View>
+              </TouchableOpacity>
               <View style={styles.cardMeta}>
                 <Text style={styles.metaLabel}>Data do pedido</Text>
                 <Text style={styles.metaValue}>{order.date}</Text>
               </View>
-              <View
+              <TouchableOpacity
                 style={[
                   styles.statusPill,
                   {
@@ -102,7 +137,21 @@ export const PedidosScreen = () => {
                       statusStyles[order.status as keyof typeof statusStyles]
                         .backgroundColor,
                   },
+                  order.status === 'orçamento_enviado' && order.budget && styles.statusPillClickable,
                 ]}
+                onPress={() => {
+                  if (order.status === 'orçamento_enviado' && order.budget) {
+                    setPreviewFile({
+                      uri: order.budget.fileUri,
+                      name: order.budget.fileName,
+                      mimeType: order.budget.mimeType,
+                    });
+                    setPreviewVisible(true);
+                    // Marca como lido quando abre o preview
+                    markOrderAsRead(order.id);
+                  }
+                }}
+                disabled={order.status !== 'orçamento_enviado' || !order.budget}
               >
                 <Text
                   style={[
@@ -117,22 +166,102 @@ export const PedidosScreen = () => {
                 >
                   {statusLabels[order.status as keyof typeof statusLabels]}
                 </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionPill}>
+                <TouchableOpacity
+                  style={styles.actionPill}
+                  onPress={() => {
+                    setSelectedOrder(order);
+                    // Se tiver orçamento enviado, abre o preview
+                    if (order.status === 'orçamento_enviado' && order.budget) {
+                      setPreviewFile({
+                        uri: order.budget.fileUri,
+                        name: order.budget.fileName,
+                        mimeType: order.budget.mimeType,
+                      });
+                      setPreviewVisible(true);
+                      // Marca como lido quando abre o preview
+                      markOrderAsRead(order.id);
+                    }
+                  }}
+                >
                   <FileText size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Detalhes</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionPill}>
-                  <UploadCloud size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Enviar orçamento</Text>
-                </TouchableOpacity>
+                {order.status === 'orçamento_pendente' && (
+                  <TouchableOpacity
+                    style={styles.actionPill}
+                    onPress={() => {
+                      setSelectedOrderForBudget(order);
+                      setBudgetModalVisible(true);
+                    }}
+                  >
+                    <UploadCloud size={16} color="#0A84FF" />
+                    <Text style={styles.actionText}>Enviar orçamento</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </TouchableOpacity>
-          ))}
+            </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                Nenhum pedido encontrado para este centro de custo.
+              </Text>
+            </View>
+          )}
         </View>
         </ScrollView>
       </View>
+      <OrderFormModal
+        visible={isFormVisible}
+        onClose={() => setIsFormVisible(false)}
+        onSubmit={(data) => {
+          addOrder({
+            name: data.name,
+            description: data.observations || '',
+            date: data.date,
+            status: 'orçamento_pendente',
+            center: selectedCenter,
+            equipmentId: data.equipmentId,
+          });
+          setIsFormVisible(false);
+        }}
+      />
+      <OrderBudgetModal
+        visible={isBudgetModalVisible}
+        onClose={() => {
+          setBudgetModalVisible(false);
+          setSelectedOrderForBudget(null);
+        }}
+        onSubmit={(budget) => {
+          if (selectedOrderForBudget) {
+            const updatedOrder = {
+              ...selectedOrderForBudget,
+              status: 'orçamento_enviado' as const,
+              budget,
+            };
+            updateOrder(updatedOrder);
+            setSelectedOrderForBudget(null);
+          }
+        }}
+      />
+      <FilePreviewModal
+        visible={previewVisible}
+        onClose={() => {
+          setPreviewVisible(false);
+          setPreviewFile(null);
+        }}
+        onSave={() => {
+          // Quando salva o arquivo, também marca como lido
+          if (selectedOrder) {
+            markOrderAsRead(selectedOrder.id);
+          }
+        }}
+        fileUri={previewFile?.uri}
+        fileName={previewFile?.name}
+        mimeType={previewFile?.mimeType}
+      />
     </SafeAreaView>
   );
 };
@@ -250,6 +379,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
+  statusPillClickable: {
+    opacity: 1,
+  },
   statusText: {
     fontSize: 12,
     fontWeight: '700',
@@ -272,5 +404,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  emptyState: {
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#F9F9FB',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    color: '#6C6C70',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

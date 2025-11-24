@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
+import { useEmployees, EmployeeDocument } from '../context/EmployeeContext';
 import { UserPlus, Trash2, FileText, ChevronDown, Edit3 } from 'lucide-react-native';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
@@ -22,38 +23,16 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-type EmployeeDocument = {
-  id: string;
-  employee: string;
-  documentName: string;
-  date: string;
-  fileName: string;
-  fileUri: string;
-  mimeType?: string | null;
-};
-
-type DocumentsByCenter = Record<CostCenter, Record<string, EmployeeDocument[]>>;
-
-const initialDocuments: DocumentsByCenter = {
-  valenca: {
-    'eq-1': [
-      {
-        id: 'doc-1',
-        employee: 'João Silva',
-        documentName: 'ASO - Admissional',
-        date: '05/11/2024',
-        fileName: 'aso-admissional.pdf',
-        fileUri: '',
-      },
-    ],
-  },
-  cna: {},
-  cabralia: {},
-};
 
 export const FuncionariosScreen = () => {
   const { selectedCenter } = useCostCenter();
   const { getEquipmentsByCenter } = useEquipment();
+  const { 
+    documentsByCenter, 
+    addEmployeeDocument, 
+    updateEmployeeDocument, 
+    deleteEmployeeDocument 
+  } = useEmployees();
   
   // Filtra equipamentos pelo centro de custo selecionado
   const equipments = useMemo(
@@ -67,8 +46,6 @@ export const FuncionariosScreen = () => {
   } | null>(null);
   const [equipmentDropdown, setEquipmentDropdown] = useState(false);
   const [isEmployeeModalVisible, setEmployeeModalVisible] = useState(false);
-  const [documentsByCenter, setDocumentsByCenter] =
-    useState<DocumentsByCenter>(initialDocuments);
   const [editingDocument, setEditingDocument] = useState<EmployeeDocument | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
@@ -96,18 +73,7 @@ export const FuncionariosScreen = () => {
   }, [documentsByCenter, selectedCenter, selectedEquipment]);
 
   const handleDeleteDocument = (docId: string) => {
-    if (!selectedEquipment) return;
-    setDocumentsByCenter((prev) => {
-      const centerDocs = prev[selectedCenter] ?? {};
-      const equipmentDocs = centerDocs[selectedEquipment.id] ?? [];
-      return {
-        ...prev,
-        [selectedCenter]: {
-          ...centerDocs,
-          [selectedEquipment.id]: equipmentDocs.filter((doc) => doc.id !== docId),
-        },
-      };
-    });
+    deleteEmployeeDocument(docId);
   };
 
   return (
@@ -172,7 +138,7 @@ export const FuncionariosScreen = () => {
           <TouchableOpacity
             style={[
               styles.primaryButton,
-              (!selectedEquipment || equipments.length === 0) && styles.disabledButton,
+              (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
             ]}
             onPress={() => setEmployeeModalVisible(true)}
             disabled={!selectedEquipment || equipments.length === 0}
@@ -260,44 +226,29 @@ export const FuncionariosScreen = () => {
         }}
         onSubmit={(data) => {
           if (!selectedEquipment) return;
-          setDocumentsByCenter((prev) => {
-            const centerDocs = prev[selectedCenter] ?? {};
-            const equipmentDocs = centerDocs[selectedEquipment.id] ?? [];
-            const updatedDocs: EmployeeDocument[] = editingDocument
-              ? equipmentDocs.map((doc) =>
-                  doc.id === editingDocument.id
-                    ? {
-                        ...doc,
-                        employee: data.employeeName,
-                        documentName: data.documentName,
-                        date: data.date,
-                        fileName: data.fileName,
-                        fileUri: data.fileUri,
-                        mimeType: data.mimeType,
-                      }
-                    : doc
-                )
-              : [
-                  {
-                    id: `doc-${Date.now()}`,
-                    employee: data.employeeName,
-                    documentName: data.documentName,
-                    date: data.date,
-                    fileName: data.fileName,
-                    fileUri: data.fileUri,
-                    mimeType: data.mimeType,
-                  },
-                  ...equipmentDocs,
-                ];
-
-            return {
-              ...prev,
-              [selectedCenter]: {
-                ...centerDocs,
-                [selectedEquipment.id]: updatedDocs,
-              },
-            };
-          });
+          
+          if (editingDocument) {
+            updateEmployeeDocument(editingDocument.id, {
+              employee: data.employeeName,
+              documentName: data.documentName,
+              date: data.date,
+              fileName: data.fileName,
+              fileUri: data.fileUri,
+              mimeType: data.mimeType,
+            });
+          } else {
+            addEmployeeDocument({
+              employee: data.employeeName,
+              documentName: data.documentName,
+              date: data.date,
+              fileName: data.fileName,
+              fileUri: data.fileUri,
+              mimeType: data.mimeType,
+              equipmentId: selectedEquipment.id,
+              center: selectedCenter,
+            });
+          }
+          
           setEditingDocument(null);
         }}
         initialData={

@@ -29,6 +29,8 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { PhotoUploadModal } from '../components/PhotoUploadModal';
 import { ReviewFormModal } from '../components/ReviewFormModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
+import { ExpenseDocument } from '../context/FinancialContext';
 import dayjs from 'dayjs';
 import { CostCenter } from '../context/CostCenterContext';
 
@@ -123,29 +125,27 @@ type ReviewItem = {
   next?: string;
 };
 
+type ExpenseItem = {
+  id: string;
+  title: string;
+  date: string;
+  amount: string;
+  category: string;
+  documents?: ExpenseDocument[];
+  expenseId?: string;
+};
+
 export const EquipmentDetailScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
   const { getEquipmentById, updateEquipment } = useEquipment();
-  const { addExpense } = useFinancial();
-  const [documents, setDocuments] = useState(mockTabs.documentos);
-  const [expenses, setExpenses] = useState(mockTabs.despesas);
-  const [photos, setPhotos] = useState(mockTabs.fotos);
-  const [reviews, setReviews] = useState(mockTabs.revisoes);
-  const [isDocumentModalVisible, setDocumentModalVisible] = useState(false);
-  const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
-  const [isPhotoModalVisible, setPhotoModalVisible] = useState(false);
-  const [isReviewModalVisible, setReviewModalVisible] = useState(false);
-  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
-  const [editingPhoto, setEditingPhoto] = useState<PhotoItem | null>(null);
-  const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewFile, setPreviewFile] = useState<{
-    uri: string;
-    name?: string;
-    mimeType?: string | null;
-  } | null>(null);
+  const { addExpense, getAllExpenses } = useFinancial();
+  const [documents, setDocuments] = useState<DocumentItem[]>(mockTabs.documentos);
+  const [photos, setPhotos] = useState<PhotoItem[]>(mockTabs.fotos);
+  const [reviews, setReviews] = useState<ReviewItem[]>(mockTabs.revisoes);
+  
+  // Define o equipamento primeiro
   const equipment = useMemo(() => {
     const equipmentId = params.id ?? 'eq-1';
     const contextEquipment = getEquipmentById(equipmentId);
@@ -166,6 +166,63 @@ export const EquipmentDetailScreen = () => {
       nextReview: params.nextReview ?? '10/03/2025',
     };
   }, [params, selectedCenter, getEquipmentById]);
+  
+  // Busca despesas reais de manutenção para este equipamento
+  const expenses = useMemo(() => {
+    if (!equipment?.id) return [];
+    
+    const allExpensesList = getAllExpenses();
+    const equipmentId = String(equipment.id).trim();
+    
+    const equipmentExpenses = allExpensesList.filter(
+      (exp) => {
+        const expEquipmentId = exp.equipmentId ? String(exp.equipmentId).trim() : null;
+        return (
+          expEquipmentId && 
+          expEquipmentId === equipmentId && 
+          exp.category === 'manutencao'
+        );
+      }
+    );
+    
+    // Ordena por data (mais recente primeiro)
+    const sortedExpenses = equipmentExpenses.sort((a, b) => {
+      const dateA = dayjs(a.date, 'DD/MM/YYYY').valueOf();
+      const dateB = dayjs(b.date, 'DD/MM/YYYY').valueOf();
+      return dateB - dateA;
+    });
+    
+    // Formata para o formato esperado pelo componente
+    return sortedExpenses.map((exp) => ({
+      id: exp.id,
+      title: exp.name,
+      date: exp.date,
+      amount: new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+      }).format(exp.value),
+      category: 'Manutenção',
+      documents: exp.documents || [], // Inclui documentos para acesso posterior
+      expenseId: exp.id, // Mantém referência ao ID original da despesa
+    }));
+  }, [equipment?.id, getAllExpenses]);
+  
+  const [isDocumentModalVisible, setDocumentModalVisible] = useState(false);
+  const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
+  const [isPhotoModalVisible, setPhotoModalVisible] = useState(false);
+  const [isReviewModalVisible, setReviewModalVisible] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<PhotoItem | null>(null);
+  const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{
+    uri: string;
+    name?: string;
+    mimeType?: string | null;
+  } | null>(null);
+  const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
+  const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<ExpenseDocument[]>([]);
 
   const handleStatusToggle = () => {
     const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
@@ -197,7 +254,7 @@ export const EquipmentDetailScreen = () => {
           ? photos
           : activeTab === 'revisoes'
             ? reviews
-            : mockTabs[activeTab] ?? [];
+            : [];
 
   const actionLabel = () => {
     switch (activeTab) {
@@ -230,11 +287,19 @@ export const EquipmentDetailScreen = () => {
   };
 
   const handleCardPress = (item: (typeof tabData)[number]) => {
+    // Se for uma despesa com documentos, abre o modal de documentos
+    if (activeTab === 'despesas' && 'documents' in item && Array.isArray(item.documents) && item.documents.length > 0) {
+      setSelectedExpenseDocuments(item.documents as ExpenseDocument[]);
+      setExpenseDocumentsModalVisible(true);
+      return;
+    }
+    
+    // Para outros tipos (fotos, documentos), abre o preview
     if ('fileUri' in item && item.fileUri) {
       setPreviewFile({
         uri: item.fileUri,
         name: item.fileName ?? item.title,
-        mimeType: 'mimeType' in item ? item.mimeType : undefined,
+        mimeType: 'mimeType' in item ? (item.mimeType as string | null | undefined) : undefined,
       });
       setPreviewVisible(true);
     }
@@ -356,7 +421,7 @@ export const EquipmentDetailScreen = () => {
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Centro</Text>
-              <Text style={styles.infoValue}>{centerLabels[equipment.center]}</Text>
+              <Text style={styles.infoValue}>{centerLabels[equipment.center as CostCenter] || equipment.center}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Próxima revisão</Text>
@@ -440,6 +505,14 @@ export const EquipmentDetailScreen = () => {
                   {'next' in item ? (
                     <Text style={styles.cardMeta}>Próxima: {item.next}</Text>
                   ) : null}
+                  {activeTab === 'despesas' && 'documents' in item && Array.isArray(item.documents) && item.documents.length > 0 && (
+                    <View style={styles.documentsIndicator}>
+                      <FileText size={14} color="#0A84FF" />
+                      <Text style={styles.documentsIndicatorText}>
+                        {item.documents.length} documento(s) anexado(s)
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
                 {allowActions ? (
                   <View style={styles.cardFooter}>
@@ -506,10 +579,30 @@ export const EquipmentDetailScreen = () => {
         />
         <FilePreviewModal
           visible={previewVisible}
-          onClose={() => setPreviewVisible(false)}
+          onClose={() => {
+            setPreviewVisible(false);
+            setPreviewFile(null);
+          }}
           fileUri={previewFile?.uri}
           fileName={previewFile?.name}
           mimeType={previewFile?.mimeType}
+        />
+        <ExpenseDocumentsModal
+          visible={expenseDocumentsModalVisible}
+          onClose={() => {
+            setExpenseDocumentsModalVisible(false);
+            setSelectedExpenseDocuments([]);
+          }}
+          documents={selectedExpenseDocuments}
+          onDocumentPress={(document) => {
+            setExpenseDocumentsModalVisible(false);
+            setPreviewFile({
+              uri: document.fileUri,
+              name: document.fileName,
+              mimeType: document.mimeType,
+            });
+            setPreviewVisible(true);
+          }}
         />
         <ExpenseFormModal
           visible={isExpenseModalVisible}
@@ -607,7 +700,7 @@ export const EquipmentDetailScreen = () => {
                         title: data.type,
                         date: data.date,
                         description: data.description,
-                        next: data.next,
+                        next: data.next ?? undefined,
                       }
                     : review
                 )
@@ -619,7 +712,7 @@ export const EquipmentDetailScreen = () => {
                   id: `rev-${prev.length + 1}`,
                   title: data.type,
                   date: data.date,
-                  next: data.next,
+                  next: data.next ?? undefined,
                   description: data.description,
                 },
                 ...prev,
@@ -829,6 +922,20 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 13,
     color: '#6C6C70',
+  },
+  documentsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F3',
+  },
+  documentsIndicatorText: {
+    fontSize: 12,
+    color: '#0A84FF',
+    fontWeight: '600',
   },
   cardMeta: {
     fontSize: 12,
