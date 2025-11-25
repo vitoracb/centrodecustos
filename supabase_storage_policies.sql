@@ -25,7 +25,7 @@ BEGIN
 END$$;
 
 -- 1. Política para permitir INSERT (upload) de arquivos
--- Usuários anônimos podem fazer upload nas pastas expenses/ e employees/
+-- Usuários anônimos podem fazer upload nas pastas expenses/, employees/ e contracts/
 CREATE POLICY "Allow anon users to upload files"
   ON storage.objects
   FOR INSERT
@@ -33,7 +33,8 @@ CREATE POLICY "Allow anon users to upload files"
   WITH CHECK (
     bucket_id = 'documentos' AND
     ((storage.foldername(name))[1] = 'expenses' OR
-     (storage.foldername(name))[1] = 'employees')
+     (storage.foldername(name))[1] = 'employees' OR
+     (storage.foldername(name))[1] = 'contracts')
   );
 
 -- 2. Política para permitir SELECT (leitura/download) de arquivos

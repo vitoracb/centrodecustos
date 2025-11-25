@@ -46,7 +46,7 @@ const formatCurrency = (value?: number): string => {
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getContractsByCenter, addContract, addDocumentToContract } = useContracts();
+  const { getContractsByCenter, addContract, addDocumentToContract, loading } = useContracts();
   const contracts = useMemo(
     () => getContractsByCenter(selectedCenter),
     [getContractsByCenter, selectedCenter]
@@ -143,7 +143,7 @@ export const ContratosScreen = () => {
       });
       if (!result.canceled && result.assets?.length) {
         const asset = result.assets[0];
-        addDocumentToContract(activeContractId, {
+        await addDocumentToContract(activeContractId, {
           fileName: asset.name ?? 'Documento',
           fileUri: asset.uri,
           mimeType: asset.mimeType,
@@ -172,7 +172,7 @@ export const ContratosScreen = () => {
       });
       if (!result.canceled && result.assets.length) {
         const asset = result.assets[0];
-        addDocumentToContract(activeContractId, {
+        await addDocumentToContract(activeContractId, {
           fileName: asset.fileName ?? 'Foto',
           fileUri: asset.uri,
           mimeType: asset.mimeType ?? 'image/jpeg',
@@ -227,7 +227,11 @@ export const ContratosScreen = () => {
             </Text>
           )}
 
-          {filteredContracts.length > 0 ? (
+          {loading ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>Carregando contratos...</Text>
+            </View>
+          ) : filteredContracts.length > 0 ? (
             filteredContracts.map((contract) => (
             <View key={contract.id} style={styles.card}>
               <View style={styles.cardHeader}>
@@ -283,16 +287,20 @@ export const ContratosScreen = () => {
       <ContractFormModal
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
-        onSubmit={(data) => {
-          addContract({
-            name: data.name,
-            category: data.category,
-            date: data.date,
-            docs: data.docs,
-            value: data.value,
-            center: selectedCenter,
-            documents: data.documents,
-          });
+        onSubmit={async (data) => {
+          try {
+            await addContract({
+              name: data.name,
+              category: data.category,
+              date: data.date,
+              value: data.value,
+              center: selectedCenter,
+              documents: data.documents,
+            });
+            setModalVisible(false);
+          } catch (error) {
+            console.error('Erro ao adicionar contrato:', error);
+          }
         }}
       />
       <ContractFilterModal

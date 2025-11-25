@@ -210,10 +210,10 @@ export const ContractFormModal = ({
                 <Text style={styles.uploadText}>Adicionar arquivo</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.uploadButton, styles.secondaryUploadButton]}
+                style={styles.uploadButton}
                 onPress={handlePickFromAlbum}
               >
-                <Text style={[styles.uploadText, styles.secondaryUploadText]}>Adicionar foto</Text>
+                <Text style={styles.uploadText}>Adicionar foto</Text>
               </TouchableOpacity>
             </View>
             {documents.length > 0 ? (
