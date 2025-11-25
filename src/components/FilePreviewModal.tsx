@@ -10,9 +10,11 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 
@@ -57,6 +59,20 @@ export const FilePreviewModal = ({
   >(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Timeout para detectar quando o PDF não está carregando
+  useEffect(() => {
+    if (visible && isPdf && loading) {
+      const timeout = setTimeout(() => {
+        if (loading && !webSource) {
+          setError('O PDF está demorando para carregar. Use o botão "Abrir" para visualizar em um aplicativo externo.');
+          setLoading(false);
+        }
+      }, 8000); // 8 segundos de timeout
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [visible, isPdf, loading, webSource]);
 
   useEffect(() => {
     if (!visible || !fileUri) {
@@ -71,26 +87,90 @@ export const FilePreviewModal = ({
       try {
         setLoading(true);
         setError(null);
+        
+        // Verifica se é uma URL remota (HTTP/HTTPS) - arquivo do banco de dados
+        const isRemoteUrl = fileUri.startsWith('http://') || fileUri.startsWith('https://');
+        
+        if (isRemoteUrl) {
+          // Para arquivos remotos do banco de dados
+          if (isPdf) {
+            // Para PDFs remotos, usa Google Docs Viewer para melhor compatibilidade
+            console.log('📥 Carregando PDF remoto:', fileUri);
+            if (isMounted) {
+              // Usa Google Docs Viewer que funciona muito bem com PDFs remotos
+              const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(fileUri)}&embedded=true`;
+              const html = `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes" />
+                    <style>
+                      * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                      }
+                      html, body {
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                        background: #000;
+                      }
+                      iframe {
+                        width: 100%;
+                        height: 100%;
+                        border: none;
+                      }
+                    </style>
+                  </head>
+                  <body>
+                    <iframe src="${viewerUrl}" frameborder="0"></iframe>
+                  </body>
+                </html>
+              `;
+              setWebSource({ type: 'html', html });
+              setLoading(false);
+            }
+          } else if (!isImage) {
+            // Para outros arquivos remotos (não PDF, não imagem), usa diretamente
+            if (isMounted) {
+              setWebSource({ type: 'uri', uri: fileUri });
+              setLoading(false);
+            }
+          } else {
+            // Para imagens remotas, não precisa processar
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
+          return;
+        }
+        
+        // Para arquivos locais, precisa processar
         let uriToRead = fileUri;
         
         // Para content:// URIs no Android, precisamos copiar para o cache primeiro
         if (fileUri.startsWith('content://')) {
           const fileExtension = fileName?.split('.').pop() ?? (isPdf ? 'pdf' : 'bin');
           const cacheDir = (FileSystem as any).cacheDirectory || '';
-          const dest = `${cacheDir}${Date.now()}.${fileExtension}`;
-          try {
-            await FileSystem.copyAsync({ from: fileUri, to: dest });
-            uriToRead = dest;
-          } catch (copyError) {
-            console.warn('Erro ao copiar arquivo:', copyError);
-            if (isMounted) {
-              setError('Não foi possível acessar o arquivo.');
+          if (cacheDir) {
+            const dest = `${cacheDir}${Date.now()}.${fileExtension}`;
+            try {
+              await FileSystem.copyAsync({ from: fileUri, to: dest });
+              uriToRead = dest;
+            } catch (copyError) {
+              console.warn('Erro ao copiar arquivo:', copyError);
+              if (isMounted) {
+                setError('Não foi possível acessar o arquivo local. No futuro, os arquivos estarão no banco de dados e serão acessíveis por todos.');
+                setLoading(false);
+              }
+              return;
             }
-            return;
           }
         }
         
         if (isPdf) {
+          // Para PDFs locais, converte para base64 e usa HTML com embed
           try {
             const base64 = await FileSystem.readAsStringAsync(uriToRead, {
               encoding: (FileSystem as any).EncodingType?.Base64 || 'base64' as any,
@@ -100,36 +180,43 @@ export const FilePreviewModal = ({
                 <!DOCTYPE html>
                 <html>
                   <head>
-                    <meta name="viewport" content="initial-scale=1, maximum-scale=3" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes" />
                     <style>
-                      html, body {
+                      * {
                         margin: 0;
                         padding: 0;
-                        background: #000;
-                        height: 100%;
+                        box-sizing: border-box;
                       }
-                      iframe {
-                        border: none;
+                      html, body {
                         width: 100%;
                         height: 100%;
+                        overflow: hidden;
+                        background: #000;
+                      }
+                      embed {
+                        width: 100%;
+                        height: 100%;
+                        border: none;
                       }
                     </style>
                   </head>
                   <body>
-                    <iframe src="data:application/pdf;base64,${base64}#toolbar=1" />
+                    <embed src="data:application/pdf;base64,${base64}#toolbar=1&navpanes=1&scrollbar=1" type="application/pdf" />
                   </body>
                 </html>
               `;
               setWebSource({ type: 'html', html });
+              setLoading(false);
             }
           } catch (readError) {
-            console.warn('Erro ao ler PDF:', readError);
+            console.warn('Erro ao processar PDF local:', readError);
             if (isMounted) {
-              setError('Não foi possível carregar o PDF.');
+              setError('Não foi possível carregar o PDF local. Use o botão "Abrir" para visualizar. Quando os arquivos estiverem no banco de dados, isso será resolvido automaticamente.');
+              setLoading(false);
             }
           }
         } else if (!isImage) {
-          // Para outros arquivos, tenta base64
+          // Para outros arquivos locais, tenta base64
           try {
             const base64 = await FileSystem.readAsStringAsync(uriToRead, {
               encoding: (FileSystem as any).EncodingType?.Base64 || 'base64' as any,
@@ -137,21 +224,27 @@ export const FilePreviewModal = ({
             if (isMounted) {
               const type = mimeType ?? 'application/octet-stream';
               setWebSource({ type: 'uri', uri: `data:${type};base64,${base64}` });
+              setLoading(false);
             }
           } catch (readError) {
-            console.warn('Erro ao ler arquivo:', readError);
+            console.warn('Erro ao ler arquivo local:', readError);
             if (isMounted) {
-              setError('Não foi possível carregar o arquivo.');
+              setError('Não foi possível carregar o arquivo local.');
+              setLoading(false);
             }
+          }
+        } else {
+          // Para imagens, não precisa carregar nada
+          if (isMounted) {
+            setLoading(false);
           }
         }
       } catch (error) {
         console.warn('Erro ao carregar arquivo:', error);
         if (isMounted) {
           setError('Erro ao processar arquivo.');
+          setLoading(false);
         }
-      } finally {
-        if (isMounted) setLoading(false);
       }
     };
     loadFile();
@@ -176,6 +269,24 @@ export const FilePreviewModal = ({
     }
   };
 
+  const handleOpenExternal = async () => {
+    if (!fileUri) return;
+    try {
+      // Para abrir PDFs, usa Sharing que permite escolher o app
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Erro', 'Compartilhamento não disponível neste dispositivo.');
+      }
+    } catch (error) {
+      console.warn('Erro ao abrir arquivo externo:', error);
+      Alert.alert('Erro', 'Não foi possível abrir o arquivo. Tente usar o botão Salvar.');
+    }
+  };
+
   if (!visible) return null;
 
   return (
@@ -189,12 +300,22 @@ export const FilePreviewModal = ({
             <Text style={styles.title} numberOfLines={1}>
               {fileName ?? 'Arquivo'}
             </Text>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleShare}
-            >
-              <Text style={styles.shareText}>Salvar</Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {isPdf && (
+                <TouchableOpacity
+                  style={styles.headerButton}
+                  onPress={handleOpenExternal}
+                >
+                  <Text style={styles.shareText}>Abrir</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={handleShare}
+              >
+                <Text style={styles.shareText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
         <View style={styles.previewContainer}>
@@ -224,18 +345,38 @@ export const FilePreviewModal = ({
                       : { uri: webSource.uri }
                   }
                   style={styles.webview}
-                  allowFileAccess
-                  allowUniversalAccessFromFileURLs
-                  javaScriptEnabled
-                  domStorageEnabled
+                  allowFileAccess={true}
+                  allowUniversalAccessFromFileURLs={true}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  mixedContentMode="always"
                   onError={(syntheticEvent) => {
                     const { nativeEvent } = syntheticEvent;
                     console.warn('WebView error: ', nativeEvent);
-                    setError('Erro ao carregar o PDF no visualizador.');
+                    setError('Erro ao carregar o PDF. Use o botão "Abrir" para visualizar em um aplicativo externo.');
+                    setLoading(false);
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.warn('WebView HTTP error: ', nativeEvent);
+                    setError('Erro HTTP ao carregar o PDF.');
+                    setLoading(false);
                   }}
                   onLoadEnd={() => {
                     setLoading(false);
                   }}
+                  onLoadStart={() => {
+                    // Não seta loading aqui porque já está sendo controlado
+                  }}
+                  onLoad={() => {
+                    setLoading(false);
+                  }}
+                  onMessage={(event) => {
+                    console.log('WebView message:', event.nativeEvent.data);
+                  }}
+                  onShouldStartLoadWithRequest={() => true}
                 />
               ) : (
                 <View style={styles.loading}>
@@ -263,14 +404,42 @@ export const FilePreviewModal = ({
                       : { uri: webSource.uri }
                   }
                   style={styles.webview}
-                  allowFileAccess
-                  allowUniversalAccessFromFileURLs
-                  javaScriptEnabled
-                  domStorageEnabled
+                  allowFileAccess={true}
+                  allowUniversalAccessFromFileURLs={true}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  mixedContentMode="always"
+                  onLoad={() => {
+                    if (isMounted) setLoading(false);
+                  }}
+                  onLoadEnd={() => {
+                    if (isMounted) setLoading(false);
+                  }}
                   onError={(syntheticEvent) => {
                     const { nativeEvent } = syntheticEvent;
                     console.warn('WebView error: ', nativeEvent);
-                    setError('Erro ao carregar o arquivo no visualizador.');
+                    if (isMounted) {
+                      if (isPdf && fileUri?.startsWith('http')) {
+                        setError('Não foi possível carregar o PDF. Use o botão "Abrir" para visualizar em um aplicativo externo.');
+                      } else {
+                        setError('Erro ao carregar o arquivo no visualizador.');
+                      }
+                      setLoading(false);
+                    }
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.warn('WebView HTTP error: ', nativeEvent);
+                    if (isMounted) {
+                      if (isPdf && fileUri?.startsWith('http')) {
+                        setError('Erro ao carregar o PDF. Verifique sua conexão ou use o botão "Abrir".');
+                      } else {
+                        setError('Erro de rede ao carregar o arquivo.');
+                      }
+                      setLoading(false);
+                    }
                   }}
                 />
               ) : (
