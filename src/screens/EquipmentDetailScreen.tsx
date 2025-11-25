@@ -122,7 +122,7 @@ export const EquipmentDetailScreen = () => {
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
   const { getEquipmentById, updateEquipment } = useEquipment();
-  const { addExpense, getAllExpenses } = useFinancial();
+  const { addExpense, updateExpense, deleteExpense, getAllExpenses } = useFinancial();
 
   // ---------- EQUIPAMENTO ----------
   const equipment = useMemo(() => {
@@ -294,6 +294,7 @@ export const EquipmentDetailScreen = () => {
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<PhotoItem | null>(null);
   const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
@@ -411,6 +412,16 @@ export const EquipmentDetailScreen = () => {
     } else if (activeTab === 'revisoes') {
       setEditingReview(item as ReviewItem);
       setReviewModalVisible(true);
+    } else if (activeTab === 'despesas') {
+      // Buscar a despesa completa do contexto
+      const expenseItem = item as ExpenseItem;
+      const allExpenses = getAllExpenses();
+      const fullExpense = allExpenses.find((exp) => exp.id === expenseItem.expenseId || exp.id === expenseItem.id);
+      
+      if (fullExpense) {
+        setEditingExpense(expenseItem);
+        setExpenseModalVisible(true);
+      }
     }
   };
 
@@ -507,6 +518,13 @@ export const EquipmentDetailScreen = () => {
                 Alert.alert('Erro', 'Ocorreu um erro ao excluir a revisão.');
               }
             })();
+          } else if (activeTab === 'despesas') {
+            const expenseItem = item as ExpenseItem;
+            const expenseId = expenseItem.expenseId || expenseItem.id;
+            deleteExpense(expenseId);
+            if (editingExpense?.id === expenseItem.id || editingExpense?.expenseId === expenseId) {
+              setEditingExpense(null);
+            }
           }
         },
       },
@@ -621,7 +639,8 @@ export const EquipmentDetailScreen = () => {
               const allowActions =
                 activeTab === 'documentos' ||
                 activeTab === 'fotos' ||
-                activeTab === 'revisoes';
+                activeTab === 'revisoes' ||
+                activeTab === 'despesas';
               return (
                 <View key={item.id} style={styles.card}>
                   <View style={styles.cardHeader}>
@@ -836,29 +855,81 @@ export const EquipmentDetailScreen = () => {
 
           <ExpenseFormModal
             visible={isExpenseModalVisible}
-            onClose={() => setExpenseModalVisible(false)}
-            onSubmit={(data) => {
-              addExpense({
-                name: data.name,
-                category: data.category,
-                date: data.date,
-                value: data.value,
-                center: selectedCenter,
-                equipmentId: data.equipmentId,
-                gestaoSubcategory: data.gestaoSubcategory,
-                observations: data.observations,
-                documents: data.documents,
-              });
+            onClose={() => {
               setExpenseModalVisible(false);
+              setEditingExpense(null);
             }}
-            initialData={{
-              category: 'manutencao',
-              equipmentId: equipment.id,
-              name: '',
-              date: dayjs().format('DD/MM/YYYY'),
-              value: 0,
-              documents: [],
+            onSubmit={(data) => {
+              if (editingExpense) {
+                // UPDATE - buscar a despesa completa
+                const allExpenses = getAllExpenses();
+                const fullExpense = allExpenses.find(
+                  (exp) => exp.id === editingExpense.expenseId || exp.id === editingExpense.id
+                );
+                
+                if (fullExpense) {
+                  updateExpense({
+                    ...fullExpense,
+                    name: data.name,
+                    category: data.category,
+                    date: data.date,
+                    value: data.value,
+                    equipmentId: data.equipmentId,
+                    gestaoSubcategory: data.gestaoSubcategory,
+                    observations: data.observations,
+                    documents: data.documents,
+                  });
+                }
+              } else {
+                // CREATE
+                addExpense({
+                  name: data.name,
+                  category: data.category,
+                  date: data.date,
+                  value: data.value,
+                  center: selectedCenter,
+                  equipmentId: data.equipmentId,
+                  gestaoSubcategory: data.gestaoSubcategory,
+                  observations: data.observations,
+                  documents: data.documents,
+                });
+              }
+              setExpenseModalVisible(false);
+              setEditingExpense(null);
             }}
+            initialData={
+              editingExpense
+                ? (() => {
+                    // Buscar a despesa completa para preencher o formulário
+                    const allExpenses = getAllExpenses();
+                    const fullExpense = allExpenses.find(
+                      (exp) => exp.id === editingExpense.expenseId || exp.id === editingExpense.id
+                    );
+                    
+                    if (fullExpense) {
+                      return {
+                        id: fullExpense.id,
+                        name: fullExpense.name,
+                        category: fullExpense.category,
+                        date: fullExpense.date,
+                        value: fullExpense.value,
+                        equipmentId: fullExpense.equipmentId,
+                        gestaoSubcategory: fullExpense.gestaoSubcategory,
+                        observations: fullExpense.observations,
+                        documents: fullExpense.documents || [],
+                      };
+                    }
+                    return undefined;
+                  })()
+                : {
+                    category: 'manutencao',
+                    equipmentId: equipment.id,
+                    name: '',
+                    date: dayjs().format('DD/MM/YYYY'),
+                    value: 0,
+                    documents: [],
+                  }
+            }
           />
 
           <PhotoUploadModal

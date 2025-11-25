@@ -384,13 +384,110 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     []
   );
 
-  // por enquanto, update/delete ainda só locais (podemos integrar depois)
+  // ========================
+  // DESPESAS — UPDATE INTEGRADO COM SUPABASE
+  // ========================
   const updateExpense = useCallback((expense: Expense) => {
-    setExpenses((prev) => prev.map((e) => (e.id === expense.id ? expense : e)));
+    (async () => {
+      try {
+        // 1) descobrir o cost_center_id
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id, code")
+          .eq("code", expense.center)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.error("❌ Erro ao buscar centro de custo para update:", ccError || "não encontrado");
+          return;
+        }
+
+        const dbDate = toDbDate(expense.date);
+        if (!dbDate) {
+          console.error("❌ Data de despesa inválida:", expense.date);
+          return;
+        }
+
+        // 2) montar payload
+        const payload: any = {
+          cost_center_id: ccData.id,
+          equipment_id: expense.equipmentId ?? null,
+          value: expense.value,
+          date: dbDate,
+          category: expense.category ?? "diversos",
+          description: expense.name,
+          payment_method: expense.method ?? null,
+          reference: expense.observations ?? null,
+          status: expense.status && expense.status.toLowerCase().startsWith("prev")
+            ? "PREVISTO"
+            : "CONFIRMADO",
+        };
+
+        // 3) atualizar no Supabase
+        const { data, error } = await supabase
+          .from("financial_transactions")
+          .update(payload)
+          .eq("id", expense.id)
+          .select(
+            `
+            id, type, status, date, value, category, description, payment_method, reference, equipment_id, created_at,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (error || !data) {
+          console.error("❌ Erro ao atualizar despesa:", error);
+          return;
+        }
+
+        // 4) Atualizar documentos se houver mudanças
+        // Por enquanto, não atualizamos documentos existentes, apenas adicionamos novos se necessário
+        // (Para atualizar documentos, seria necessário deletar os antigos e inserir os novos)
+
+        // 5) mapear de volta para Expense e atualizar estado
+        const updatedExpense = await mapRowToExpense(data);
+        setExpenses((prev) => prev.map((e) => (e.id === expense.id ? updatedExpense : e)));
+      } catch (e) {
+        console.error("❌ Erro inesperado ao atualizar despesa:", e);
+      }
+    })();
   }, []);
 
+  // ========================
+  // DESPESAS — DELETE INTEGRADO COM SUPABASE
+  // ========================
   const deleteExpense = useCallback((id: string) => {
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
+    (async () => {
+      try {
+        // 1) Deletar documentos relacionados primeiro (cascade)
+        const { error: docsError } = await supabase
+          .from("expense_documents")
+          .delete()
+          .eq("transaction_id", id);
+
+        if (docsError && docsError.code !== 'PGRST205') {
+          console.warn("⚠️ Erro ao deletar documentos da despesa:", docsError);
+          // Continua mesmo se houver erro
+        }
+
+        // 2) Deletar a transação
+        const { error } = await supabase
+          .from("financial_transactions")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          console.error("❌ Erro ao deletar despesa:", error);
+          return;
+        }
+
+        // 3) Atualizar estado local
+        setExpenses((prev) => prev.filter((e) => e.id !== id));
+      } catch (e) {
+        console.error("❌ Erro inesperado ao deletar despesa:", e);
+      }
+    })();
   }, []);
 
   const getReceiptsByCenter = useCallback(
