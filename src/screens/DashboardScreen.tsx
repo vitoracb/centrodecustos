@@ -18,6 +18,7 @@ import { EquipmentFormModal } from '../components/EquipmentFormModal';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderFormModal } from '../components/OrderFormModal';
+import { showSuccess, showError } from '../lib/toast';
 import {
   Package,
   DollarSign,
@@ -432,8 +433,9 @@ export const DashboardScreen = () => {
               center: selectedCenter,
             });
             setIsEquipmentModalVisible(false);
+            showSuccess('Equipamento adicionado', data.name);
           } catch (error) {
-            console.error('Erro ao adicionar equipamento:', error);
+            showError('Erro ao adicionar equipamento', 'Tente novamente');
           }
         }}
       />
@@ -457,6 +459,7 @@ export const DashboardScreen = () => {
             center: selectedCenter,
           });
           setEmployeeModalVisible(false);
+          showSuccess('Funcionário adicionado', data.employeeName);
         }}
         equipments={equipmentsForEmployee}
         showEquipmentSelector={true}
@@ -478,8 +481,9 @@ export const DashboardScreen = () => {
               documents: data.documents || [],
             });
             setExpenseModalVisible(false);
+            showSuccess('Despesa registrada', data.name);
           } catch (error) {
-            console.error('Erro ao adicionar despesa:', error);
+            showError('Erro ao registrar despesa', 'Tente novamente');
           }
         }}
       />
@@ -499,8 +503,9 @@ export const DashboardScreen = () => {
               equipmentId: data.equipmentId,
             });
             setOrderModalVisible(false);
+            showSuccess('Pedido criado', data.name);
           } catch (error) {
-            console.error('Erro ao criar pedido:', error);
+            showError('Erro ao criar pedido', 'Tente novamente');
           }
         }}
       />

@@ -7,6 +7,8 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabase } from '@/src/lib/supabaseClient';
+import { logger } from '@/src/lib/logger';
+import { showSuccess, showError, showInfo } from '@/src/lib/toast';
 import { CostCenter } from './CostCenterContext';
 
 /**
@@ -120,7 +122,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.log('❌ Erro ao carregar equipments:', error);
+        logger.error('Erro ao carregar equipments:', error);
         setError(error.message);
         setLoading(false);
         return;
@@ -149,7 +151,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
 
       setEquipments(mapped);
     } catch (err: any) {
-      console.log('❌ Erro inesperado ao carregar equipments:', err);
+      logger.error('Erro inesperado ao carregar equipments:', err);
       setError(err.message ?? 'Erro inesperado ao carregar equipamentos');
     } finally {
       setLoading(false);
@@ -176,7 +178,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           .maybeSingle();
 
         if (ccError || !ccData) {
-          console.log('❌ Erro ao buscar cost_center:', ccError);
+          logger.error('Erro ao buscar cost_center:', ccError);
           throw new Error(
             'Não foi possível encontrar o centro de custo selecionado',
           );
@@ -211,12 +213,16 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           .maybeSingle();
 
         if (error) {
-          console.log('❌ Erro ao inserir equipamento:', error);
+          logger.error('Erro ao inserir equipamento:', error);
+          showError('Erro ao salvar equipamento', 'Tente novamente');
           throw error;
         }
 
         if (!data) {
-          throw new Error('Resposta inválida ao criar equipamento');
+          const errMsg = 'Resposta inválida ao criar equipamento';
+          logger.error(errMsg);
+          showError('Erro ao salvar equipamento', errMsg);
+          throw new Error(errMsg);
         }
 
         const costCenter = Array.isArray(data.cost_centers)
@@ -238,8 +244,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         };
 
         setEquipments(prev => [newEquipment, ...prev]);
+        showSuccess('Equipamento adicionado', newEquipment.name);
       } catch (err: any) {
-        console.log('❌ Erro em addEquipment:', err);
+        logger.error('Erro em addEquipment:', err);
         throw err;
       }
     },
@@ -298,10 +305,12 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           .eq('id', id);
 
         if (error) {
-          console.log('❌ Erro ao atualizar equipamento:', error);
+          logger.error('Erro ao atualizar equipamento:', error);
+          showError('Erro ao atualizar equipamento', 'Tente novamente');
           throw error;
         }
 
+        const equipmentName = existing?.name || '';
         setEquipments(prev =>
           prev.map(eq => {
             if (eq.id !== id) return eq;
@@ -314,17 +323,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             // controla statusChangedAt
             if (updates.status === 'inativo' && eq.status === 'ativo') {
               merged.statusChangedAt = Date.now();
+              showInfo('Equipamento inativado', equipmentName);
             }
             if (updates.status === 'ativo' && eq.status === 'inativo') {
               const { statusChangedAt, ...rest } = merged;
+              showInfo('Equipamento ativado', equipmentName);
               return rest;
             }
 
             return merged;
           }),
         );
+        showSuccess('Equipamento atualizado', equipmentName);
       } catch (err: any) {
-        console.log('❌ Erro em updateEquipment:', err);
+        logger.error('Erro em updateEquipment:', err);
         throw err;
       }
     },
@@ -343,17 +355,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           .eq('id', id);
 
         if (error) {
-          console.log('❌ Erro ao deletar equipamento:', error);
+          logger.error('Erro ao deletar equipamento:', error);
+          showError('Erro ao excluir equipamento', 'Tente novamente');
           throw error;
         }
 
+        const deletedEquipment = equipments.find(eq => eq.id === id);
         setEquipments(prev => prev.filter(eq => eq.id !== id));
+        showSuccess('Equipamento excluído', deletedEquipment?.name || '');
       } catch (err: any) {
-        console.log('❌ Erro em deleteEquipment:', err);
+        logger.error('Erro em deleteEquipment:', err);
         throw err;
       }
     },
-    [],
+    [equipments],
   );
 
   const getEquipmentsByCenter = useCallback(

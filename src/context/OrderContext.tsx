@@ -280,6 +280,15 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         });
 
         setOrders((prev) => [newOrder, ...prev]);
+
+        // Envia notificação push sobre novo pedido
+        try {
+          const { notificationService } = await import('@/src/lib/notifications');
+          await notificationService.notifyNewOrder(newOrder.name, order.costCenter);
+        } catch (notifError) {
+          // Falha silenciosa - notificações não são críticas
+          console.warn('Erro ao enviar notificação:', notifError);
+        }
       } catch (err) {
         console.log("❌ Erro em addOrder:", err);
         throw err;
@@ -407,6 +416,19 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         setOrders((prev) =>
           prev.map((o) => (o.id === order.id ? updated : o))
         );
+
+        // Envia notificação push quando orçamento é enviado
+        const wasBudgetSent = order.status === "orcamento_enviado" && 
+          existing?.status !== "orcamento_enviado";
+        if (wasBudgetSent) {
+          try {
+            const { notificationService } = await import('@/src/lib/notifications');
+            await notificationService.notifyBudgetSent(updated.name, updated.costCenter);
+          } catch (notifError) {
+            // Falha silenciosa - notificações não são críticas
+            console.warn('Erro ao enviar notificação:', notifError);
+          }
+        }
       } catch (err) {
         console.log("❌ Erro em updateOrder:", err);
         throw err;

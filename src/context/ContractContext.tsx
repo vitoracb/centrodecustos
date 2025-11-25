@@ -263,6 +263,15 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           newContract.value = contract.value;
         }
         setContracts((prev) => [newContract, ...prev]);
+
+        // Envia notificação push sobre novo contrato
+        try {
+          const { notificationService } = await import('@/src/lib/notifications');
+          await notificationService.notifyNewContract(newContract.name, contract.center);
+        } catch (notifError) {
+          // Falha silenciosa - notificações não são críticas
+          console.warn('Erro ao enviar notificação:', notifError);
+        }
       } catch (err: any) {
         console.error('❌ Erro em addContract:', err);
         Alert.alert('Erro', 'Não foi possível salvar o contrato. Tente novamente.');
