@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useEquipment } from '../context/EquipmentContext';
+import { useFinancial } from '../context/FinancialContext';
+import { useEmployees } from '../context/EmployeeContext';
+import { useContracts } from '../context/ContractContext';
+import { useOrders } from '../context/OrderContext';
+import { EquipmentFormModal } from '../components/EquipmentFormModal';
+import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
+import { ExpenseFormModal } from '../components/ExpenseFormModal';
+import { OrderFormModal } from '../components/OrderFormModal';
 import {
   Package,
   DollarSign,
@@ -17,6 +26,12 @@ import {
   PlusCircle,
   ShoppingCart,
 } from 'lucide-react-native';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import 'dayjs/locale/pt-br';
+
+dayjs.extend(relativeTime);
+dayjs.locale('pt-br');
 
 const centerLabels = {
   valenca: 'Valença',
@@ -24,65 +39,304 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-const statCards = [
-  {
-    label: 'Equipamentos Ativos',
-    value: '24',
-    change: '+12% vs mês anterior',
-    icon: Package,
-  },
-  {
-    label: 'Despesas do Mês',
-    value: 'R$ 45.2K',
-    change: '↓ 8% vs mês anterior',
-    icon: DollarSign,
-  },
-  {
-    label: 'Funcionários',
-    value: '156',
-    change: '↑ 3 novos este mês',
-    icon: Users,
-  },
-  {
-    label: 'Contratos Ativos',
-    value: '8',
-    change: '↔ último mês',
-    icon: FileText,
-  },
-];
+interface Activity {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: number;
+  timeAgo: string;
+}
 
-const activities = [
-  {
-    title: 'Novo equipamento cadastrado',
-    description: 'Trator John Deere',
-    timeAgo: '2h atrás',
-  },
-  {
-    title: 'Despesa registrada',
-    description: 'Manutenção preventiva',
-    timeAgo: '5h atrás',
-  },
-  {
-    title: 'Funcionário adicionado',
-    description: 'João Silva',
-    timeAgo: '1d atrás',
-  },
-  {
-    title: 'Contrato renovado',
-    description: 'Serviços de TI',
-    timeAgo: '2d atrás',
-  },
-];
+const formatTimeAgo = (timestamp: number): string => {
+  const now = dayjs();
+  const time = dayjs(timestamp);
+  const diffMinutes = now.diff(time, 'minute');
+  const diffHours = now.diff(time, 'hour');
+  const diffDays = now.diff(time, 'day');
 
-const quickActions = [
-  { label: 'Novo Equipamento', icon: Package },
-  { label: 'Registrar Despesa', icon: DollarSign },
-  { label: 'Novo Funcionário', icon: Users },
-  { label: 'Criar Pedido', icon: ShoppingCart },
-];
+  if (diffMinutes < 1) return 'agora';
+  if (diffMinutes < 60) return `${diffMinutes}min atrás`;
+  if (diffHours < 24) return `${diffHours}h atrás`;
+  if (diffDays < 7) return `${diffDays}d atrás`;
+  return time.format('DD/MM/YYYY');
+};
 
 export const DashboardScreen = () => {
   const { selectedCenter } = useCostCenter();
+  const { getEquipmentsByCenter, getAllEquipments, addEquipment } = useEquipment();
+  const { getAllExpenses, getAllReceipts, addExpense } = useFinancial();
+  const { documentsByCenter, addEmployeeDocument } = useEmployees();
+  const { getContractsByCenter, getAllContracts } = useContracts();
+  const { getAllOrders, addOrder } = useOrders();
+
+  // Estados para controlar os modais
+  const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false);
+  const [isEmployeeModalVisible, setEmployeeModalVisible] = useState(false);
+  const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
+  const [isOrderModalVisible, setOrderModalVisible] = useState(false);
+
+  // Calcula equipamentos ativos
+  const activeEquipments = useMemo(() => {
+    const equipments = getEquipmentsByCenter(selectedCenter);
+    return equipments.filter(eq => eq.status === 'ativo').length;
+  }, [selectedCenter, getEquipmentsByCenter]);
+
+  // Calcula despesas do mês atual
+  const monthlyExpenses = useMemo(() => {
+    const expenses = getAllExpenses();
+    const now = dayjs();
+    const startOfMonth = now.startOf('month');
+    const endOfMonth = now.endOf('month');
+
+    const centerExpenses = expenses.filter(exp => {
+      if (exp.center !== selectedCenter) return false;
+      
+      const expenseDate = dayjs(exp.date, 'DD/MM/YYYY');
+      return expenseDate.isValid() && 
+             expenseDate.isAfter(startOfMonth.subtract(1, 'day')) && 
+             expenseDate.isBefore(endOfMonth.add(1, 'day'));
+    });
+
+    const total = centerExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
+    return total;
+  }, [selectedCenter, getAllExpenses]);
+
+  // Calcula funcionários únicos
+  const employeesCount = useMemo(() => {
+    const centerDocs = documentsByCenter[selectedCenter] ?? {};
+    const allEmployees = new Set<string>();
+    
+    Object.values(centerDocs).forEach((docs) => {
+      docs.forEach(doc => {
+        if (doc.employee) {
+          allEmployees.add(doc.employee);
+        }
+      });
+    });
+
+    return allEmployees.size;
+  }, [selectedCenter, documentsByCenter]);
+
+  // Calcula contratos
+  const contractsCount = useMemo(() => {
+    const contracts = getContractsByCenter(selectedCenter);
+    return contracts.length;
+  }, [selectedCenter, getContractsByCenter]);
+
+  // Equipamentos para o dropdown de funcionário
+  const equipmentsForEmployee = useMemo(() => {
+    return getEquipmentsByCenter(selectedCenter);
+  }, [selectedCenter, getEquipmentsByCenter]);
+
+  // Coleta atividades recentes
+  const recentActivities = useMemo(() => {
+    const activities: Activity[] = [];
+
+    // 1. Equipamentos
+    const allEquipments = getAllEquipments();
+    allEquipments.forEach(eq => {
+      if (eq.center !== selectedCenter) return;
+      
+      // Equipamento adicionado
+      if (eq.createdAt) {
+        activities.push({
+          id: `eq-add-${eq.id}`,
+          title: 'Equipamento adicionado',
+          description: eq.name,
+          timestamp: eq.createdAt,
+          timeAgo: formatTimeAgo(eq.createdAt),
+        });
+      }
+
+      // Equipamento inativado
+      if (eq.statusChangedAt && eq.status === 'inativo') {
+        activities.push({
+          id: `eq-inactive-${eq.id}`,
+          title: 'Equipamento inativado',
+          description: eq.name,
+          timestamp: eq.statusChangedAt,
+          timeAgo: formatTimeAgo(eq.statusChangedAt),
+        });
+      }
+    });
+
+    // 2. Despesas e Receitas
+    const allExpenses = getAllExpenses();
+    allExpenses.forEach(exp => {
+      if (exp.center !== selectedCenter) return;
+      if (!exp.createdAt) return;
+
+      activities.push({
+        id: `expense-${exp.id}`,
+        title: 'Despesa registrada',
+        description: exp.name,
+        timestamp: exp.createdAt,
+        timeAgo: formatTimeAgo(exp.createdAt),
+      });
+    });
+
+    const allReceipts = getAllReceipts();
+    allReceipts.forEach(rec => {
+      if (rec.center !== selectedCenter) return;
+      if (!rec.createdAt) return;
+
+      activities.push({
+        id: `receipt-${rec.id}`,
+        title: 'Recebimento registrado',
+        description: rec.name,
+        timestamp: rec.createdAt,
+        timeAgo: formatTimeAgo(rec.createdAt),
+      });
+    });
+
+    // 3. Pedidos
+    const allOrders = getAllOrders();
+    allOrders.forEach(order => {
+      if (order.costCenter !== selectedCenter) return;
+      if (!order.createdAt) return;
+
+      if (order.status === 'orcamento_enviado') {
+        activities.push({
+          id: `order-sent-${order.id}`,
+          title: 'Orçamento enviado',
+          description: order.name,
+          timestamp: order.createdAt,
+          timeAgo: formatTimeAgo(order.createdAt),
+        });
+      } else {
+        activities.push({
+          id: `order-${order.id}`,
+          title: 'Pedido de orçamento',
+          description: order.name,
+          timestamp: order.createdAt,
+          timeAgo: formatTimeAgo(order.createdAt),
+        });
+      }
+    });
+
+    // 4. Funcionários (documentos)
+    const centerDocs = documentsByCenter[selectedCenter] ?? {};
+    Object.values(centerDocs).forEach((docs) => {
+      docs.forEach(doc => {
+        const docTimestamp = doc.createdAt || Date.now();
+        
+        // Verifica se é um novo funcionário (primeiro documento deste funcionário neste equipamento)
+        const isNewEmployee = docs.filter(d => 
+          d.employee === doc.employee && 
+          (d.createdAt || Date.now()) <= docTimestamp
+        ).length === 1;
+
+        if (isNewEmployee) {
+          activities.push({
+            id: `employee-${doc.id}`,
+            title: 'Funcionário adicionado',
+            description: doc.employee,
+            timestamp: docTimestamp,
+            timeAgo: formatTimeAgo(docTimestamp),
+          });
+        }
+      });
+    });
+
+    // 5. Contratos
+    const allContracts = getAllContracts();
+    allContracts.forEach(contract => {
+      if (contract.center !== selectedCenter) return;
+      if (!contract.createdAt) return;
+
+      activities.push({
+        id: `contract-${contract.id}`,
+        title: 'Contrato adicionado',
+        description: contract.name,
+        timestamp: contract.createdAt,
+        timeAgo: formatTimeAgo(contract.createdAt),
+      });
+
+      // Documentos de contratos
+      if (contract.documents) {
+        contract.documents.forEach(doc => {
+          // Usa o timestamp do contrato como aproximação, já que documentos não têm createdAt separado
+          activities.push({
+            id: `contract-doc-${contract.id}-${doc.fileName}`,
+            title: 'Documento de contrato adicionado',
+            description: `${contract.name} - ${doc.fileName}`,
+            timestamp: contract.createdAt || Date.now(),
+            timeAgo: formatTimeAgo(contract.createdAt || Date.now()),
+          });
+        });
+      }
+    });
+
+    // Ordena por timestamp (mais recente primeiro) e limita a 6
+    return activities
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 6);
+  }, [selectedCenter, getAllEquipments, getAllExpenses, getAllReceipts, getAllOrders, documentsByCenter, getAllContracts]);
+
+  // Formata valor monetário
+  const formatCurrency = (value: number): string => {
+    if (value >= 1000000) {
+      return `R$ ${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `R$ ${(value / 1000).toFixed(1)}K`;
+    }
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const statCards = useMemo(() => [
+    {
+      label: 'Equipamentos Ativos',
+      value: String(activeEquipments),
+      change: '',
+      icon: Package,
+    },
+    {
+      label: 'Despesas do Mês',
+      value: formatCurrency(monthlyExpenses),
+      change: '',
+      icon: DollarSign,
+    },
+    {
+      label: 'Funcionários',
+      value: String(employeesCount),
+      change: '',
+      icon: Users,
+    },
+    {
+      label: 'Contratos Ativos',
+      value: String(contractsCount),
+      change: '',
+      icon: FileText,
+    },
+  ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount]);
+
+  const quickActions = [
+    { 
+      label: 'Novo Equipamento', 
+      icon: Package,
+      onPress: () => setIsEquipmentModalVisible(true),
+    },
+    { 
+      label: 'Registrar Despesa', 
+      icon: DollarSign,
+      onPress: () => setExpenseModalVisible(true),
+    },
+    { 
+      label: 'Novo Funcionário', 
+      icon: Users,
+      onPress: () => setEmployeeModalVisible(true),
+    },
+    { 
+      label: 'Criar Pedido', 
+      icon: ShoppingCart,
+      onPress: () => setOrderModalVisible(true),
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
@@ -108,7 +362,9 @@ export const DashboardScreen = () => {
               </View>
               <Text style={styles.statLabel}>{card.label}</Text>
               <Text style={styles.statValue}>{card.value}</Text>
-              <Text style={styles.statChange}>{card.change}</Text>
+              {card.change ? (
+                <Text style={styles.statChange}>{card.change}</Text>
+              ) : null}
             </View>
           ))}
         </View>
@@ -116,20 +372,28 @@ export const DashboardScreen = () => {
           <View style={styles.sectionsRow}>
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Atividades Recentes</Text>
-            {activities.map((activity) => (
-              <View key={activity.title} style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                  <PlusCircle size={18} color="#0A84FF" />
+            {recentActivities.length > 0 ? (
+              recentActivities.map((activity) => (
+                <View key={activity.id} style={styles.activityItem}>
+                  <View style={styles.activityIcon}>
+                    <PlusCircle size={18} color="#0A84FF" />
+                  </View>
+                  <View style={styles.activityText}>
+                    <Text style={styles.activityTitle}>{activity.title}</Text>
+                    <Text style={styles.activityDescription}>
+                      {activity.description}
+                    </Text>
+                  </View>
+                  <Text style={styles.activityTime}>{activity.timeAgo}</Text>
                 </View>
-                <View style={styles.activityText}>
-                  <Text style={styles.activityTitle}>{activity.title}</Text>
-                  <Text style={styles.activityDescription}>
-                    {activity.description}
-                  </Text>
-                </View>
-                <Text style={styles.activityTime}>{activity.timeAgo}</Text>
+              ))
+            ) : (
+              <View style={styles.emptyActivities}>
+                <Text style={styles.emptyActivitiesText}>
+                  Nenhuma atividade recente
+                </Text>
               </View>
-            ))}
+            )}
           </View>
 
           <View style={styles.sectionCard}>
@@ -140,6 +404,7 @@ export const DashboardScreen = () => {
                   key={action.label}
                   style={styles.quickButton}
                   activeOpacity={0.8}
+                  onPress={action.onPress}
                 >
                   <action.icon size={20} color="#0A84FF" />
                   <Text style={styles.quickLabel}>{action.label}</Text>
@@ -150,6 +415,95 @@ export const DashboardScreen = () => {
           </View>
         </ScrollView>
       </View>
+
+      {/* Modal de Novo Equipamento */}
+      <EquipmentFormModal
+        visible={isEquipmentModalVisible}
+        onClose={() => setIsEquipmentModalVisible(false)}
+        onSubmit={async (data) => {
+          try {
+            await addEquipment({
+              name: data.name,
+              brand: data.brand,
+              year: Number(data.year),
+              purchaseDate: data.purchaseDate,
+              nextReview: data.nextReview,
+              status: 'ativo',
+              center: selectedCenter,
+            });
+            setIsEquipmentModalVisible(false);
+          } catch (error) {
+            console.error('Erro ao adicionar equipamento:', error);
+          }
+        }}
+      />
+
+      {/* Modal de Novo Funcionário */}
+      <EmployeeDocumentModal
+        visible={isEmployeeModalVisible}
+        onClose={() => setEmployeeModalVisible(false)}
+        onSubmit={(data) => {
+          if (!data.equipmentId) {
+            return;
+          }
+          addEmployeeDocument({
+            employee: data.employeeName,
+            documentName: data.documentName,
+            date: data.date,
+            fileName: data.fileName,
+            fileUri: data.fileUri,
+            mimeType: data.mimeType,
+            equipmentId: data.equipmentId,
+            center: selectedCenter,
+          });
+          setEmployeeModalVisible(false);
+        }}
+        equipments={equipmentsForEmployee}
+        showEquipmentSelector={true}
+      />
+
+      {/* Modal de Nova Despesa */}
+      <ExpenseFormModal
+        visible={isExpenseModalVisible}
+        onClose={() => setExpenseModalVisible(false)}
+        onSubmit={async (data) => {
+          try {
+            await addExpense({
+              name: data.name,
+              value: data.value,
+              date: data.date,
+              category: data.category,
+              center: selectedCenter,
+              equipmentId: data.equipmentId,
+              documents: data.documents || [],
+            });
+            setExpenseModalVisible(false);
+          } catch (error) {
+            console.error('Erro ao adicionar despesa:', error);
+          }
+        }}
+      />
+
+      {/* Modal de Novo Pedido */}
+      <OrderFormModal
+        visible={isOrderModalVisible}
+        onClose={() => setOrderModalVisible(false)}
+        onSubmit={async (data) => {
+          try {
+            await addOrder({
+              name: data.name,
+              description: data.observations,
+              orderDate: data.date,
+              status: 'orcamento_solicitado',
+              costCenter: selectedCenter,
+              equipmentId: data.equipmentId,
+            });
+            setOrderModalVisible(false);
+          } catch (error) {
+            console.error('Erro ao criar pedido:', error);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -272,6 +626,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
   },
+  emptyActivities: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyActivitiesText: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
   quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -294,5 +656,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-
