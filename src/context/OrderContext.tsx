@@ -1,192 +1,476 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
-import { CostCenter } from './CostCenterContext';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  ReactNode,
+} from "react";
+import { supabase } from "@/src/lib/supabaseClient";
+import { CostCenter } from "./CostCenterContext";
+import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
 
-export type OrderStatus = 'orçamento_pendente' | 'orçamento_enviado' | 'aprovado' | 'rejeitado';
+// ============================
+// TIPOS
+// ============================
+
+export type OrderStatus =
+  | "orcamento_solicitado"
+  | "orcamento_pendente"
+  | "orcamento_enviado"
+  | "orcamento_aprovado"
+  | "em_execucao"
+  | "finalizado";
 
 export interface OrderBudget {
-  fileName: string;
   fileUri: string;
-  mimeType?: string | null;
+  fileName: string;
+  mimeType: string | null;
 }
 
 export interface Order {
   id: string;
   name: string;
   description: string;
-  date: string;
+  orderDate: string; // DD/MM/YYYY
+  date: string; // alias para compatibilidade com UI
   status: OrderStatus;
-  center: CostCenter;
+  costCenter: CostCenter;
   equipmentId?: string;
+  equipmentName?: string;
   budget?: OrderBudget;
-  createdAt?: number; // Timestamp quando foi criado
-  updatedAt?: number; // Timestamp quando foi atualizado
+  createdAt?: number;
 }
 
 interface OrderContextType {
   orders: Order[];
-  addOrder: (order: Omit<Order, 'id'>) => void;
-  updateOrder: (order: Order) => void;
-  deleteOrder: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+
+  addOrder: (order: {
+    name: string;
+    description: string;
+    orderDate: string;
+    status: OrderStatus;
+    costCenter: CostCenter;
+    equipmentId?: string;
+  }) => Promise<void>;
+
+  updateOrder: (order: Order) => Promise<void>;
+  deleteOrder: (id: string) => Promise<void>;
+
   getOrdersByCenter: (center: CostCenter) => Order[];
+  getAllOrders: () => Order[];
+  markOrderAsRead: (id: string) => void;
+
+  refresh: () => Promise<void>;
   getUnreadNotificationsCount: () => number;
-  getRecentOrders: (limit?: number) => Order[];
-  markOrderAsRead: (orderId: string) => void;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const useOrders = () => {
-  const context = useContext(OrderContext);
-  if (!context) {
-    throw new Error('useOrders must be used within OrderProvider');
+  const ctx = useContext(OrderContext);
+  if (!ctx) {
+    throw new Error("useOrders must be used within OrderProvider");
   }
-  return context;
+  return ctx;
 };
 
-interface OrderProviderProps {
-  children: ReactNode;
-}
+// ============================
+// HELPERS DE DATA
+// ============================
 
-const initialOrders: Order[] = [
-  {
-    id: 'ord-1',
-    name: 'Compra de equipamentos de irrigação',
-    description: 'Sistema de irrigação automático',
-    date: '04/11/2024',
-    status: 'orçamento_pendente',
-    center: 'valenca',
-    createdAt: Date.now() - 2 * 60 * 60 * 1000, // 2 horas atrás
-    updatedAt: Date.now() - 2 * 60 * 60 * 1000,
-  },
-  {
-    id: 'ord-2',
-    name: 'Aquisição de EPI',
-    description: 'Lotes de EPIs para safra',
-    date: '28/10/2024',
-    status: 'orçamento_enviado',
-    center: 'valenca',
-    createdAt: Date.now() - 5 * 60 * 60 * 1000, // 5 horas atrás
-    updatedAt: Date.now() - 1 * 60 * 60 * 1000, // 1 hora atrás (orçamento enviado)
-  },
-  {
-    id: 'ord-3',
-    name: 'Manutenção de maquinário',
-    description: 'Revisão geral dos equipamentos',
-    date: '15/11/2024',
-    status: 'orçamento_pendente',
-    center: 'cna',
-    createdAt: Date.now() - 24 * 60 * 60 * 1000, // 1 dia atrás
-    updatedAt: Date.now() - 24 * 60 * 60 * 1000,
-  },
-  {
-    id: 'ord-4',
-    name: 'Compra de sementes',
-    description: 'Sementes para plantio da safra',
-    date: '10/11/2024',
-    status: 'aprovado',
-    center: 'cabralia',
-    createdAt: Date.now() - 48 * 60 * 60 * 1000, // 2 dias atrás
-    updatedAt: Date.now() - 48 * 60 * 60 * 1000,
-  },
+const brToIso = (d: string) => {
+  const [dd, mm, yyyy] = d.split("/");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isoToBr = (iso?: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const allowedStatuses: OrderStatus[] = [
+  "orcamento_solicitado",
+  "orcamento_pendente",
+  "orcamento_enviado",
+  "orcamento_aprovado",
+  "em_execucao",
+  "finalizado",
 ];
 
-export const OrderProvider = ({ children }: OrderProviderProps) => {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [readOrderIds, setReadOrderIds] = useState<Set<string>>(new Set());
+const allowedCenters: CostCenter[] = ["valenca", "cna", "cabralia"];
 
-  const addOrder = useCallback((order: Omit<Order, 'id'>) => {
-    const now = Date.now();
-    const newOrder: Order = {
-      ...order,
-      id: `ord-${now}`,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setOrders((prev) => [newOrder, ...prev]);
+const normalizeStatus = (status?: string | null): OrderStatus => {
+  if (!status) return "orcamento_pendente";
+
+  const cleaned = status
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z_]/g, "");
+
+  const match = allowedStatuses.find((item) => item === cleaned);
+  return match ?? "orcamento_pendente";
+};
+
+const normalizeCenter = (code?: string | null): CostCenter => {
+  if (!code) return "valenca";
+  const cleaned = code.toLowerCase();
+  return (allowedCenters.includes(cleaned as CostCenter)
+    ? cleaned
+    : "valenca") as CostCenter;
+};
+
+const mapRowToOrder = (row: any): Order => {
+  const orderDate = isoToBr(row.order_date);
+  const normalizedStatus = normalizeStatus(row.status);
+
+  const budget =
+    row.quote_file_url && row.quote_file_name
+      ? {
+          fileUri: row.quote_file_url,
+          fileName: row.quote_file_name,
+          mimeType: row.quote_file_mime_type ?? null,
+        }
+      : undefined;
+
+  const equipmentRow = Array.isArray(row.equipments)
+    ? row.equipments[0]
+    : row.equipments;
+
+  return {
+    id: row.id,
+    name: row.name ?? "",
+    description: row.description ?? "",
+    orderDate,
+    date: orderDate,
+    status: normalizedStatus,
+    costCenter: normalizeCenter(row.cost_centers?.code),
+    equipmentId: row.equipment_id ?? undefined,
+    equipmentName: equipmentRow?.name ?? undefined,
+    budget,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
+  };
+};
+
+// ============================
+// PROVIDER
+// ============================
+
+export const OrdersProvider = ({ children }: { children: ReactNode }) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ----------------------------
+  // LOAD ORDERS
+  // ----------------------------
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .select(
+        `
+        id,
+        name,
+        description,
+        order_date,
+        status,
+        equipment_id,
+        quote_file_url,
+        quote_file_name,
+        quote_file_mime_type,
+        created_at,
+        cost_centers ( code ),
+        equipments ( id, name )
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("❌ Erro ao carregar pedidos:", error);
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+    setOrders(mapped);
+    setLoading(false);
   }, []);
 
-  const updateOrder = useCallback((updatedOrder: Order) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id === updatedOrder.id) {
-          return {
-            ...updatedOrder,
-            updatedAt: Date.now(),
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // ----------------------------
+  // ADD ORDER
+  // ----------------------------
+  const addOrder = useCallback(
+    async (order: {
+      name: string;
+      description: string;
+      orderDate: string;
+      status: OrderStatus;
+      costCenter: CostCenter;
+      equipmentId?: string;
+    }) => {
+      try {
+        console.log("📦 Salvando pedido:", order);
+
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id")
+          .eq("code", order.costCenter)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.log("❌ Erro ao buscar centro de custo:", ccError);
+          throw new Error("Centro de custo inválido.");
+        }
+
+        const payload = {
+          name: order.name,
+          description: order.description,
+          order_date: brToIso(order.orderDate),
+          status: order.status,
+          cost_center_id: ccData.id,
+          equipment_id: order.equipmentId ?? null,
+        };
+
+        const { data, error } = await supabase
+          .from("orders")
+          .insert(payload)
+          .select(
+            `
+            id,
+            name,
+            description,
+            order_date,
+            status,
+            equipment_id,
+            quote_file_url,
+            quote_file_name,
+            quote_file_mime_type,
+            created_at,
+            cost_centers ( code ),
+            equipments ( id, name )
+          `
+          )
+          .maybeSingle();
+
+        if (error || !data) {
+          console.log("❌ Erro ao criar pedido:", error);
+          throw error;
+        }
+
+        const newOrder: Order = mapRowToOrder({
+          ...data,
+          cost_centers: data.cost_centers ?? { code: order.costCenter },
+        });
+
+        setOrders((prev) => [newOrder, ...prev]);
+      } catch (err) {
+        console.log("❌ Erro em addOrder:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
+  // ----------------------------
+  // UPDATE ORDER
+  // ----------------------------
+  const updateOrder = useCallback(
+    async (order: Order) => {
+      try {
+        const existing = orders.find((o) => o.id === order.id);
+
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id, code")
+          .eq("code", order.costCenter)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.log("❌ Erro ao buscar centro de custo:", ccError);
+          throw new Error("Centro de custo inválido.");
+        }
+
+        let budgetToPersist = order.budget ?? existing?.budget;
+
+        const needsUpload =
+          budgetToPersist?.fileUri &&
+          !budgetToPersist.fileUri.startsWith("http");
+
+        if (needsUpload && budgetToPersist) {
+          const [uploadedUrl] = await uploadMultipleFilesToStorage(
+            [
+              {
+                fileUri: budgetToPersist.fileUri,
+                fileName: budgetToPersist.fileName ?? "orcamento",
+                mimeType: budgetToPersist.mimeType ?? "application/pdf",
+              },
+            ],
+            "documentos"
+          );
+
+          if (!uploadedUrl) {
+            throw new Error("Não foi possível enviar o arquivo de orçamento.");
+          }
+
+          budgetToPersist = {
+            ...budgetToPersist,
+            fileUri: uploadedUrl,
           };
         }
-        return order;
-      })
-    );
-  }, []);
 
-  const deleteOrder = useCallback((id: string) => {
-    setOrders((prev) => prev.filter((order) => order.id !== id));
-  }, []);
+        const payload: any = {
+          name: order.name,
+          description: order.description,
+          order_date: brToIso(order.orderDate || order.date),
+          status: order.status,
+          cost_center_id: ccData.id,
+          equipment_id: order.equipmentId ?? null,
+        };
 
-  const getOrdersByCenter = useCallback(
-    (center: CostCenter) => orders.filter((order) => order.center === center),
+        if (budgetToPersist) {
+          payload.quote_file_url = budgetToPersist.fileUri;
+          payload.quote_file_name = budgetToPersist.fileName;
+          payload.quote_file_mime_type = budgetToPersist.mimeType ?? null;
+        }
+
+        if (
+          !budgetToPersist &&
+          existing?.budget &&
+          order.status !== "orcamento_enviado"
+        ) {
+          payload.quote_file_url = null;
+          payload.quote_file_name = null;
+          payload.quote_file_mime_type = null;
+        }
+
+        const { data, error } = await supabase
+          .from("orders")
+          .update(payload)
+          .eq("id", order.id)
+          .select(
+            `
+            id,
+            name,
+            description,
+            order_date,
+            status,
+            equipment_id,
+            quote_file_url,
+            quote_file_name,
+            quote_file_mime_type,
+            created_at,
+            cost_centers ( code ),
+            equipments ( id, name )
+          `
+          )
+          .maybeSingle();
+
+        if (error || !data) {
+          console.log("❌ Erro ao atualizar pedido:", error);
+          throw error;
+        }
+
+        if (budgetToPersist && order.status === "orcamento_enviado") {
+          const { error: quoteError } = await supabase
+            .from("order_quotes")
+            .insert({
+              order_id: order.id,
+              file_url: budgetToPersist.fileUri,
+              file_name: budgetToPersist.fileName,
+              mime_type: budgetToPersist.mimeType ?? null,
+            });
+
+          if (quoteError) {
+            console.log("⚠️ Erro ao registrar orçamento em order_quotes:", quoteError);
+          }
+        }
+
+        const updated = mapRowToOrder(data);
+
+        setOrders((prev) =>
+          prev.map((o) => (o.id === order.id ? updated : o))
+        );
+      } catch (err) {
+        console.log("❌ Erro em updateOrder:", err);
+        throw err;
+      }
+    },
     [orders]
   );
 
-  const getUnreadNotificationsCount = useCallback(() => {
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000; // 24 horas atrás
-    
-    return orders.filter((order) => {
-      // Ignora pedidos já lidos
-      if (readOrderIds.has(order.id)) {
-        return false;
+  // ----------------------------
+  // DELETE ORDER
+  // ----------------------------
+  const deleteOrder = useCallback(async (id: string) => {
+    try {
+      const { error } = await supabase.from("orders").delete().eq("id", id);
+
+      if (error) {
+        console.log("❌ Erro ao deletar pedido:", error);
+        throw error;
       }
-      
-      // Pedido novo (criado nas últimas 24h)
-      const isNew = order.createdAt && order.createdAt > oneDayAgo;
-      // Orçamento enviado recentemente (atualizado nas últimas 24h, status é orçamento_enviado e tem budget)
-      // Verifica se foi atualizado recentemente (não apenas criado)
-      const isRecentBudget = 
-        order.status === 'orçamento_enviado' && 
-        order.updatedAt && 
-        order.updatedAt > oneDayAgo &&
-        order.updatedAt !== order.createdAt && // Garante que foi atualizado, não apenas criado
-        order.budget;
-      
-      return isNew || isRecentBudget;
-    }).length;
-  }, [orders, readOrderIds]);
 
-  const getRecentOrders = useCallback((limit: number = 5) => {
-    return [...orders]
-      .sort((a, b) => {
-        // Ordena por updatedAt ou createdAt (mais recente primeiro)
-        const timeA = a.updatedAt || a.createdAt || 0;
-        const timeB = b.updatedAt || b.createdAt || 0;
-        return timeB - timeA;
-      })
-      .slice(0, limit);
-  }, [orders]);
-
-  const markOrderAsRead = useCallback((orderId: string) => {
-    setReadOrderIds((prev) => {
-      const newSet = new Set(prev);
-      newSet.add(orderId);
-      return newSet;
-    });
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+    } catch (err) {
+      console.log("❌ Erro em deleteOrder:", err);
+      throw err;
+    }
   }, []);
 
-  return (
-    <OrderContext.Provider
-      value={{ 
-        orders, 
-        addOrder, 
-        updateOrder, 
-        deleteOrder, 
-        getOrdersByCenter,
-        getUnreadNotificationsCount,
-        getRecentOrders,
-        markOrderAsRead,
-      }}
-    >
-      {children}
-    </OrderContext.Provider>
+  // ----------------------------
+  // BADGE / FILTROS
+  // ----------------------------
+  const getOrdersByCenter = useCallback(
+    (center: CostCenter) => orders.filter((o) => o.costCenter === center),
+    [orders]
   );
+
+  const getAllOrders = useCallback(() => orders, [orders]);
+
+  const markOrderAsRead = useCallback((id: string) => {
+    console.log("📘 Pedido marcado como lido:", id);
+  }, []);
+
+  const getUnreadNotificationsCount = useCallback(() => {
+    return orders.filter((o) => o.status === "orcamento_pendente").length;
+  }, [orders]);
+
+  // ----------------------------
+  // VALUE
+  // ----------------------------
+  const value: OrderContextType = {
+    orders,
+    loading,
+    error,
+    addOrder,
+    updateOrder,
+    deleteOrder,
+    getOrdersByCenter,
+    getAllOrders,
+    markOrderAsRead,
+    refresh: loadOrders,
+    getUnreadNotificationsCount,
+  };
+
+  return <OrderContext.Provider value={value}>{children}</OrderContext.Provider>;
 };
 
+// alias pra manter compatibilidade com RootLayout
+export { OrdersProvider as OrderProvider };

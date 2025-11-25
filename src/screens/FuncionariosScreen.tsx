@@ -12,7 +12,7 @@ import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useEmployees, EmployeeDocument } from '../context/EmployeeContext';
-import { UserPlus, Trash2, FileText, ChevronDown, Edit3 } from 'lucide-react-native';
+import { UserPlus, Trash2, FileText, ChevronDown, Edit3, Plus } from 'lucide-react-native';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { CostCenter } from '../context/CostCenterContext';
@@ -47,6 +47,7 @@ export const FuncionariosScreen = () => {
   const [equipmentDropdown, setEquipmentDropdown] = useState(false);
   const [isEmployeeModalVisible, setEmployeeModalVisible] = useState(false);
   const [editingDocument, setEditingDocument] = useState<EmployeeDocument | null>(null);
+  const [addingDocumentForEmployee, setAddingDocumentForEmployee] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
     uri: string;
@@ -71,6 +72,18 @@ export const FuncionariosScreen = () => {
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
     return centerDocs[selectedEquipment.id] ?? [];
   }, [documentsByCenter, selectedCenter, selectedEquipment]);
+
+  // Agrupa documentos por funcionário
+  const documentsByEmployee = useMemo(() => {
+    const grouped: Record<string, EmployeeDocument[]> = {};
+    documents.forEach(doc => {
+      if (!grouped[doc.employee]) {
+        grouped[doc.employee] = [];
+      }
+      grouped[doc.employee].push(doc);
+    });
+    return grouped;
+  }, [documents]);
 
   const handleDeleteDocument = (docId: string) => {
     deleteEmployeeDocument(docId);
@@ -153,61 +166,85 @@ export const FuncionariosScreen = () => {
             <Text style={styles.sectionTitle}>Funcionários</Text>
           </View>
 
-          {documents.length > 0 ? (
-            documents.map((doc) => (
-            <View key={doc.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.iconCircle}>
-                  <FileText size={18} color="#0A84FF" />
+          {Object.keys(documentsByEmployee).length > 0 ? (
+            Object.entries(documentsByEmployee).map(([employeeName, employeeDocs]) => (
+              <View key={employeeName} style={styles.employeeGroup}>
+                <View style={styles.employeeHeader}>
+                  <View style={styles.employeeHeaderLeft}>
+                    <View style={styles.iconCircle}>
+                      <FileText size={18} color="#0A84FF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.employeeName}>{employeeName}</Text>
+                      <Text style={styles.employeeDocCount}>
+                        {employeeDocs.length} {employeeDocs.length === 1 ? 'documento' : 'documentos'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.addDocButton}
+                    onPress={() => {
+                      setAddingDocumentForEmployee(employeeName);
+                      setEmployeeModalVisible(true);
+                    }}
+                  >
+                    <Plus size={16} color="#0A84FF" />
+                    <Text style={styles.addDocText}>Adicionar</Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{doc.employee}</Text>
-                  <Text style={styles.cardSubtitle}>{doc.documentName}</Text>
-                </View>
-                <Text style={styles.cardDate}>{doc.date}</Text>
+                {employeeDocs.map((doc) => (
+                  <View key={doc.id} style={styles.documentCard}>
+                    <View style={styles.documentHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.documentName}>{doc.documentName}</Text>
+                        <Text style={styles.documentDate}>{doc.date}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.actionPill}
+                        onPress={() => {
+                          setPreviewFile({
+                            uri: doc.fileUri,
+                            name: doc.fileName,
+                            mimeType: doc.mimeType,
+                          });
+                          setPreviewVisible(true);
+                        }}
+                      >
+                        <Text style={styles.actionText}>Visualizar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          setEditingDocument(doc);
+                          setAddingDocumentForEmployee(null);
+                          setEmployeeModalVisible(true);
+                        }}
+                      >
+                        <Edit3 size={16} color="#0A84FF" />
+                        <Text style={styles.editText}>Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() =>
+                          Alert.alert(
+                            'Remover documento',
+                            'Tem certeza que deseja excluir este documento?',
+                            [
+                              { text: 'Cancelar', style: 'cancel' },
+                              { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
+                            ]
+                          )
+                        }
+                      >
+                        <Trash2 size={16} color="#FF3B30" />
+                        <Text style={styles.deleteText}>Excluir</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
               </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={styles.actionPill}
-                  onPress={() => {
-                    setPreviewFile({
-                      uri: doc.fileUri,
-                      name: doc.fileName,
-                      mimeType: doc.mimeType,
-                    });
-                    setPreviewVisible(true);
-                  }}
-                >
-                  <Text style={styles.actionText}>Visualizar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => {
-                    setEditingDocument(doc);
-                    setEmployeeModalVisible(true);
-                  }}
-                >
-                  <Edit3 size={16} color="#0A84FF" />
-                  <Text style={styles.editText}>Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() =>
-                    Alert.alert(
-                      'Remover documento',
-                      'Tem certeza que deseja excluir este documento?',
-                      [
-                        { text: 'Cancelar', style: 'cancel' },
-                        { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
-                      ]
-                    )
-                  }
-                >
-                  <Trash2 size={16} color="#FF3B30" />
-                  <Text style={styles.deleteText}>Excluir</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -223,6 +260,7 @@ export const FuncionariosScreen = () => {
         onClose={() => {
           setEmployeeModalVisible(false);
           setEditingDocument(null);
+          setAddingDocumentForEmployee(null);
         }}
         onSubmit={(data) => {
           if (!selectedEquipment) return;
@@ -250,6 +288,7 @@ export const FuncionariosScreen = () => {
           }
           
           setEditingDocument(null);
+          setAddingDocumentForEmployee(null);
         }}
         initialData={
           editingDocument
@@ -261,8 +300,18 @@ export const FuncionariosScreen = () => {
                 fileUri: editingDocument.fileUri,
                 mimeType: editingDocument.mimeType,
               }
+            : addingDocumentForEmployee
+            ? {
+                employeeName: addingDocumentForEmployee,
+                documentName: '',
+                date: '',
+                fileName: '',
+                fileUri: '',
+                mimeType: null,
+              }
             : undefined
         }
+        disableEmployeeName={!!addingDocumentForEmployee}
       />
       <FilePreviewModal
         visible={previewVisible}
@@ -469,5 +518,74 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6C6C70',
     textAlign: 'center',
+  },
+  employeeGroup: {
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+    marginBottom: 12,
+  },
+  employeeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F3',
+  },
+  employeeHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  employeeName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  employeeDocCount: {
+    fontSize: 13,
+    color: '#6C6C70',
+    marginTop: 2,
+  },
+  addDocButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#EAF2FF',
+  },
+  addDocText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  documentCard: {
+    backgroundColor: '#F9F9FB',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 10,
+  },
+  documentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  documentName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  documentDate: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 4,
   },
 });

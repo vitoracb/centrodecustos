@@ -38,6 +38,7 @@ interface EmployeeDocumentModalProps {
   initialData?: EmployeeDocumentData | null;
   equipments?: Equipment[];
   showEquipmentSelector?: boolean;
+  disableEmployeeName?: boolean;
 }
 
 export const EmployeeDocumentModal = ({
@@ -47,6 +48,7 @@ export const EmployeeDocumentModal = ({
   initialData,
   equipments = [],
   showEquipmentSelector = false,
+  disableEmployeeName = false,
 }: EmployeeDocumentModalProps) => {
   const [employeeName, setEmployeeName] = useState('');
   const [documentName, setDocumentName] = useState('');
@@ -199,10 +201,11 @@ export const EmployeeDocumentModal = ({
             <View style={styles.field}>
               <Text style={styles.label}>Nome do funcionário *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, disableEmployeeName && styles.inputDisabled]}
                 value={employeeName}
                 onChangeText={setEmployeeName}
                 placeholder="Ex: João Silva"
+                editable={!disableEmployeeName}
               />
             </View>
 
@@ -233,10 +236,10 @@ export const EmployeeDocumentModal = ({
                 <Text style={styles.uploadText}>Selecionar PDF/Doc</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.uploadButton, styles.secondaryUploadButton]}
+                style={styles.uploadButton}
                 onPress={handlePickFromAlbum}
               >
-                <Text style={[styles.uploadText, styles.secondaryUploadText]}>
+                <Text style={styles.uploadText}>
                   Selecionar foto
                 </Text>
               </TouchableOpacity>
@@ -367,6 +370,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  inputDisabled: {
+    backgroundColor: '#ECECEC',
+    opacity: 0.7,
   },
   inputText: {
     fontSize: 15,

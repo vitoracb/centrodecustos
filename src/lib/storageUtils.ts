@@ -53,7 +53,8 @@ export async function uploadFileToStorage(
   fileUri: string,
   fileName: string,
   mimeType?: string | null,
-  bucket: string = 'documentos'
+  bucket: string = 'documentos',
+  folder: string = 'expenses'
 ): Promise<string | null> {
   try {
     // Lê o arquivo como base64
@@ -68,7 +69,7 @@ export async function uploadFileToStorage(
     const timestamp = Date.now();
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const uniqueFileName = `${timestamp}_${sanitizedFileName}`;
-    const filePath = `expenses/${uniqueFileName}`;
+    const filePath = `${folder}/${uniqueFileName}`;
 
     // Determina o content type
     const contentType = mimeType || 'application/octet-stream';
@@ -132,10 +133,11 @@ export async function uploadFileToStorage(
  */
 export async function uploadMultipleFilesToStorage(
   files: Array<{ fileUri: string; fileName: string; mimeType?: string | null }>,
-  bucket: string = 'documentos'
+  bucket: string = 'documentos',
+  folder: string = 'expenses'
 ): Promise<Array<string | null>> {
   const uploadPromises = files.map((file) =>
-    uploadFileToStorage(file.fileUri, file.fileName, file.mimeType, bucket)
+    uploadFileToStorage(file.fileUri, file.fileName, file.mimeType, bucket, folder)
   );
   return Promise.all(uploadPromises);
 }

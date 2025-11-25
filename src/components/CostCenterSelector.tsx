@@ -36,7 +36,7 @@ export const CostCenterSelector = () => {
 
   return (
     <>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <Text style={styles.label}>Centro de Custo</Text>
         <TouchableOpacity
           style={styles.dropdown}
@@ -54,27 +54,27 @@ export const CostCenterSelector = () => {
             {costCenterOptions.map((option) => {
               const isSelected = option.id === selectedCenter;
               return (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
+          <TouchableOpacity
+            key={option.id}
+            style={[
                     styles.option,
                     isSelected && styles.optionSelected,
-                  ]}
+            ]}
                   activeOpacity={0.8}
                   onPress={() => handleSelect(option.id)}
-                >
-                  <Text
-                    style={[
+          >
+            <Text
+              style={[
                       styles.optionLabel,
                       isSelected && styles.optionLabelSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
+              ]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
               );
             })}
-          </View>
+      </View>
         </Pressable>
       </Modal>
     </>

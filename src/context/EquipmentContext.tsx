@@ -3,22 +3,29 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
-} from "react";
+} from 'react';
+import { supabase } from '@/src/lib/supabaseClient';
+import { CostCenter } from './CostCenterContext';
 
-import { CostCenter } from "./CostCenterContext";
-import { supabase } from "@/src/lib/supabaseClient";
+/**
+ * Status do equipamento
+ */
+export type EquipmentStatus = 'ativo' | 'inativo';
 
-export type EquipmentStatus = "ativo" | "inativo";
-
+/**
+ * Modelo usado no app
+ * (datas em string DD/MM/YYYY para a UI)
+ */
 export interface Equipment {
   id: string;
   name: string;
   brand: string;
   year: number;
-  purchaseDate: string;
-  nextReview: string;
-  center: CostCenter;
+  purchaseDate: string; // 'DD/MM/YYYY'
+  nextReview: string; // 'DD/MM/YYYY' ou ''
+  center: CostCenter; // 'valenca' | 'cna' | 'cabralia'
   status: EquipmentStatus;
   createdAt?: number;
   statusChangedAt?: number;
@@ -26,22 +33,27 @@ export interface Equipment {
 
 interface EquipmentContextType {
   equipments: Equipment[];
-  addEquipment: (equipment: Omit<Equipment, "id">) => void;
-  updateEquipment: (id: string, equipment: Partial<Equipment>) => void;
-  deleteEquipment: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+
+  addEquipment: (equipment: Omit<Equipment, 'id'>) => Promise<void>;
+  updateEquipment: (id: string, updates: Partial<Equipment>) => Promise<void>;
+  deleteEquipment: (id: string) => Promise<void>;
+
   getEquipmentsByCenter: (center: CostCenter) => Equipment[];
   getEquipmentById: (id: string) => Equipment | undefined;
   getAllEquipments: () => Equipment[];
 }
 
-const EquipmentContext = createContext<EquipmentContextType | undefined>(
-  undefined
+export const EquipmentContext = createContext<EquipmentContextType | undefined>(
+  undefined,
 );
 
 export const useEquipment = () => {
   const context = useContext(EquipmentContext);
   if (!context) {
-    throw new Error("useEquipment must be used within EquipmentProvider");
+    throw new Error('useEquipment must be used within an EquipmentProvider');
   }
   return context;
 };
@@ -50,18 +62,46 @@ interface EquipmentProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Converte ISO '2025-11-24' -> '24/11/2025'
+ */
+const isoToBr = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+/**
+ * Converte 'DD/MM/AAAA' -> 'AAAA-MM-DD'
+ */
+const brToIso = (br?: string | null): string | null => {
+  if (!br) return null;
+  const parts = br.split('/');
+  if (parts.length !== 3) return null;
+  const [dd, mm, yyyy] = parts;
+  if (!dd || !mm || !yyyy) return null;
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // ============================================================
-  // LOAD FROM SUPABASE
-  // ============================================================
-  useEffect(() => {
-    async function loadEquipments() {
-      console.log("🔌 Carregando equipamentos do Supabase...");
+  /**
+   * Carrega equipamentos do Supabase
+   */
+  const loadEquipments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
+    try {
       const { data, error } = await supabase
-        .from("equipments")
+        .from('equipments')
         .select(
           `
           id,
@@ -72,94 +112,89 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           next_review_date,
           active,
           created_at,
-          cost_centers ( code )
-        `
+          cost_centers (
+            code
+          )
+        `,
         )
-        .order("name", { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.log("❌ Erro ao carregar equipamentos:", error);
+        console.log('❌ Erro ao carregar equipments:', error);
+        setError(error.message);
+        setLoading(false);
         return;
       }
 
-      console.log("📦 Equipamentos carregados:", data);
+      const mapped: Equipment[] =
+        data?.map((row: any) => {
+          const costCenter = Array.isArray(row.cost_centers)
+            ? row.cost_centers[0]
+            : row.cost_centers;
 
-      const mapped: Equipment[] = (data ?? []).map((row: any) => {
-        const rawCostCenter = Array.isArray(row.cost_centers)
-          ? row.cost_centers[0]
-          : row.cost_centers;
-        const centerCode = (rawCostCenter?.code ?? "valenca") as CostCenter;
-
-        return {
-          id: row.id,
-          name: row.name,
-          brand: row.brand ?? "",
-          year: row.year ?? 0,
-          purchaseDate: row.purchase_date
-            ? new Date(row.purchase_date).toLocaleDateString("pt-BR")
-            : "",
-          nextReview: row.next_review_date
-            ? new Date(row.next_review_date).toLocaleDateString("pt-BR")
-            : "",
-          center: centerCode,
-          status: row.active ? "ativo" : "inativo",
-          createdAt: row.created_at
-            ? new Date(row.created_at).getTime()
-            : undefined,
-          statusChangedAt: undefined,
-        };
-      });
+          return {
+            id: row.id,
+            name: row.name,
+            brand: row.brand ?? '',
+            year: row.year ?? new Date().getFullYear(),
+            purchaseDate: isoToBr(row.purchase_date),
+            nextReview: isoToBr(row.next_review_date),
+            center: (costCenter?.code ?? 'valenca') as CostCenter,
+            status: row.active ? 'ativo' : 'inativo',
+            createdAt: row.created_at
+              ? new Date(row.created_at).getTime()
+              : undefined,
+          };
+        }) ?? [];
 
       setEquipments(mapped);
+    } catch (err: any) {
+      console.log('❌ Erro inesperado ao carregar equipments:', err);
+      setError(err.message ?? 'Erro inesperado ao carregar equipamentos');
+    } finally {
+      setLoading(false);
     }
-
-    loadEquipments();
   }, []);
 
-  // helper de data dd/MM/yyyy -> YYYY-MM-DD
-  const toDbDate = (value?: string): string | null => {
-    if (!value) return null;
-    const [d, m, y] = value.split("/");
-    if (!d || !m || !y) return null;
-    return `${y}-${m}-${d}`;
-  };
+  useEffect(() => {
+    loadEquipments();
+  }, [loadEquipments]);
 
-  // ============================================================
-  // CREATE — SALVAR NO SUPABASE
-  // ============================================================
-  const addEquipment = (equipment: Omit<Equipment, "id">) => {
-    (async () => {
+  /**
+   * Cria um novo equipamento no Supabase
+   */
+  const addEquipment = useCallback(
+    async (equipment: Omit<Equipment, 'id'>) => {
       try {
+        const costCenterCode = equipment.center;
+
+        // Busca o cost_center.id pelo code
         const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", equipment.center)
+          .from('cost_centers')
+          .select('id, code')
+          .eq('code', costCenterCode)
           .maybeSingle();
 
         if (ccError || !ccData) {
-          console.log(
-            "❌ Erro ao buscar centro de custo:",
-            ccError || "não encontrado"
+          console.log('❌ Erro ao buscar cost_center:', ccError);
+          throw new Error(
+            'Não foi possível encontrar o centro de custo selecionado',
           );
-          return;
         }
 
-        const purchaseDateDb = toDbDate(equipment.purchaseDate);
-        const nextReviewDb = toDbDate(equipment.nextReview);
-
-        const payload = {
+        const insertPayload = {
           name: equipment.name,
           brand: equipment.brand,
           year: equipment.year,
-          purchase_date: purchaseDateDb,
-          next_review_date: nextReviewDb,
+          purchase_date: brToIso(equipment.purchaseDate),
+          next_review_date: brToIso(equipment.nextReview),
+          active: equipment.status === 'ativo',
           cost_center_id: ccData.id,
-          active: equipment.status === "ativo",
         };
 
         const { data, error } = await supabase
-          .from("equipments")
-          .insert(payload)
+          .from('equipments')
+          .insert(insertPayload)
           .select(
             `
             id,
@@ -171,208 +206,183 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             active,
             created_at,
             cost_centers ( code )
-          `
+          `,
           )
-          .single();
+          .maybeSingle();
 
-        if (error || !data) {
-          console.log("❌ Erro ao criar equipamento:", error);
-          return;
+        if (error) {
+          console.log('❌ Erro ao inserir equipamento:', error);
+          throw error;
         }
 
-        const rawCostCenter = Array.isArray(data.cost_centers)
+        if (!data) {
+          throw new Error('Resposta inválida ao criar equipamento');
+        }
+
+        const costCenter = Array.isArray(data.cost_centers)
           ? data.cost_centers[0]
           : data.cost_centers;
-        const centerCode = (rawCostCenter?.code ?? equipment.center) as CostCenter;
 
         const newEquipment: Equipment = {
           id: data.id,
           name: data.name,
-          brand: data.brand ?? "",
-          year: data.year ?? 0,
-          purchaseDate: data.purchase_date
-            ? new Date(data.purchase_date).toLocaleDateString("pt-BR")
-            : "",
-          nextReview: data.next_review_date
-            ? new Date(data.next_review_date).toLocaleDateString("pt-BR")
-            : "",
-          center: centerCode,
-          status: data.active ? "ativo" : "inativo",
+          brand: data.brand ?? '',
+          year: data.year ?? new Date().getFullYear(),
+          purchaseDate: isoToBr(data.purchase_date),
+          nextReview: isoToBr(data.next_review_date),
+          center: (costCenter?.code ?? costCenterCode) as CostCenter,
+          status: data.active ? 'ativo' : 'inativo',
           createdAt: data.created_at
             ? new Date(data.created_at).getTime()
             : Date.now(),
-          statusChangedAt: undefined,
         };
 
-        setEquipments((prev) => [newEquipment, ...prev]);
-      } catch (err) {
-        console.log("❌ Erro inesperado ao criar equipamento:", err);
+        setEquipments(prev => [newEquipment, ...prev]);
+      } catch (err: any) {
+        console.log('❌ Erro em addEquipment:', err);
+        throw err;
       }
-    })();
-  };
+    },
+    [],
+  );
 
-  // ============================================================
-  // UPDATE — ATUALIZA TAMBÉM NO SUPABASE
-  // ============================================================
-  const updateEquipment = (id: string, updates: Partial<Equipment>) => {
-    (async () => {
+  /**
+   * Atualiza um equipamento no Supabase
+   */
+  const updateEquipment = useCallback(
+    async (id: string, updates: Partial<Equipment>) => {
       try {
-        const existing = equipments.find((eq) => eq.id === id);
+        const existing = equipments.find(eq => eq.id === id);
         if (!existing) {
-          console.log("⚠️ Equipamento não encontrado para update:", id);
-          return;
+          throw new Error('Equipamento não encontrado para atualização');
         }
 
-        const centerCode = (updates.center ?? existing.center) as CostCenter;
+        let costCenterId: string | undefined;
 
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", centerCode)
-          .maybeSingle();
+        if (updates.center) {
+          const { data: ccData, error: ccError } = await supabase
+            .from('cost_centers')
+            .select('id, code')
+            .eq('code', updates.center)
+            .maybeSingle();
 
-        if (ccError || !ccData) {
-          console.log(
-            "❌ Erro ao buscar centro de custo no update:",
-            ccError || "não encontrado"
-          );
-          return;
+          if (ccError || !ccData) {
+            console.log('❌ Erro ao buscar cost_center para update:', ccError);
+            throw new Error(
+              'Não foi possível encontrar o centro de custo selecionado',
+            );
+          }
+          costCenterId = ccData.id;
         }
 
-        const payload: any = {
-          cost_center_id: ccData.id,
-        };
+        const payload: any = {};
 
         if (updates.name !== undefined) payload.name = updates.name;
         if (updates.brand !== undefined) payload.brand = updates.brand;
         if (updates.year !== undefined) payload.year = updates.year;
-        if (updates.purchaseDate !== undefined) {
-          payload.purchase_date = toDbDate(updates.purchaseDate) ?? null;
-        }
-        if (updates.nextReview !== undefined) {
-          payload.next_review_date = toDbDate(updates.nextReview) ?? null;
-        }
-        if (updates.status !== undefined) {
-          payload.active = updates.status === "ativo";
-        }
+        if (updates.purchaseDate !== undefined)
+          payload.purchase_date = brToIso(updates.purchaseDate);
+        if (updates.nextReview !== undefined)
+          payload.next_review_date = brToIso(updates.nextReview);
+        if (updates.status !== undefined)
+          payload.active = updates.status === 'ativo';
+        if (costCenterId) payload.cost_center_id = costCenterId;
 
-        const { data, error } = await supabase
-          .from("equipments")
-          .update(payload)
-          .eq("id", id)
-          .select(
-            `
-            id,
-            name,
-            brand,
-            year,
-            purchase_date,
-            next_review_date,
-            active,
-            created_at,
-            cost_centers ( code )
-          `
-          )
-          .single();
-
-        if (error || !data) {
-          console.log("❌ Erro ao atualizar equipamento:", error);
+        if (Object.keys(payload).length === 0) {
           return;
         }
 
-        const rawCostCenter = Array.isArray(data.cost_centers)
-          ? data.cost_centers[0]
-          : data.cost_centers;
-        const updatedCenterCode = (rawCostCenter?.code ?? centerCode) as CostCenter;
-
-        const updated: Equipment = {
-          id: data.id,
-          name: data.name,
-          brand: data.brand ?? "",
-          year: data.year ?? 0,
-          purchaseDate: data.purchase_date
-            ? new Date(data.purchase_date).toLocaleDateString("pt-BR")
-            : "",
-          nextReview: data.next_review_date
-            ? new Date(data.next_review_date).toLocaleDateString("pt-BR")
-            : "",
-          center: updatedCenterCode,
-          status: data.active ? "ativo" : "inativo",
-          createdAt: data.created_at
-            ? new Date(data.created_at).getTime()
-            : existing.createdAt,
-          statusChangedAt: existing.statusChangedAt,
-        };
-
-        setEquipments((prev) => {
-          return prev.map((eq) => {
-            if (eq.id === id) {
-              if (updated.status === "inativo" && eq.status === "ativo") {
-                return {
-                  ...updated,
-                  statusChangedAt: Date.now(),
-                };
-              }
-              if (updated.status === "ativo" && eq.status === "inativo") {
-                return {
-                  ...updated,
-                  statusChangedAt: undefined,
-                };
-              }
-              return updated;
-            }
-            return eq;
-          });
-        });
-      } catch (err) {
-        console.log("❌ Erro inesperado no update de equipamento:", err);
-      }
-    })();
-  };
-
-  // ============================================================
-  // DELETE — AGORA APAGA NO SUPABASE TAMBÉM
-  // ============================================================
-  const deleteEquipment = (id: string) => {
-    (async () => {
-      try {
         const { error } = await supabase
-          .from("equipments")
-          .delete()
-          .eq("id", id);
+          .from('equipments')
+          .update(payload)
+          .eq('id', id);
 
         if (error) {
-          console.log("❌ Erro ao deletar equipamento:", error);
-          return;
+          console.log('❌ Erro ao atualizar equipamento:', error);
+          throw error;
         }
 
-        setEquipments((prev) => prev.filter((eq) => eq.id !== id));
-      } catch (err) {
-        console.log("❌ Erro inesperado ao deletar equipamento:", err);
+        setEquipments(prev =>
+          prev.map(eq => {
+            if (eq.id !== id) return eq;
+
+            const merged: Equipment = {
+              ...eq,
+              ...updates,
+            };
+
+            // controla statusChangedAt
+            if (updates.status === 'inativo' && eq.status === 'ativo') {
+              merged.statusChangedAt = Date.now();
+            }
+            if (updates.status === 'ativo' && eq.status === 'inativo') {
+              const { statusChangedAt, ...rest } = merged;
+              return rest;
+            }
+
+            return merged;
+          }),
+        );
+      } catch (err: any) {
+        console.log('❌ Erro em updateEquipment:', err);
+        throw err;
       }
-    })();
+    },
+    [equipments],
+  );
+
+  /**
+   * Deleta um equipamento
+   */
+  const deleteEquipment = useCallback(
+    async (id: string) => {
+      try {
+        const { error } = await supabase
+          .from('equipments')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.log('❌ Erro ao deletar equipamento:', error);
+          throw error;
+        }
+
+        setEquipments(prev => prev.filter(eq => eq.id !== id));
+      } catch (err: any) {
+        console.log('❌ Erro em deleteEquipment:', err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const getEquipmentsByCenter = useCallback(
+    (center: CostCenter) => equipments.filter(eq => eq.center === center),
+    [equipments],
+  );
+
+  const getEquipmentById = useCallback(
+    (id: string) => equipments.find(eq => eq.id === id),
+    [equipments],
+  );
+
+  const getAllEquipments = useCallback(() => equipments, [equipments]);
+
+  const value: EquipmentContextType = {
+    equipments,
+    loading,
+    error,
+    refresh: loadEquipments,
+    addEquipment,
+    updateEquipment,
+    deleteEquipment,
+    getEquipmentsByCenter,
+    getEquipmentById,
+    getAllEquipments,
   };
 
-  const getEquipmentsByCenter = (center: CostCenter) =>
-    equipments.filter((eq) => eq.center === center);
-
-  const getEquipmentById = (id: string) =>
-    equipments.find((eq) => eq.id === id);
-
-  const getAllEquipments = () => equipments;
-
   return (
-    <EquipmentContext.Provider
-      value={{
-        equipments,
-      addEquipment,
-      updateEquipment,
-      deleteEquipment,
-      getEquipmentsByCenter,
-      getEquipmentById,
-      getAllEquipments,
-      }}
-    >
+    <EquipmentContext.Provider value={value}>
       {children}
     </EquipmentContext.Provider>
   );

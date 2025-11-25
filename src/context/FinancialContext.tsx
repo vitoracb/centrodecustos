@@ -10,16 +10,20 @@ import { CostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
 
+// ========================
+// TIPOS
+// ========================
+
 export interface Receipt {
   id: string;
   name: string;
-  date: string;
+  date: string; // dd/MM/yyyy
   value: number;
   center: CostCenter;
   category?: string;
   status?: string;
   method?: string;
-  createdAt?: number; // Timestamp quando foi criado
+  createdAt?: number; // timestamp
 }
 
 export type ExpenseCategory =
@@ -51,28 +55,36 @@ export interface Expense {
   value: number;
   center: CostCenter;
   documents?: ExpenseDocument[];
-  equipmentId?: string; // Para manutencao, funcionario, terceirizados
-  gestaoSubcategory?: GestaoSubcategory; // Para gestao
-  observations?: string; // Para diversos
+  equipmentId?: string;
+  gestaoSubcategory?: GestaoSubcategory;
+  observations?: string;
   status?: string;
   method?: string;
-  createdAt?: number; // Timestamp quando foi criado
+  createdAt?: number;
 }
 
 interface FinancialContextType {
   receipts: Receipt[];
   expenses: Expense[];
+
   addReceipt: (receipt: Omit<Receipt, "id">) => void;
   updateReceipt: (receipt: Receipt) => void;
   deleteReceipt: (id: string) => void;
+
   addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
+
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
   getExpensesByCenter: (center: CostCenter) => Expense[];
+
   getAllReceipts: () => Receipt[];
   getAllExpenses: () => Expense[];
 }
+
+// ========================
+// CONTEXTO / HOOK
+// ========================
 
 const FinancialContext = createContext<FinancialContextType | undefined>(
   undefined
@@ -86,37 +98,11 @@ export const useFinancial = () => {
   return context;
 };
 
-interface FinancialProviderProps {
-  children: ReactNode;
-}
+// ========================
+// HELPERS DE DATA
+// ========================
 
-// --------------------
-// MOCKS APENAS PARA RECEITAS (ainda não integramos Supabase nelas)
-// --------------------
-const initialReceipts: Receipt[] = [
-  {
-    id: "rec-1",
-    name: "Serviços prestados",
-    date: "05/11/2024",
-    value: 12500,
-    center: "valenca",
-    category: "Serviços",
-    status: "Confirmado",
-    method: "Transferência",
-  },
-  {
-    id: "rec-2",
-    name: "Venda de equipamento",
-    date: "02/11/2024",
-    value: 8100,
-    center: "valenca",
-    category: "Venda de equipamento",
-    status: "Previsto",
-    method: "Boleto",
-  },
-];
-
-// helper de data dd/MM/yyyy -> YYYY-MM-DD
+// dd/MM/yyyy -> YYYY-MM-DD
 const toDbDate = (value?: string): string | null => {
   if (!value) return null;
   const [d, m, y] = value.split("/");
@@ -124,11 +110,17 @@ const toDbDate = (value?: string): string | null => {
   return `${y}-${m}-${d}`;
 };
 
-// helper de data YYYY-MM-DD -> dd/MM/yyyy
+// YYYY-MM-DD -> dd/MM/yyyy
 const fromDbDate = (value: string | null): string => {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("pt-BR");
+  const [y, m, d] = value.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}/${m}/${y}`;
 };
+
+// ========================
+// MAPEAMENTO: LINHA -> EXPENSE
+// ========================
 
 async function mapRowToExpense(row: any): Promise<Expense> {
   const rawCostCenter = Array.isArray(row.cost_centers)
@@ -147,9 +139,10 @@ async function mapRowToExpense(row: any): Promise<Expense> {
       .order("created_at", { ascending: true });
 
     if (docsError) {
-      // Se a tabela não existir, apenas retorna array vazio
-      if (docsError.code === 'PGRST205' || docsError.message?.includes('Could not find the table')) {
-        // Tabela não existe ainda, retorna sem documentos
+      if (
+        docsError.code === "PGRST205" ||
+        docsError.message?.includes("Could not find the table")
+      ) {
         documents = [];
       } else {
         console.warn("⚠️ Erro ao carregar documentos da despesa:", docsError);
@@ -164,7 +157,6 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     }
   } catch (e) {
     console.warn("⚠️ Erro ao carregar documentos da despesa:", e);
-    // Retorna sem documentos em caso de erro
   }
 
   return {
@@ -178,7 +170,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     equipmentId: row.equipment_id ?? undefined,
     gestaoSubcategory: undefined,
     observations: row.reference ?? undefined,
-    status: row.status ?? "Confirmado",
+    status: row.status ?? "CONFIRMADO",
     method: row.payment_method ?? undefined,
     createdAt: row.created_at
       ? new Date(row.created_at).getTime()
@@ -186,15 +178,45 @@ async function mapRowToExpense(row: any): Promise<Expense> {
   };
 }
 
-export const FinancialProvider = ({ children }: FinancialProviderProps) => {
-  const [receipts, setReceipts] = useState<Receipt[]>(initialReceipts);
+// ========================
+// MAPEAMENTO: LINHA -> RECEIPT
+// ========================
 
-  // agora as despesas vêm do Supabase
+function mapRowToReceipt(row: any): Receipt {
+  const rawCostCenter = Array.isArray(row.cost_centers)
+    ? row.cost_centers[0]
+    : row.cost_centers;
+
+  const centerCode = (rawCostCenter?.code ?? "valenca") as CostCenter;
+
+  return {
+    id: row.id,
+    name: row.description ?? "",
+    date: fromDbDate(row.date),
+    value: Number(row.value ?? 0),
+    center: centerCode,
+    category: row.category ?? undefined,
+    status: row.status ?? "CONFIRMADO",
+    method: row.payment_method ?? undefined,
+    createdAt: row.created_at
+      ? new Date(row.created_at).getTime()
+      : undefined,
+  };
+}
+
+// ========================
+// PROVIDER
+// ========================
+
+interface FinancialProviderProps {
+  children: ReactNode;
+}
+
+export const FinancialProvider = ({ children }: FinancialProviderProps) => {
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  // ========================
-  // CARREGAR DESPESAS DO SUPABASE
-  // ========================
+  // --------- CARREGAR DESPESAS DO SUPABASE ---------
   useEffect(() => {
     const loadExpenses = async () => {
       console.log("🔌 Carregando despesas do Supabase...");
@@ -233,164 +255,220 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     loadExpenses();
   }, []);
 
-  // ========================
-  // RECEITAS (ainda locais)
-  // ========================
-  const addReceipt = useCallback((receipt: Omit<Receipt, "id">) => {
-    const newReceipt: Receipt = {
-      ...receipt,
-      id: `rec-${Date.now()}`,
-      createdAt: Date.now(),
+  // --------- CARREGAR RECEITAS DO SUPABASE ---------
+  useEffect(() => {
+    const loadReceipts = async () => {
+      console.log("🔌 Carregando receitas do Supabase...");
+      const { data, error } = await supabase
+        .from("financial_transactions")
+        .select(
+          `
+          id,
+          type,
+          status,
+          date,
+          value,
+          category,
+          description,
+          payment_method,
+          reference,
+          created_at,
+          cost_centers ( code )
+        `
+        )
+        .eq("type", "RECEITA")
+        .order("date", { ascending: false });
+
+      if (error) {
+        console.error("❌ Erro ao carregar receitas:", error);
+        return;
+      }
+
+      const mapped: Receipt[] = (data ?? []).map((row: any) =>
+        mapRowToReceipt(row)
+      );
+      setReceipts(mapped);
     };
-    setReceipts((prev) => [newReceipt, ...prev]);
+
+    loadReceipts();
+  }, []);
+
+  // ========================
+  // RECEITAS — CRUD
+  // ========================
+
+  const addReceipt = useCallback((receipt: Omit<Receipt, "id">) => {
+    (async () => {
+      try {
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id, code")
+          .eq("code", receipt.center)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.error(
+            "❌ Erro ao buscar centro de custo para receita:",
+            ccError || "não encontrado"
+          );
+          return;
+        }
+
+        const dbDate = toDbDate(receipt.date);
+        if (!dbDate) {
+          console.error("❌ Data de receita inválida:", receipt.date);
+          return;
+        }
+
+        const payload: any = {
+          type: "RECEITA",
+          status:
+            receipt.status &&
+            receipt.status.toLowerCase().startsWith("prev")
+              ? "PREVISTO"
+              : "CONFIRMADO",
+          cost_center_id: ccData.id,
+          value: receipt.value,
+          date: dbDate,
+          category: receipt.category ?? null,
+          description: receipt.name,
+          payment_method: receipt.method ?? null,
+          reference: null,
+        };
+
+        const { data, error } = await supabase
+          .from("financial_transactions")
+          .insert(payload)
+          .select(
+            `
+            id,
+            type,
+            status,
+            date,
+            value,
+            category,
+            description,
+            payment_method,
+            reference,
+            created_at,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (error || !data) {
+          console.error("❌ Erro ao criar receita:", error);
+          return;
+        }
+
+        const newReceipt = mapRowToReceipt(data);
+        setReceipts((prev) => [newReceipt, ...prev]);
+      } catch (e) {
+        console.error("❌ Erro inesperado ao criar receita:", e);
+      }
+    })();
   }, []);
 
   const updateReceipt = useCallback((receipt: Receipt) => {
-    setReceipts((prev) => prev.map((r) => (r.id === receipt.id ? receipt : r)));
+    (async () => {
+      try {
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id, code")
+          .eq("code", receipt.center)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.error(
+            "❌ Erro ao buscar centro de custo para update de receita:",
+            ccError || "não encontrado"
+          );
+          return;
+        }
+
+        const dbDate = toDbDate(receipt.date);
+        if (!dbDate) {
+          console.error("❌ Data de receita inválida:", receipt.date);
+          return;
+        }
+
+        const payload: any = {
+          cost_center_id: ccData.id,
+          value: receipt.value,
+          date: dbDate,
+          category: receipt.category ?? null,
+          description: receipt.name,
+          payment_method: receipt.method ?? null,
+          status:
+            receipt.status &&
+            receipt.status.toLowerCase().startsWith("prev")
+              ? "PREVISTO"
+              : "CONFIRMADO",
+        };
+
+        const { data, error } = await supabase
+          .from("financial_transactions")
+          .update(payload)
+          .eq("id", receipt.id)
+          .select(
+            `
+            id,
+            type,
+            status,
+            date,
+            value,
+            category,
+            description,
+            payment_method,
+            reference,
+            created_at,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (error || !data) {
+          console.error("❌ Erro ao atualizar receita:", error);
+          return;
+        }
+
+        const updated = mapRowToReceipt(data);
+        setReceipts((prev) =>
+          prev.map((r) => (r.id === receipt.id ? updated : r))
+        );
+      } catch (e) {
+        console.error("❌ Erro inesperado ao atualizar receita:", e);
+      }
+    })();
   }, []);
 
   const deleteReceipt = useCallback((id: string) => {
-    setReceipts((prev) => prev.filter((r) => r.id !== id));
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from("financial_transactions")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          console.error("❌ Erro ao deletar receita:", error);
+          return;
+        }
+
+        setReceipts((prev) => prev.filter((r) => r.id !== id));
+      } catch (e) {
+        console.error("❌ Erro inesperado ao deletar receita:", e);
+      }
+    })();
   }, []);
 
   // ========================
-  // DESPESAS — ADD INTEGRADO COM SUPABASE
+  // DESPESAS — CRUD
   // ========================
-  const addExpense = useCallback(
-    (expense: Omit<Expense, "id">) => {
-      (async () => {
-        try {
-          // 1) descobrir o cost_center_id a partir do center (valenca / cna / cabralia)
-          const { data: ccData, error: ccError } = await supabase
-            .from("cost_centers")
-            .select("id, code")
-            .eq("code", expense.center)
-            .maybeSingle();
 
-          if (ccError || !ccData) {
-            console.error(
-              "❌ Erro ao buscar centro de custo para despesa:",
-              ccError || "não encontrado"
-            );
-            return;
-          }
-
-          const dbDate = toDbDate(expense.date);
-          if (!dbDate) {
-            console.error("❌ Data de despesa inválida:", expense.date);
-            return;
-          }
-
-          // 2) montar payload
-          const payload: any = {
-            type: "DESPESA",
-            status:
-              expense.status && expense.status.toLowerCase().startsWith("prev")
-                ? "PREVISTO"
-                : "CONFIRMADO",
-            cost_center_id: ccData.id,
-            equipment_id: expense.equipmentId ?? null,
-            value: expense.value,
-            date: dbDate,
-            category: expense.category ?? "diversos",
-            description: expense.name,
-            payment_method: expense.method ?? null,
-            reference: expense.observations ?? null,
-          };
-
-          // 3) inserir no Supabase
-          const { data, error } = await supabase
-            .from("financial_transactions")
-            .insert(payload)
-            .select(
-              `
-              id,
-              type,
-              status,
-              date,
-              value,
-              category,
-              description,
-              payment_method,
-              reference,
-              equipment_id,
-              created_at,
-              cost_centers ( code )
-            `
-            )
-            .single();
-
-          if (error || !data) {
-            console.error("❌ Erro ao criar despesa:", error);
-            return;
-          }
-
-          // 4) Salvar documentos se houver
-          if (expense.documents && expense.documents.length > 0) {
-            try {
-              console.log("📤 Fazendo upload de", expense.documents.length, "documento(s) para o Supabase Storage...");
-              
-              // Faz upload dos arquivos para o Supabase Storage
-              const uploadResults = await uploadMultipleFilesToStorage(
-                expense.documents.map((doc) => ({
-                  fileUri: doc.fileUri,
-                  fileName: doc.fileName,
-                  mimeType: doc.mimeType,
-                })),
-                'documentos' // Nome do bucket (ajuste se necessário)
-              );
-
-              // Mapeia os documentos com as URLs do Storage
-              const documentsPayload = expense.documents.map((doc, index) => {
-                const storageUrl = uploadResults[index];
-                return {
-                  transaction_id: data.id,
-                  type: doc.type,
-                  file_name: doc.fileName,
-                  file_url: storageUrl || doc.fileUri, // Usa URL do Storage se disponível, senão usa URI local
-                  mime_type: doc.mimeType ?? null,
-                };
-              });
-
-              const { error: docsError } = await supabase
-                .from("expense_documents")
-                .insert(documentsPayload);
-
-              if (docsError) {
-                // Se a tabela não existir, apenas loga o erro mas não quebra o fluxo
-                if (docsError.code === 'PGRST205' || docsError.message?.includes('Could not find the table')) {
-                  console.warn("⚠️ Tabela expense_documents não existe ainda. Documentos não foram salvos. Crie a tabela no Supabase para habilitar esta funcionalidade.");
-                } else {
-                  console.error("❌ Erro ao salvar documentos da despesa:", docsError);
-                }
-                // Continua mesmo se houver erro ao salvar documentos
-              } else {
-                console.log("✅ Documentos da despesa salvos com sucesso");
-              }
-            } catch (e) {
-              console.warn("⚠️ Erro ao tentar salvar documentos:", e);
-              // Continua o fluxo mesmo se houver erro
-            }
-          }
-
-          // 5) mapear de volta para Expense e atualizar estado
-          const newExpense = await mapRowToExpense(data);
-          setExpenses((prev) => [newExpense, ...prev]);
-        } catch (e) {
-          console.error("❌ Erro inesperado ao criar despesa:", e);
-        }
-      })();
-    },
-    []
-  );
-
-  // ========================
-  // DESPESAS — UPDATE INTEGRADO COM SUPABASE
-  // ========================
-  const updateExpense = useCallback((expense: Expense) => {
+  const addExpense = useCallback((expense: Omit<Expense, "id">) => {
     (async () => {
       try {
-        // 1) descobrir o cost_center_id
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
           .select("id, code")
@@ -398,7 +476,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           .maybeSingle();
 
         if (ccError || !ccData) {
-          console.error("❌ Erro ao buscar centro de custo para update:", ccError || "não encontrado");
+          console.error(
+            "❌ Erro ao buscar centro de custo para despesa:",
+            ccError || "não encontrado"
+          );
           return;
         }
 
@@ -408,7 +489,135 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
-        // 2) montar payload
+        const payload: any = {
+          type: "DESPESA",
+          status:
+            expense.status &&
+            expense.status.toLowerCase().startsWith("prev")
+              ? "PREVISTO"
+              : "CONFIRMADO",
+          cost_center_id: ccData.id,
+          equipment_id: expense.equipmentId ?? null,
+          value: expense.value,
+          date: dbDate,
+          category: expense.category ?? "diversos",
+          description: expense.name,
+          payment_method: expense.method ?? null,
+          reference: expense.observations ?? null,
+        };
+
+        const { data, error } = await supabase
+          .from("financial_transactions")
+          .insert(payload)
+          .select(
+            `
+            id,
+            type,
+            status,
+            date,
+            value,
+            category,
+            description,
+            payment_method,
+            reference,
+            equipment_id,
+            created_at,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (error || !data) {
+          console.error("❌ Erro ao criar despesa:", error);
+          return;
+        }
+
+        // DOCUMENTOS DA DESPESA
+        if (expense.documents && expense.documents.length > 0) {
+          try {
+            console.log(
+              "📤 Fazendo upload de",
+              expense.documents.length,
+              "documento(s) para o Supabase Storage..."
+            );
+
+            const uploadResults = await uploadMultipleFilesToStorage(
+              expense.documents.map((doc) => ({
+                fileUri: doc.fileUri,
+                fileName: doc.fileName,
+                mimeType: doc.mimeType,
+              })),
+              "documentos"
+            );
+
+            const documentsPayload = expense.documents.map((doc, index) => {
+              const storageUrl = uploadResults[index];
+              return {
+                transaction_id: data.id,
+                type: doc.type,
+                file_name: doc.fileName,
+                file_url: storageUrl || doc.fileUri,
+                mime_type: doc.mimeType ?? null,
+              };
+            });
+
+            const { error: docsError } = await supabase
+              .from("expense_documents")
+              .insert(documentsPayload);
+
+            if (docsError) {
+              if (
+                docsError.code === "PGRST205" ||
+                docsError.message?.includes("Could not find the table")
+              ) {
+                console.warn(
+                  "⚠️ Tabela expense_documents não existe. Crie a tabela para salvar documentos."
+                );
+              } else {
+                console.error(
+                  "❌ Erro ao salvar documentos da despesa:",
+                  docsError
+                );
+              }
+            } else {
+              console.log("✅ Documentos da despesa salvos com sucesso");
+            }
+          } catch (e) {
+            console.warn("⚠️ Erro ao tentar salvar documentos:", e);
+          }
+        }
+
+        const newExpense = await mapRowToExpense(data);
+        setExpenses((prev) => [newExpense, ...prev]);
+      } catch (e) {
+        console.error("❌ Erro inesperado ao criar despesa:", e);
+      }
+    })();
+  }, []);
+
+  const updateExpense = useCallback((expense: Expense) => {
+    (async () => {
+      try {
+        const { data: ccData, error: ccError } = await supabase
+          .from("cost_centers")
+          .select("id, code")
+          .eq("code", expense.center)
+          .maybeSingle();
+
+        if (ccError || !ccData) {
+          console.error(
+            "❌ Erro ao buscar centro de custo para update de despesa:",
+            ccError || "não encontrado"
+          );
+          return;
+        }
+
+        const dbDate = toDbDate(expense.date);
+        if (!dbDate) {
+          console.error("❌ Data de despesa inválida:", expense.date);
+          return;
+        }
+
         const payload: any = {
           cost_center_id: ccData.id,
           equipment_id: expense.equipmentId ?? null,
@@ -418,19 +627,30 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: expense.name,
           payment_method: expense.method ?? null,
           reference: expense.observations ?? null,
-          status: expense.status && expense.status.toLowerCase().startsWith("prev")
-            ? "PREVISTO"
-            : "CONFIRMADO",
+          status:
+            expense.status &&
+            expense.status.toLowerCase().startsWith("prev")
+              ? "PREVISTO"
+              : "CONFIRMADO",
         };
 
-        // 3) atualizar no Supabase
         const { data, error } = await supabase
           .from("financial_transactions")
           .update(payload)
           .eq("id", expense.id)
           .select(
             `
-            id, type, status, date, value, category, description, payment_method, reference, equipment_id, created_at,
+            id,
+            type,
+            status,
+            date,
+            value,
+            category,
+            description,
+            payment_method,
+            reference,
+            equipment_id,
+            created_at,
             cost_centers ( code )
           `
           )
@@ -441,37 +661,28 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
-        // 4) Atualizar documentos se houver mudanças
-        // Por enquanto, não atualizamos documentos existentes, apenas adicionamos novos se necessário
-        // (Para atualizar documentos, seria necessário deletar os antigos e inserir os novos)
-
-        // 5) mapear de volta para Expense e atualizar estado
         const updatedExpense = await mapRowToExpense(data);
-        setExpenses((prev) => prev.map((e) => (e.id === expense.id ? updatedExpense : e)));
+        setExpenses((prev) =>
+          prev.map((e) => (e.id === expense.id ? updatedExpense : e))
+        );
       } catch (e) {
         console.error("❌ Erro inesperado ao atualizar despesa:", e);
       }
     })();
   }, []);
 
-  // ========================
-  // DESPESAS — DELETE INTEGRADO COM SUPABASE
-  // ========================
   const deleteExpense = useCallback((id: string) => {
     (async () => {
       try {
-        // 1) Deletar documentos relacionados primeiro (cascade)
         const { error: docsError } = await supabase
           .from("expense_documents")
           .delete()
           .eq("transaction_id", id);
 
-        if (docsError && docsError.code !== 'PGRST205') {
+        if (docsError && docsError.code !== "PGRST205") {
           console.warn("⚠️ Erro ao deletar documentos da despesa:", docsError);
-          // Continua mesmo se houver erro
         }
 
-        // 2) Deletar a transação
         const { error } = await supabase
           .from("financial_transactions")
           .delete()
@@ -482,13 +693,16 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
-        // 3) Atualizar estado local
         setExpenses((prev) => prev.filter((e) => e.id !== id));
       } catch (e) {
         console.error("❌ Erro inesperado ao deletar despesa:", e);
       }
     })();
   }, []);
+
+  // ========================
+  // SELECTORS
+  // ========================
 
   const getReceiptsByCenter = useCallback(
     (center: CostCenter) =>

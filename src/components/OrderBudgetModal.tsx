@@ -35,7 +35,7 @@ export const OrderBudgetModal = ({
       onSubmit({
         fileName: asset.name ?? 'Documento',
         fileUri: asset.uri,
-        mimeType: asset.mimeType,
+        mimeType: asset.mimeType ?? null,
       });
       onClose();
     }

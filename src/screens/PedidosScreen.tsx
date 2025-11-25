@@ -5,15 +5,29 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useOrders, Order } from '../context/OrderContext';
+import { useEquipment } from '../context/EquipmentContext';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { OrderBudgetModal } from '../components/OrderBudgetModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { Plus, ChevronRight, UploadCloud, FileText } from 'lucide-react-native';
+import { OrderFilterModal, OrderFilters } from '../components/OrderFilterModal';
+import {
+  Plus,
+  ChevronRight,
+  UploadCloud,
+  FileText,
+  Trash2,
+  Filter,
+} from 'lucide-react-native';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 const centerLabels = {
   valenca: 'Valença',
@@ -22,36 +36,76 @@ const centerLabels = {
 };
 
 const statusLabels: Record<string, string> = {
-  orçamento_pendente: 'Orçamento pendente',
-  orçamento_enviado: 'Orçamento enviado',
-  aprovado: 'Aprovado',
-  rejeitado: 'Rejeitado',
+  orcamento_solicitado: 'Orçamento solicitado',
+  orcamento_pendente: 'Orçamento pendente',
+  orcamento_enviado: 'Orçamento enviado',
+  orcamento_aprovado: 'Orçamento aprovado',
+  em_execucao: 'Em execução',
+  finalizado: 'Finalizado',
 };
 
-const statusStyles: Record<string, { backgroundColor: string; color: string }> = {
-  orçamento_pendente: {
+const statusStyles: Record<
+  string,
+  { backgroundColor: string; color: string }
+> = {
+  orcamento_solicitado: {
+    backgroundColor: '#E3F2FD',
+    color: '#0A84FF',
+  },
+  orcamento_pendente: {
     backgroundColor: '#FFF3D6',
     color: '#FF9500',
   },
-  orçamento_enviado: {
+  orcamento_enviado: {
     backgroundColor: '#E9FAF0',
     color: '#34C759',
   },
-  aprovado: {
-    backgroundColor: '#E9FAF0',
-    color: '#34C759',
+  orcamento_aprovado: {
+    backgroundColor: '#E6FEEA',
+    color: '#1B8A2F',
   },
-  rejeitado: {
-    backgroundColor: '#FDECEC',
-    color: '#FF3B30',
+  em_execucao: {
+    backgroundColor: '#E5F2FF',
+    color: '#0A84FF',
   },
+  finalizado: {
+    backgroundColor: '#ECECEC',
+    color: '#636366',
+  },
+};
+
+const defaultStatusStyle = {
+  backgroundColor: '#EFEFEF',
+  color: '#1C1C1E',
+};
+
+const parseOrderDate = (order: Order) => {
+  const source = order.orderDate || order.date;
+  const parsed = dayjs(source, 'DD/MM/YYYY', true);
+  return parsed.isValid() ? parsed : null;
+};
+
+const getOrderTimestamp = (order: Order) => {
+  const parsed = parseOrderDate(order);
+  if (parsed) return parsed.valueOf();
+  return order.createdAt ?? 0;
 };
 
 export const PedidosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getOrdersByCenter, addOrder, updateOrder, orders, markOrderAsRead } = useOrders();
+  const {
+    getOrdersByCenter,
+    addOrder,
+    updateOrder,
+    deleteOrder,
+    orders,
+    markOrderAsRead,
+  } = useOrders();
+  const { getEquipmentsByCenter } = useEquipment();
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [isBudgetModalVisible, setBudgetModalVisible] = useState(false);
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  const [filters, setFilters] = useState<OrderFilters>({});
   const [selectedOrderForBudget, setSelectedOrderForBudget] = useState<Order | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
@@ -60,11 +114,97 @@ export const PedidosScreen = () => {
     mimeType?: string | null;
   } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  
-  // Filtra pedidos pelo centro de custo selecionado
-  const ordersList = useMemo(
-    () => getOrdersByCenter(selectedCenter),
-    [selectedCenter, orders]
+
+  const openBudgetPreview = (order: Order) => {
+    if (order.status === 'orcamento_enviado' && order.budget) {
+      setPreviewFile({
+        uri: order.budget.fileUri,
+        name: order.budget.fileName,
+        mimeType: order.budget.mimeType,
+      });
+      setPreviewVisible(true);
+      markOrderAsRead(order.id);
+    } else {
+      Alert.alert(
+        'Nenhum orçamento disponível',
+        'Ainda não há um orçamento enviado para este pedido.',
+      );
+    }
+  };
+
+  const handleDeleteOrder = (order: Order) => {
+    const hasBudget = order.status === 'orcamento_enviado';
+    const title = hasBudget ? 'Excluir pedido com orçamento' : 'Excluir pedido';
+    const message = hasBudget
+      ? 'Este pedido já possui um orçamento enviado. Se você prosseguir, o orçamento será removido junto com o pedido. Deseja continuar?'
+      : 'Deseja realmente excluir este pedido?';
+
+    Alert.alert(title, message, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          deleteOrder(order.id).catch(err =>
+            console.error('Erro ao excluir pedido:', err),
+          );
+        },
+      },
+    ]);
+  };
+
+  const equipments = getEquipmentsByCenter(selectedCenter);
+  const equipmentMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    equipments.forEach(eq => {
+      map[eq.id] = eq.name;
+    });
+    return map;
+  }, [equipments]);
+
+  const filteredOrders = useMemo(() => {
+    const base = getOrdersByCenter(selectedCenter);
+    let list = [...base];
+
+    if (filters.name) {
+      const term = filters.name.toLowerCase();
+      list = list.filter(order => order.name.toLowerCase().includes(term));
+    }
+
+    if (filters.equipmentId) {
+      list = list.filter(order => order.equipmentId === filters.equipmentId);
+    }
+
+    const startValue = filters.startDate
+      ? dayjs(filters.startDate, 'YYYY-MM-DD', true).startOf('day').valueOf()
+      : null;
+    const endValue = filters.endDate
+      ? dayjs(filters.endDate, 'YYYY-MM-DD', true).endOf('day').valueOf()
+      : null;
+
+    if (startValue !== null || endValue !== null) {
+      list = list.filter(order => {
+        const parsed = parseOrderDate(order);
+        if (!parsed) {
+          // sem data válida, não entra no intervalo
+          return false;
+        }
+        const value = parsed.valueOf();
+        if (startValue !== null && value < startValue) {
+          return false;
+        }
+        if (endValue !== null && value > endValue) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    return list.sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
+  }, [filters, getOrdersByCenter, selectedCenter, orders]);
+
+  const hasActiveFilters = Boolean(
+    filters.name || filters.equipmentId || filters.startDate || filters.endDate,
   );
 
   return (
@@ -94,29 +234,30 @@ export const PedidosScreen = () => {
           <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lista de Pedidos</Text>
-            <TouchableOpacity>
-              <Text style={styles.link}>Filtrar período</Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  hasActiveFilters && styles.filterButtonActive,
+                ]}
+                onPress={() => setFilterModalVisible(true)}
+              >
+                <Filter
+                  size={16}
+                  color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {ordersList.length > 0 ? (
-            ordersList.map((order) => (
+          {filteredOrders.length > 0 ? (
+            filteredOrders.map((order) => (
             <View key={order.id} style={styles.card}>
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => {
                   setSelectedOrder(order);
-                  // Se tiver orçamento enviado, abre o preview diretamente
-                  if (order.status === 'orçamento_enviado' && order.budget) {
-                    setPreviewFile({
-                      uri: order.budget.fileUri,
-                      name: order.budget.fileName,
-                      mimeType: order.budget.mimeType,
-                    });
-                    setPreviewVisible(true);
-                    // Marca como lido quando abre o preview
-                    markOrderAsRead(order.id);
-                  }
+                  openBudgetPreview(order);
                 }}
               >
                 <View style={{ flex: 1 }}>
@@ -129,42 +270,45 @@ export const PedidosScreen = () => {
                 <Text style={styles.metaLabel}>Data do pedido</Text>
                 <Text style={styles.metaValue}>{order.date}</Text>
               </View>
+              {!!(order.equipmentId || order.equipmentName) && (
+                <View style={styles.cardMeta}>
+                  <Text style={styles.metaLabel}>Equipamento</Text>
+                  <Text style={styles.metaValue}>
+                    {order.equipmentName ??
+                      (order.equipmentId ? equipmentMap[order.equipmentId] : '') ??
+                      '—'}
+                  </Text>
+                </View>
+              )}
+              {/** status pill */}
               <TouchableOpacity
                 style={[
                   styles.statusPill,
-                  {
-                    backgroundColor:
-                      statusStyles[order.status as keyof typeof statusStyles]
-                        .backgroundColor,
-                  },
-                  order.status === 'orçamento_enviado' && order.budget && styles.statusPillClickable,
+                  (() => {
+                    const currentStyle =
+                      statusStyles[order.status] ?? defaultStatusStyle;
+                    return { backgroundColor: currentStyle.backgroundColor };
+                  })(),
+                  order.status === 'orcamento_enviado' &&
+                    order.budget &&
+                    styles.statusPillClickable,
                 ]}
                 onPress={() => {
-                  if (order.status === 'orçamento_enviado' && order.budget) {
-                    setPreviewFile({
-                      uri: order.budget.fileUri,
-                      name: order.budget.fileName,
-                      mimeType: order.budget.mimeType,
-                    });
-                    setPreviewVisible(true);
-                    // Marca como lido quando abre o preview
-                    markOrderAsRead(order.id);
-                  }
+                  openBudgetPreview(order);
                 }}
-                disabled={order.status !== 'orçamento_enviado' || !order.budget}
+                disabled={order.status !== 'orcamento_enviado' || !order.budget}
               >
                 <Text
                   style={[
                     styles.statusText,
-                    {
-                      color:
-                        statusStyles[
-                          order.status as keyof typeof statusStyles
-                        ].color,
-                    },
+                    (() => {
+                      const currentStyle =
+                        statusStyles[order.status] ?? defaultStatusStyle;
+                      return { color: currentStyle.color };
+                    })(),
                   ]}
                 >
-                  {statusLabels[order.status as keyof typeof statusLabels]}
+                  {statusLabels[order.status] ?? order.status}
                 </Text>
               </TouchableOpacity>
               <View style={styles.actionsRow}>
@@ -172,23 +316,22 @@ export const PedidosScreen = () => {
                   style={styles.actionPill}
                   onPress={() => {
                     setSelectedOrder(order);
-                    // Se tiver orçamento enviado, abre o preview
-                    if (order.status === 'orçamento_enviado' && order.budget) {
-                      setPreviewFile({
-                        uri: order.budget.fileUri,
-                        name: order.budget.fileName,
-                        mimeType: order.budget.mimeType,
-                      });
-                      setPreviewVisible(true);
-                      // Marca como lido quando abre o preview
-                      markOrderAsRead(order.id);
-                    }
+                    openBudgetPreview(order);
                   }}
                 >
                   <FileText size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Detalhes</Text>
                 </TouchableOpacity>
-                {order.status === 'orçamento_pendente' && (
+                <TouchableOpacity
+                  style={[styles.actionPill, styles.destructivePill]}
+                  onPress={() => handleDeleteOrder(order)}
+                >
+                  <Trash2 size={16} color="#FF3B30" />
+                  <Text style={[styles.actionText, styles.destructiveText]}>
+                    Excluir
+                  </Text>
+                </TouchableOpacity>
+                {order.status === 'orcamento_pendente' && (
                   <TouchableOpacity
                     style={styles.actionPill}
                     onPress={() => {
@@ -216,16 +359,20 @@ export const PedidosScreen = () => {
       <OrderFormModal
         visible={isFormVisible}
         onClose={() => setIsFormVisible(false)}
-        onSubmit={(data) => {
-          addOrder({
-            name: data.name,
-            description: data.observations || '',
-            date: data.date,
-            status: 'orçamento_pendente',
-            center: selectedCenter,
-            equipmentId: data.equipmentId,
-          });
-          setIsFormVisible(false);
+        onSubmit={async (data) => {
+          try {
+            await addOrder({
+              name: data.name,
+              description: data.observations || '',
+              orderDate: data.date,
+              status: 'orcamento_pendente',
+              costCenter: selectedCenter,
+              equipmentId: data.equipmentId,
+            });
+            setIsFormVisible(false);
+          } catch (error) {
+            console.error('Erro ao adicionar pedido:', error);
+          }
         }}
       />
       <OrderBudgetModal
@@ -236,9 +383,9 @@ export const PedidosScreen = () => {
         }}
         onSubmit={(budget) => {
           if (selectedOrderForBudget) {
-            const updatedOrder = {
+            const updatedOrder: Order = {
               ...selectedOrderForBudget,
-              status: 'orçamento_enviado' as const,
+              status: 'orcamento_enviado',
               budget,
             };
             updateOrder(updatedOrder);
@@ -246,17 +393,18 @@ export const PedidosScreen = () => {
           }
         }}
       />
+      <OrderFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={(newFilters) => setFilters(newFilters)}
+        initialFilters={filters}
+        equipments={equipments}
+      />
       <FilePreviewModal
         visible={previewVisible}
         onClose={() => {
           setPreviewVisible(false);
           setPreviewFile(null);
-        }}
-        onSave={() => {
-          // Quando salva o arquivo, também marca como lido
-          if (selectedOrder) {
-            markOrderAsRead(selectedOrder.id);
-          }
         }}
         fileUri={previewFile?.uri}
         fileName={previewFile?.name}
@@ -324,6 +472,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  filterButtonActive: {
+    backgroundColor: '#0A84FF',
   },
   sectionTitle: {
     fontSize: 16,
@@ -400,10 +566,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#F5F5F7',
   },
+  destructivePill: {
+    backgroundColor: '#FDECEC',
+  },
   actionText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  destructiveText: {
+    color: '#FF3B30',
   },
   emptyState: {
     padding: 24,
