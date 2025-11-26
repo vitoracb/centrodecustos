@@ -139,9 +139,12 @@
 - Exportar dados do dashboard
 
 #### c) **Gráficos e Relatórios** ⚠️ PARCIAL
-- ✅ Gráficos básicos de despesas (PieChart, BarChart)
-- 💡 **Pendente**: Gráfico de evolução de despesas ao longo do tempo
-- 💡 **Pendente**: Relatório mensal/anual automático
+- ✅ Gráficos básicos de despesas (PieChart, BarChart) - **COMPLETO**
+  - PieChart com distribuição por categoria (modo mensal/anual)
+  - BarChart com despesas por mês (navegação de ano)
+  - Ambos com navegação de período e legendas
+- 💡 **Pendente**: Gráfico de evolução de despesas ao longo do tempo (linha temporal)
+- 💡 **Pendente**: Relatório mensal/anual automático (PDF/Excel)
 - 💡 **Pendente**: Comparativo entre centros de custo
 
 #### d) **Backup e Restore** ❌ PENDENTE
@@ -284,7 +287,7 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [x] Ícones dinâmicos nas atividades
 
 ### ⚠️ Parcial
-- [x] Gráficos básicos (PieChart, BarChart)
+- [x] Gráficos básicos (PieChart, BarChart) - **COMPLETO**
 - [x] Filtros básicos
 - [x] Integração com câmera (ImagePicker)
 - [x] Documentação parcial
@@ -293,7 +296,7 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [ ] Pull to refresh
 - [ ] Busca global
 - [ ] Exportação de dados
-- [ ] Gráficos avançados
+- [ ] Gráficos avançados (linha temporal, comparativos)
 - [ ] Backup e restore
 - [ ] Multi-usuário
 - [ ] OCR
