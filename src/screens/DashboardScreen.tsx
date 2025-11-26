@@ -63,6 +63,12 @@ interface Activity {
   timestamp: number;
   timeAgo: string;
   type: ActivityType;
+  // Campos opcionais para navegação
+  equipmentId?: string;
+  expenseId?: string;
+  receiptId?: string;
+  orderId?: string;
+  contractId?: string;
 }
 
 const formatTimeAgo = (timestamp: number): string => {
@@ -178,6 +184,73 @@ export const DashboardScreen = () => {
   const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
   const [isOrderModalVisible, setOrderModalVisible] = useState(false);
 
+  // Função para navegar baseado no tipo de atividade
+  const handleActivityPress = useCallback((activity: Activity) => {
+    switch (activity.type) {
+      case 'equipment_add':
+      case 'equipment_remove':
+        if (activity.equipmentId) {
+          // Busca o equipamento para obter os dados necessários
+          const allEquipments = getAllEquipments();
+          const equipment = allEquipments.find(eq => eq.id === activity.equipmentId);
+          if (equipment) {
+            router.push({
+              pathname: '/equipamentos/[id]' as any,
+              params: {
+                id: equipment.id,
+                name: equipment.name,
+                brand: equipment.brand || '',
+                year: String(equipment.year || ''),
+                purchaseDate: equipment.purchaseDate || '',
+                nextReview: equipment.nextReview || '',
+                center: centerLabels[equipment.center] || '',
+              },
+            });
+          } else {
+            router.push('/equipamentos' as any);
+          }
+        } else {
+          router.push('/equipamentos' as any);
+        }
+        break;
+      
+      case 'expense':
+        router.push({
+          pathname: '/financeiro' as any,
+          params: { tab: 'Despesas' },
+        });
+        break;
+      
+      case 'receipt':
+        router.push({
+          pathname: '/financeiro' as any,
+          params: { tab: 'Recebimentos' },
+        });
+        break;
+      
+      case 'order_pending':
+      case 'order_sent':
+      case 'order_approved':
+      case 'order_rejected':
+        router.push('/pedidos' as any);
+        break;
+      
+      case 'employee_add':
+      case 'employee_remove':
+        router.push('/funcionarios' as any);
+        break;
+      
+      case 'contract_add':
+      case 'contract_remove':
+        router.push('/contratos' as any);
+        break;
+      
+      default:
+        // Não navega para tipos desconhecidos
+        break;
+    }
+  }, [router, getAllEquipments]);
+
   // Calcula equipamentos ativos
   const activeEquipments = useMemo(() => {
     const equipments = getEquipmentsByCenter(selectedCenter);
@@ -249,6 +322,7 @@ export const DashboardScreen = () => {
           timestamp: eq.deletedAt,
           timeAgo: formatTimeAgo(eq.deletedAt),
           type: 'equipment_remove',
+          equipmentId: eq.id,
         });
         return; // Não mostra outras atividades para equipamentos deletados
       }
@@ -262,6 +336,7 @@ export const DashboardScreen = () => {
           timestamp: eq.createdAt,
           timeAgo: formatTimeAgo(eq.createdAt),
           type: 'equipment_add',
+          equipmentId: eq.id,
         });
       }
 
@@ -274,6 +349,7 @@ export const DashboardScreen = () => {
           timestamp: eq.statusChangedAt,
           timeAgo: formatTimeAgo(eq.statusChangedAt),
           type: 'equipment_remove',
+          equipmentId: eq.id,
         });
       }
     });
@@ -291,6 +367,7 @@ export const DashboardScreen = () => {
         timestamp: exp.createdAt,
         timeAgo: formatTimeAgo(exp.createdAt),
         type: 'expense',
+        expenseId: exp.id,
       });
     });
 
@@ -306,6 +383,7 @@ export const DashboardScreen = () => {
         timestamp: rec.createdAt,
         timeAgo: formatTimeAgo(rec.createdAt),
         type: 'receipt',
+        receiptId: rec.id,
       });
     });
 
@@ -341,6 +419,7 @@ export const DashboardScreen = () => {
         timestamp: order.createdAt,
         timeAgo: formatTimeAgo(order.createdAt),
         type: activityType,
+        orderId: order.id,
       });
     });
 
@@ -398,6 +477,7 @@ export const DashboardScreen = () => {
           timestamp: contract.deletedAt,
           timeAgo: formatTimeAgo(contract.deletedAt),
           type: 'contract_remove',
+          contractId: contract.id,
         });
         return; // Não mostra outras atividades para contratos deletados
       }
@@ -411,6 +491,7 @@ export const DashboardScreen = () => {
           timestamp: contract.createdAt,
           timeAgo: formatTimeAgo(contract.createdAt),
           type: 'contract_add',
+          contractId: contract.id,
         });
       }
 
@@ -553,7 +634,12 @@ export const DashboardScreen = () => {
               recentActivities.map((activity) => {
                 const { icon: Icon, color, backgroundColor } = getActivityIcon(activity.type);
                 return (
-                  <View key={activity.id} style={styles.activityItem}>
+                  <TouchableOpacity
+                    key={activity.id}
+                    style={styles.activityItem}
+                    onPress={() => handleActivityPress(activity)}
+                    activeOpacity={0.7}
+                  >
                     <View style={[styles.activityIcon, { backgroundColor }]}>
                       <Icon size={18} color={color} />
                     </View>
@@ -564,7 +650,7 @@ export const DashboardScreen = () => {
                       </Text>
                     </View>
                     <Text style={styles.activityTime}>{activity.timeAgo}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })
             ) : (

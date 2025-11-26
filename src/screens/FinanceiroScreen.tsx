@@ -32,6 +32,8 @@ import { ExpenseBarChart } from '../components/ExpenseBarChart';
 import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 
@@ -80,7 +82,7 @@ const formatCurrency = (value: number): string => {
 export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter } = useCostCenter();
-  const { getReceiptsByCenter, getExpensesByCenter, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense } = useFinancial();
+  const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense } = useFinancial();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Recebimentos');
   const [isReceiptModalVisible, setReceiptModalVisible] = useState(false);
   const [isReceiptFilterVisible, setReceiptFilterVisible] = useState(false);
@@ -94,6 +96,7 @@ export const FinanceiroScreen = () => {
   const [closureMode, setClosureMode] = useState<'mensal' | 'anual'>('mensal');
   const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
+  const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<Expense | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
     uri: string;
@@ -104,6 +107,96 @@ export const FinanceiroScreen = () => {
 
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
+
+  const handleAddExpenseDocument = async () => {
+    if (!selectedExpenseForDocument) return;
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      // Determina o tipo baseado no mimeType ou usa 'recibo' como padrão
+      const isPdf = asset.mimeType?.includes('pdf');
+      const documentType: 'nota_fiscal' | 'recibo' = isPdf ? 'nota_fiscal' : 'recibo';
+
+      const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+        fileName: asset.name ?? 'Documento',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType,
+        type: documentType,
+      });
+
+      // Atualiza a lista de documentos imediatamente
+      setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+      setSelectedExpenseForDocument(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          documents: [...(prev.documents || []), newDocument],
+        };
+      });
+
+      Alert.alert('Sucesso', 'Documento adicionado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao adicionar documento:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar o documento.');
+    }
+  };
+
+  const handleAddExpensePhoto = async () => {
+    if (!selectedExpenseForDocument) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+
+      const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+        fileName: asset.fileName ?? 'Foto',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        type: 'recibo',
+      });
+
+      // Atualiza a lista de documentos imediatamente
+      setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+      setSelectedExpenseForDocument(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          documents: [...(prev.documents || []), newDocument],
+        };
+      });
+
+      Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao adicionar foto:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar a foto.');
+    }
+  };
 
   const handleStatusChange = (expense: Expense, newStatus: ExpenseStatus) => {
     // Validação: "pago" só pode ser selecionado se houver documentos
@@ -131,6 +224,9 @@ export const FinanceiroScreen = () => {
 
     if (tabParam === 'Despesas') {
       setActiveTab('Despesas');
+      paramsAppliedRef.current = true;
+    } else if (tabParam === 'Recebimentos') {
+      setActiveTab('Recebimentos');
       paramsAppliedRef.current = true;
     }
     
@@ -430,10 +526,9 @@ export const FinanceiroScreen = () => {
                   key={item.id}
                   style={styles.card}
                   onPress={() => {
-                    if (item.documents && item.documents.length > 0) {
-                      setSelectedExpenseDocuments(item.documents);
-                      setExpenseDocumentsModalVisible(true);
-                    }
+                    setSelectedExpenseForDocument(item);
+                    setSelectedExpenseDocuments(item.documents || []);
+                    setExpenseDocumentsModalVisible(true);
                   }}
                   disabled={!item.documents || item.documents.length === 0}
                 >
@@ -893,6 +988,7 @@ export const FinanceiroScreen = () => {
         onClose={() => {
           setExpenseDocumentsModalVisible(false);
           setSelectedExpenseDocuments([]);
+          setSelectedExpenseForDocument(null);
         }}
         documents={selectedExpenseDocuments || []}
         onDocumentPress={(document) => {
@@ -904,6 +1000,8 @@ export const FinanceiroScreen = () => {
           });
           setPreviewVisible(true);
         }}
+        onAddDocument={handleAddExpenseDocument}
+        onAddPhoto={handleAddExpensePhoto}
       />
       <FilePreviewModal
         visible={previewVisible}

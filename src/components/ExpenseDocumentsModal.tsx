@@ -9,13 +9,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpenseDocument } from '../context/FinancialContext';
-import { FileText, X } from 'lucide-react-native';
+import { FileText, X, Plus, Image as ImageIcon } from 'lucide-react-native';
 
 interface ExpenseDocumentsModalProps {
   visible: boolean;
   onClose: () => void;
   documents: ExpenseDocument[];
   onDocumentPress: (document: ExpenseDocument) => void;
+  onAddDocument?: () => void;
+  onAddPhoto?: () => void;
 }
 
 export const ExpenseDocumentsModal = ({
@@ -23,6 +25,8 @@ export const ExpenseDocumentsModal = ({
   onClose,
   documents,
   onDocumentPress,
+  onAddDocument,
+  onAddPhoto,
 }: ExpenseDocumentsModalProps) => {
   const getDocumentTypeLabel = (type: 'nota_fiscal' | 'recibo') => {
     return type === 'nota_fiscal' ? 'Nota Fiscal' : 'Recibo';
@@ -67,6 +71,29 @@ export const ExpenseDocumentsModal = ({
             ))
           )}
         </ScrollView>
+
+        {(onAddDocument || onAddPhoto) && (
+          <View style={styles.footer}>
+            {onAddDocument && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={onAddDocument}
+              >
+                <FileText size={18} color="#0A84FF" />
+                <Text style={styles.addButtonText}>Adicionar Documento</Text>
+              </TouchableOpacity>
+            )}
+            {onAddPhoto && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={onAddPhoto}
+              >
+                <ImageIcon size={18} color="#0A84FF" />
+                <Text style={styles.addButtonText}>Adicionar Foto</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -140,6 +167,29 @@ const styles = StyleSheet.create({
   documentName: {
     fontSize: 14,
     color: '#1C1C1E',
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    gap: 10,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: '#F5F5F7',
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+  },
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0A84FF',
   },
 });
 

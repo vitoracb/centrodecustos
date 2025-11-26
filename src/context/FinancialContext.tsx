@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { CostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
-import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
+import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
 
 // ========================
 // TIPOS
@@ -80,6 +80,7 @@ interface FinancialContextType {
   addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
+  addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" }) => Promise<ExpenseDocument>;
 
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
   getExpensesByCenter: (center: CostCenter) => Expense[];
@@ -748,6 +749,68 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     })();
   }, []);
 
+  const addDocumentToExpense = useCallback(
+    async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" }): Promise<ExpenseDocument> => {
+      try {
+        // Faz upload do arquivo para o Supabase Storage
+        const fileUrl = await uploadFileToStorage(
+          document.fileUri,
+          document.fileName,
+          document.mimeType,
+          "documentos",
+          "expenses"
+        );
+
+        if (!fileUrl) {
+          throw new Error("Não foi possível fazer upload do arquivo.");
+        }
+
+        // Insere o documento na tabela expense_documents
+        const { data, error } = await supabase
+          .from("expense_documents")
+          .insert({
+            transaction_id: expenseId,
+            type: document.type,
+            file_name: document.fileName,
+            file_url: fileUrl,
+            mime_type: document.mimeType ?? null,
+          })
+          .select("type, file_name, file_url, mime_type")
+          .maybeSingle();
+
+        if (error || !data) {
+          throw error ?? new Error("Erro ao salvar documento");
+        }
+
+        // Atualiza o estado local
+        const newDocument: ExpenseDocument = {
+          type: data.type as "nota_fiscal" | "recibo",
+          fileName: data.file_name,
+          fileUri: data.file_url,
+          mimeType: data.mime_type ?? null,
+        };
+
+        setExpenses((prev) =>
+          prev.map((expense) => {
+            if (expense.id !== expenseId) return expense;
+            const existingDocs = expense.documents ?? [];
+            return {
+              ...expense,
+              documents: [...existingDocs, newDocument],
+            };
+          })
+        );
+
+        // Retorna o documento adicionado para atualização imediata na UI
+        return newDocument;
+      } catch (err: any) {
+        console.error("❌ Erro em addDocumentToExpense:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
   // ========================
   // SELECTORS
   // ========================
@@ -778,6 +841,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         addExpense,
         updateExpense,
         deleteExpense,
+        addDocumentToExpense,
         getReceiptsByCenter,
         getExpensesByCenter,
         getAllReceipts,
