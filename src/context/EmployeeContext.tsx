@@ -22,6 +22,7 @@ export interface EmployeeDocument {
   equipmentId: string;
   center: CostCenter;
   createdAt?: number;
+  deletedAt?: number; // Timestamp quando foi deletado (soft delete)
 }
 
 type DocumentsByCenter = Record<CostCenter, Record<string, EmployeeDocument[]>>;
@@ -31,6 +32,7 @@ interface EmployeeContextType {
   addEmployeeDocument: (document: Omit<EmployeeDocument, 'id'>) => void;
   updateEmployeeDocument: (id: string, document: Partial<EmployeeDocument>) => void;
   deleteEmployeeDocument: (id: string) => void;
+  deleteEmployee: (employeeName: string, equipmentId: string, center: CostCenter) => void;
   getEmployeesByCenter: (center: CostCenter) => string[];
   getEmployeesCountByCenter: (center: CostCenter) => number;
   getAllEmployeeDocuments: () => EmployeeDocument[];
@@ -93,6 +95,7 @@ const mapRowToDocument = (row: any): EmployeeDocument => ({
   equipmentId: row.equipment_id,
   center: normalizeCenter(row.cost_centers?.code),
   createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
+  deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : undefined,
 });
 
 const insertDocumentIntoMap = (
@@ -170,6 +173,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
           mime_type,
           equipment_id,
           created_at,
+          deleted_at,
           cost_centers ( code )
         `)
         .order('created_at', { ascending: false });
@@ -183,6 +187,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
       const nextMap = createEmptyDocumentsMap();
       mapped.forEach(doc => {
         if (!doc.equipmentId) return;
+        // Inclui todos os documentos (incluindo deletados) para rastreamento de atividades
         nextMap[doc.center][doc.equipmentId] = nextMap[doc.center][doc.equipmentId]
           ? [...nextMap[doc.center][doc.equipmentId], doc]
           : [doc];
@@ -362,11 +367,35 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
   const deleteEmployeeDocument = useCallback((id: string) => {
     (async () => {
       try {
-        const { error } = await supabase.from('employee_documents').delete().eq('id', id);
+        // Soft delete: marca como deletado ao invés de remover
+        const deletedAt = new Date().toISOString();
+        const { error } = await supabase
+          .from('employee_documents')
+          .update({ deleted_at: deletedAt })
+          .eq('id', id);
+        
         if (error) {
           throw error;
         }
-        setDocumentsByCenter(prev => removeDocumentFromMap(prev, id));
+        
+        // Atualiza o estado marcando como deletado
+        setDocumentsByCenter(prev => {
+          const updated = { ...prev };
+          (Object.keys(updated) as CostCenter[]).forEach(center => {
+            const equipmentDocsMap = updated[center];
+            Object.keys(equipmentDocsMap).forEach(equipmentId => {
+              const docs = equipmentDocsMap[equipmentId];
+              if (docs) {
+                equipmentDocsMap[equipmentId] = docs.map(doc =>
+                  doc.id === id
+                    ? { ...doc, deletedAt: new Date(deletedAt).getTime() }
+                    : doc
+                );
+              }
+            });
+          });
+          return updated;
+        });
       } catch (err) {
         console.error('❌ Erro em deleteEmployeeDocument:', err);
         Alert.alert('Erro', 'Não foi possível excluir o documento.');
@@ -374,12 +403,65 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
     })();
   }, []);
 
+  const deleteEmployee = useCallback((employeeName: string, equipmentId: string, center: CostCenter) => {
+    (async () => {
+      try {
+        // Busca todos os documentos do funcionário neste equipamento
+        const centerDocs = documentsByCenter[center] ?? {};
+        const equipmentDocs = centerDocs[equipmentId] ?? [];
+        const employeeDocs = equipmentDocs.filter(doc => 
+          doc.employee === employeeName && !doc.deletedAt
+        );
+
+        if (employeeDocs.length === 0) {
+          Alert.alert('Aviso', 'Nenhum documento encontrado para este funcionário.');
+          return;
+        }
+
+        // Soft delete: marca todos os documentos como deletados
+        const deletedAt = new Date().toISOString();
+        const docIds = employeeDocs.map(doc => doc.id);
+        
+        const { error } = await supabase
+          .from('employee_documents')
+          .update({ deleted_at: deletedAt })
+          .in('id', docIds);
+        
+        if (error) {
+          throw error;
+        }
+        
+        // Atualiza o estado marcando todos os documentos como deletados
+        setDocumentsByCenter(prev => {
+          const updated = { ...prev };
+          const equipmentDocsMap = updated[center];
+          if (equipmentDocsMap && equipmentDocsMap[equipmentId]) {
+            equipmentDocsMap[equipmentId] = equipmentDocsMap[equipmentId].map(doc =>
+              docIds.includes(doc.id)
+                ? { ...doc, deletedAt: new Date(deletedAt).getTime() }
+                : doc
+            );
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error('❌ Erro em deleteEmployee:', err);
+        Alert.alert('Erro', 'Não foi possível excluir o funcionário.');
+      }
+    })();
+  }, [documentsByCenter]);
+
   const getEmployeesByCenter = useCallback(
     (center: CostCenter): string[] => {
       const centerDocs = documentsByCenter[center] ?? {};
       const employees = new Set<string>();
       Object.values(centerDocs).forEach(equipmentDocs => {
-        equipmentDocs.forEach(doc => employees.add(doc.employee));
+        equipmentDocs.forEach(doc => {
+          // Exclui funcionários com documentos deletados
+          if (!doc.deletedAt) {
+            employees.add(doc.employee);
+          }
+        });
       });
       return Array.from(employees);
     },
@@ -408,6 +490,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         addEmployeeDocument,
         updateEmployeeDocument,
         deleteEmployeeDocument,
+        deleteEmployee,
         getEmployeesByCenter,
         getEmployeesCountByCenter,
         getAllEmployeeDocuments,

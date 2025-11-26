@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -9,15 +9,26 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
+
+export interface FilePreviewItem {
+  fileUri: string;
+  fileName: string;
+  mimeType: string | null;
+}
 
 type FilePreviewModalProps = {
   visible: boolean;
   onClose: () => void;
-  fileUri?: string;   // URL pública do Supabase
+  fileUri?: string;   // URL pública do Supabase (compatibilidade)
   fileName?: string;
   mimeType?: string | null;
+  files?: FilePreviewItem[]; // Array de arquivos para navegação
+  initialIndex?: number; // Índice inicial quando usando files
+  showApproveButton?: boolean; // Mostra botão de aprovar (apenas para imagens)
+  onApprove?: (currentFileUri?: string, currentIndex?: number) => void; // Callback quando aprovar, passa o fileUri e índice atual
+  canApprove?: boolean; // Se pode aprovar (não foi aprovado ainda)
 };
 
 export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
@@ -26,22 +37,58 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   fileUri,
   fileName,
   mimeType,
+  files,
+  initialIndex = 0,
+  showApproveButton = false,
+  onApprove,
+  canApprove = true,
 }) => {
   const [loading, setLoading] = useState(true);
   const [errorLoading, setErrorLoading] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
-  if (!fileUri) {
+  // Determina se está usando array de arquivos ou arquivo único (compatibilidade)
+  const isMultiFile = files && files.length > 0;
+  const currentFile = isMultiFile 
+    ? (files[currentIndex] || files[0] || { fileUri: fileUri || '', fileName: fileName || 'Arquivo', mimeType: mimeType || null })
+    : { fileUri: fileUri || '', fileName: fileName || 'Arquivo', mimeType: mimeType || null };
+
+  // Atualiza índice quando initialIndex muda
+  useEffect(() => {
+    if (isMultiFile && initialIndex >= 0 && initialIndex < files.length) {
+      setCurrentIndex(initialIndex);
+    }
+  }, [initialIndex, isMultiFile, files?.length]);
+
+  // Reseta loading quando muda de arquivo
+  useEffect(() => {
+    setLoading(true);
+    setErrorLoading(null);
+  }, [currentFile.fileUri]);
+
+  if (!currentFile.fileUri) {
     return null;
   }
 
-  const isImage = mimeType?.startsWith('image/');
+  const isImage = currentFile.mimeType?.startsWith('image/');
   const isPdf =
-    mimeType === 'application/pdf' ||
-    fileUri.toLowerCase().endsWith('.pdf');
+    currentFile.mimeType === 'application/pdf' ||
+    currentFile.fileUri.toLowerCase().endsWith('.pdf');
 
-  // Se quiser usar Google Docs Viewer em vez de abrir o PDF direto, descomente:
-  // const pdfUrl = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(fileUri)}`;
-  const pdfUrl = fileUri; // tenta abrir o PDF direto
+  const canGoPrevious = isMultiFile && currentIndex > 0;
+  const canGoNext = isMultiFile && currentIndex < (files?.length || 0) - 1;
+
+  const handlePrevious = () => {
+    if (canGoPrevious) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (canGoNext) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
 
   return (
     <Modal
@@ -53,9 +100,38 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={1}>
-              {fileName || 'Arquivo'}
-            </Text>
+            <View style={styles.headerLeft}>
+              {isMultiFile && (
+                <TouchableOpacity
+                  onPress={handlePrevious}
+                  disabled={!canGoPrevious}
+                  style={[styles.navButton, !canGoPrevious && styles.navButtonDisabled]}
+                  hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                >
+                  <ChevronLeft size={20} color={canGoPrevious ? "#1C1C1E" : "#C7C7CC"} />
+                </TouchableOpacity>
+              )}
+              <View style={styles.titleContainer}>
+                <Text style={styles.title} numberOfLines={1}>
+                  {currentFile.fileName}
+                </Text>
+                {isMultiFile && (
+                  <Text style={styles.fileCounter}>
+                    {currentIndex + 1} de {files.length}
+                  </Text>
+                )}
+              </View>
+              {isMultiFile && (
+                <TouchableOpacity
+                  onPress={handleNext}
+                  disabled={!canGoNext}
+                  style={[styles.navButton, !canGoNext && styles.navButtonDisabled]}
+                  hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                >
+                  <ChevronRight size={20} color={canGoNext ? "#1C1C1E" : "#C7C7CC"} />
+                </TouchableOpacity>
+              )}
+            </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}>
               <X size={22} color="#1C1C1E" />
             </TouchableOpacity>
@@ -65,7 +141,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             {isImage && (
               <>
                 <Image
-                  source={{ uri: fileUri }}
+                  source={{ uri: currentFile.fileUri }}
                   style={styles.image}
                   resizeMode="contain"
                   onLoadStart={() => {
@@ -84,7 +160,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             {isPdf && (
               <>
                 <WebView
-                  source={{ uri: pdfUrl }}
+                  source={{ uri: currentFile.fileUri }}
                   style={styles.webview}
                   onLoadStart={() => {
                     setLoading(true);
@@ -132,6 +208,20 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               </View>
             )}
           </View>
+
+          {/* Botão de aprovar (para imagens e PDFs) */}
+          {showApproveButton && (isImage || isPdf) && canApprove && onApprove && (
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={styles.approveButton}
+                onPress={() => onApprove(currentFile.fileUri, isMultiFile ? currentIndex : undefined)}
+                activeOpacity={0.8}
+              >
+                <Check size={20} color="#FFFFFF" />
+                <Text style={styles.approveButtonText}>Aprovar Orçamento</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -160,12 +250,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E5EA',
   },
-  title: {
+  headerLeft: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+    gap: 8,
+  },
+  navButton: {
+    padding: 4,
+  },
+  navButtonDisabled: {
+    opacity: 0.3,
+  },
+  titleContainer: {
+    flex: 1,
+  },
+  title: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1C1C1E',
-    marginRight: 12,
+  },
+  fileCounter: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
   },
   content: {
     width: '100%',
@@ -222,5 +331,26 @@ const styles = StyleSheet.create({
     color: '#FFEFEF',
     fontSize: 12,
     marginTop: 4,
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+  },
+  approveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#34C759',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  approveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -19,13 +19,18 @@ export type OrderStatus =
   | "orcamento_pendente"
   | "orcamento_enviado"
   | "orcamento_aprovado"
+  | "orcamento_reprovado"
   | "em_execucao"
   | "finalizado";
 
-export interface OrderBudget {
+export interface OrderDocument {
+  id?: string;
+  type?: string; // 'orcamento' | 'anexo' | etc.
   fileUri: string;
   fileName: string;
   mimeType: string | null;
+  approved?: boolean; // Se o documento foi aprovado
+  createdAt?: number;
 }
 
 export interface Order {
@@ -38,7 +43,7 @@ export interface Order {
   costCenter: CostCenter;
   equipmentId?: string;
   equipmentName?: string;
-  budget?: OrderBudget;
+  documents?: OrderDocument[];
   createdAt?: number;
 }
 
@@ -58,6 +63,8 @@ interface OrderContextType {
 
   updateOrder: (order: Order) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
+  approveOrder: (orderId: string, documentId: string) => Promise<void>;
+  rejectOrder: (orderId: string) => Promise<void>;
 
   getOrdersByCenter: (center: CostCenter) => Order[];
   getAllOrders: () => Order[];
@@ -66,6 +73,10 @@ interface OrderContextType {
   refresh: () => Promise<void>;
   getUnreadNotificationsCount: () => number;
 }
+
+// ============================
+// CONTEXTO + HOOK
+// ============================
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
@@ -101,11 +112,10 @@ const allowedStatuses: OrderStatus[] = [
   "orcamento_pendente",
   "orcamento_enviado",
   "orcamento_aprovado",
+  "orcamento_reprovado",
   "em_execucao",
   "finalizado",
 ];
-
-const allowedCenters: CostCenter[] = ["valenca", "cna", "cabralia"];
 
 const normalizeStatus = (status?: string | null): OrderStatus => {
   if (!status) return "orcamento_pendente";
@@ -121,30 +131,30 @@ const normalizeStatus = (status?: string | null): OrderStatus => {
   return match ?? "orcamento_pendente";
 };
 
-const normalizeCenter = (code?: string | null): CostCenter => {
-  if (!code) return "valenca";
-  const cleaned = code.toLowerCase();
-  return (allowedCenters.includes(cleaned as CostCenter)
-    ? cleaned
-    : "valenca") as CostCenter;
-};
+// ============================
+// MAPEAMENTO ROW -> ORDER
+// ============================
 
 const mapRowToOrder = (row: any): Order => {
   const orderDate = isoToBr(row.order_date);
   const normalizedStatus = normalizeStatus(row.status);
 
-  const budget =
-    row.quote_file_url && row.quote_file_name
-      ? {
-          fileUri: row.quote_file_url,
-          fileName: row.quote_file_name,
-          mimeType: row.quote_file_mime_type ?? null,
-        }
-      : undefined;
-
-  const equipmentRow = Array.isArray(row.equipments)
+  const equipmentSource = Array.isArray(row.equipments)
     ? row.equipments[0]
     : row.equipments;
+
+  const documents: OrderDocument[] =
+    row.order_documents?.map((doc: any) => ({
+      id: doc.id,
+      type: doc.type ?? "orcamento",
+      fileUri: doc.file_url,
+      fileName: doc.file_name,
+      mimeType: doc.mime_type ?? null,
+      approved: doc.approved ?? false,
+      createdAt: doc.created_at
+        ? new Date(doc.created_at).getTime()
+        : undefined,
+    })) ?? [];
 
   return {
     id: row.id,
@@ -153,10 +163,10 @@ const mapRowToOrder = (row: any): Order => {
     orderDate,
     date: orderDate,
     status: normalizedStatus,
-    costCenter: normalizeCenter(row.cost_centers?.code),
+    costCenter: (row.cost_centers?.code ?? "valenca") as CostCenter,
     equipmentId: row.equipment_id ?? undefined,
-    equipmentName: equipmentRow?.name ?? undefined,
-    budget,
+    equipmentName: equipmentSource?.name ?? undefined,
+    documents: documents.length ? documents : undefined,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
   };
 };
@@ -165,7 +175,7 @@ const mapRowToOrder = (row: any): Order => {
 // PROVIDER
 // ============================
 
-export const OrdersProvider = ({ children }: { children: ReactNode }) => {
+const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,12 +197,10 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         order_date,
         status,
         equipment_id,
-        quote_file_url,
-        quote_file_name,
-        quote_file_mime_type,
         created_at,
         cost_centers ( code ),
-        equipments ( id, name )
+        equipments ( id, name ),
+        order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
       `
       )
       .order("created_at", { ascending: false });
@@ -205,6 +213,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+
     setOrders(mapped);
     setLoading(false);
   }, []);
@@ -259,12 +268,10 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
             order_date,
             status,
             equipment_id,
-            quote_file_url,
-            quote_file_name,
-            quote_file_mime_type,
             created_at,
             cost_centers ( code ),
-            equipments ( id, name )
+            equipments ( id, name ),
+            order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
           .maybeSingle();
@@ -280,15 +287,6 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         });
 
         setOrders((prev) => [newOrder, ...prev]);
-
-        // Envia notificação push sobre novo pedido
-        try {
-          const { notificationService } = await import('@/src/lib/notifications');
-          await notificationService.notifyNewOrder(newOrder.name, order.costCenter);
-        } catch (notifError) {
-          // Falha silenciosa - notificações não são críticas
-          console.warn('Erro ao enviar notificação:', notifError);
-        }
       } catch (err) {
         console.log("❌ Erro em addOrder:", err);
         throw err;
@@ -298,7 +296,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
   );
 
   // ----------------------------
-  // UPDATE ORDER
+  // UPDATE ORDER (inclui upload de documentos)
   // ----------------------------
   const updateOrder = useCallback(
     async (order: Order) => {
@@ -316,34 +314,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
           throw new Error("Centro de custo inválido.");
         }
 
-        let budgetToPersist = order.budget ?? existing?.budget;
-
-        const needsUpload =
-          budgetToPersist?.fileUri &&
-          !budgetToPersist.fileUri.startsWith("http");
-
-        if (needsUpload && budgetToPersist) {
-          const [uploadedUrl] = await uploadMultipleFilesToStorage(
-            [
-              {
-                fileUri: budgetToPersist.fileUri,
-                fileName: budgetToPersist.fileName ?? "orcamento",
-                mimeType: budgetToPersist.mimeType ?? "application/pdf",
-              },
-            ],
-            "documentos"
-          );
-
-          if (!uploadedUrl) {
-            throw new Error("Não foi possível enviar o arquivo de orçamento.");
-          }
-
-          budgetToPersist = {
-            ...budgetToPersist,
-            fileUri: uploadedUrl,
-          };
-        }
-
+        // 1) Atualiza os campos básicos do pedido
         const payload: any = {
           name: order.name,
           description: order.description,
@@ -353,26 +324,59 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
           equipment_id: order.equipmentId ?? null,
         };
 
-        if (budgetToPersist) {
-          payload.quote_file_url = budgetToPersist.fileUri;
-          payload.quote_file_name = budgetToPersist.fileName;
-          payload.quote_file_mime_type = budgetToPersist.mimeType ?? null;
-        }
-
-        if (
-          !budgetToPersist &&
-          existing?.budget &&
-          order.status !== "orcamento_enviado"
-        ) {
-          payload.quote_file_url = null;
-          payload.quote_file_name = null;
-          payload.quote_file_mime_type = null;
-        }
-
-        const { data, error } = await supabase
+        const { error: updateError } = await supabase
           .from("orders")
           .update(payload)
-          .eq("id", order.id)
+          .eq("id", order.id);
+
+        if (updateError) {
+          console.log("❌ Erro ao atualizar pedido:", updateError);
+          throw updateError;
+        }
+
+        // 2) Documentos
+        // Consideramos que:
+        // - documentos que já existem no banco têm "id" e fileUri começando com http
+        // - documentos novos vêm sem "id" e com fileUri local (file:// ou similar)
+
+        const currentDocs = order.documents ?? existing?.documents ?? [];
+        const docsToUpload = currentDocs.filter(
+          (doc) =>
+            doc.fileUri &&
+            !doc.fileUri.startsWith("http") // URI local => precisa de upload
+        );
+
+        if (docsToUpload.length > 0) {
+          const uploadResults = await uploadMultipleFilesToStorage(
+            docsToUpload.map((doc) => ({
+              fileUri: doc.fileUri,
+              fileName: doc.fileName,
+              mimeType: doc.mimeType ?? "application/pdf",
+            })),
+            "documentos"
+          );
+
+          const docsPayload = docsToUpload.map((doc, index) => ({
+            order_id: order.id,
+            type: doc.type ?? "orcamento",
+            file_url: uploadResults[index] || doc.fileUri,
+            file_name: doc.fileName,
+            mime_type: doc.mimeType ?? null,
+          }));
+
+          const { error: docsError } = await supabase
+            .from("order_documents")
+            .insert(docsPayload);
+
+          if (docsError) {
+            console.log("⚠️ Erro ao salvar documentos do pedido:", docsError);
+            // não dou throw aqui pra não quebrar o update inteiro
+          }
+        }
+
+        // 3) Buscar novamente o pedido completo (com documentos)
+        const { data, error } = await supabase
+          .from("orders")
           .select(
             `
             id,
@@ -381,34 +385,18 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
             order_date,
             status,
             equipment_id,
-            quote_file_url,
-            quote_file_name,
-            quote_file_mime_type,
             created_at,
             cost_centers ( code ),
-            equipments ( id, name )
+            equipments ( id, name ),
+            order_documents ( id, type, file_url, file_name, mime_type, created_at )
           `
           )
+          .eq("id", order.id)
           .maybeSingle();
 
         if (error || !data) {
-          console.log("❌ Erro ao atualizar pedido:", error);
+          console.log("❌ Erro ao recarregar pedido atualizado:", error);
           throw error;
-        }
-
-        if (budgetToPersist && order.status === "orcamento_enviado") {
-          const { error: quoteError } = await supabase
-            .from("order_quotes")
-            .insert({
-              order_id: order.id,
-              file_url: budgetToPersist.fileUri,
-              file_name: budgetToPersist.fileName,
-              mime_type: budgetToPersist.mimeType ?? null,
-            });
-
-          if (quoteError) {
-            console.log("⚠️ Erro ao registrar orçamento em order_quotes:", quoteError);
-          }
         }
 
         const updated = mapRowToOrder(data);
@@ -416,19 +404,6 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         setOrders((prev) =>
           prev.map((o) => (o.id === order.id ? updated : o))
         );
-
-        // Envia notificação push quando orçamento é enviado
-        const wasBudgetSent = order.status === "orcamento_enviado" && 
-          existing?.status !== "orcamento_enviado";
-        if (wasBudgetSent) {
-          try {
-            const { notificationService } = await import('@/src/lib/notifications');
-            await notificationService.notifyBudgetSent(updated.name, updated.costCenter);
-          } catch (notifError) {
-            // Falha silenciosa - notificações não são críticas
-            console.warn('Erro ao enviar notificação:', notifError);
-          }
-        }
       } catch (err) {
         console.log("❌ Erro em updateOrder:", err);
         throw err;
@@ -442,6 +417,8 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
   // ----------------------------
   const deleteOrder = useCallback(async (id: string) => {
     try {
+      // order_documents tem FK com ON DELETE CASCADE,
+      // então ao deletar o pedido, os docs vão junto.
       const { error } = await supabase.from("orders").delete().eq("id", id);
 
       if (error) {
@@ -457,7 +434,103 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // ----------------------------
-  // BADGE / FILTROS
+  // APPROVE ORDER
+  // ----------------------------
+  const approveOrder = useCallback(
+    async (orderId: string, documentId: string) => {
+      try {
+        // 1. Marca o documento específico como aprovado
+        const { error: docError } = await supabase
+          .from("order_documents")
+          .update({ approved: true })
+          .eq("id", documentId)
+          .eq("order_id", orderId);
+
+        if (docError) {
+          console.log("❌ Erro ao marcar documento como aprovado:", docError);
+          throw docError;
+        }
+
+        // 2. Atualiza o status do pedido para aprovado
+        const { error: orderError } = await supabase
+          .from("orders")
+          .update({ status: "orcamento_aprovado" })
+          .eq("id", orderId);
+
+        if (orderError) {
+          console.log("❌ Erro ao aprovar pedido:", orderError);
+          throw orderError;
+        }
+
+        // 3. Recarrega o pedido completo para ter os dados atualizados
+        const { data, error: loadError } = await supabase
+          .from("orders")
+          .select(
+            `
+            id,
+            name,
+            description,
+            order_date,
+            status,
+            equipment_id,
+            created_at,
+            cost_centers ( code ),
+            equipments ( id, name ),
+            order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
+          `
+          )
+          .eq("id", orderId)
+          .maybeSingle();
+
+        if (loadError || !data) {
+          console.log("❌ Erro ao recarregar pedido aprovado:", loadError);
+          throw loadError;
+        }
+
+        const updated = mapRowToOrder(data);
+
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? updated : o))
+        );
+      } catch (err) {
+        console.log("❌ Erro em approveOrder:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
+  // ----------------------------
+  // REJECT ORDER
+  // ----------------------------
+  const rejectOrder = useCallback(
+    async (orderId: string) => {
+      try {
+        const { error } = await supabase
+          .from("orders")
+          .update({ status: "orcamento_reprovado" })
+          .eq("id", orderId);
+
+        if (error) {
+          console.log("❌ Erro ao reprovar pedido:", error);
+          throw error;
+        }
+
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId ? { ...o, status: "orcamento_reprovado" } : o
+          )
+        );
+      } catch (err) {
+        console.log("❌ Erro em rejectOrder:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
+  // ----------------------------
+  // FILTROS / BADGE
   // ----------------------------
   const getOrdersByCenter = useCallback(
     (center: CostCenter) => orders.filter((o) => o.costCenter === center),
@@ -468,6 +541,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
 
   const markOrderAsRead = useCallback((id: string) => {
     console.log("📘 Pedido marcado como lido:", id);
+    // Se quiser no futuro, dá pra persistir isso em uma tabela de notificações
   }, []);
 
   const getUnreadNotificationsCount = useCallback(() => {
@@ -484,6 +558,8 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
     addOrder,
     updateOrder,
     deleteOrder,
+    approveOrder,
+    rejectOrder,
     getOrdersByCenter,
     getAllOrders,
     markOrderAsRead,
@@ -494,5 +570,9 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
   return <OrderContext.Provider value={value}>{children}</OrderContext.Provider>;
 };
 
-// alias pra manter compatibilidade com RootLayout
-export { OrdersProvider as OrderProvider };
+// Export que o app usa
+export const OrderProvider = OrderProviderComponent;
+// Alias, caso alguma parte do código ainda importe OrdersProvider
+export { OrderProvider as OrdersProvider };
+
+export default OrderProviderComponent;

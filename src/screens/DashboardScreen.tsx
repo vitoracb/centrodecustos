@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
@@ -20,12 +21,13 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { showSuccess, showError } from '../lib/toast';
 import {
-  Package,
+  Tractor,
   DollarSign,
   Users,
   FileText,
   PlusCircle,
   ShoppingCart,
+  Trash2,
 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -40,12 +42,27 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
+type ActivityType = 
+  | 'equipment_add'
+  | 'equipment_remove'
+  | 'expense'
+  | 'receipt'
+  | 'order_pending'
+  | 'order_sent'
+  | 'order_approved'
+  | 'order_rejected'
+  | 'employee_add'
+  | 'employee_remove'
+  | 'contract_add'
+  | 'contract_remove';
+
 interface Activity {
   id: string;
   title: string;
   description: string;
   timestamp: number;
   timeAgo: string;
+  type: ActivityType;
 }
 
 const formatTimeAgo = (timestamp: number): string => {
@@ -62,7 +79,92 @@ const formatTimeAgo = (timestamp: number): string => {
   return time.format('DD/MM/YYYY');
 };
 
+// Função para obter ícone e cor baseado no tipo de atividade
+const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; color: string; backgroundColor: string } => {
+  switch (type) {
+    case 'equipment_add':
+      return {
+        icon: Tractor,
+        color: '#0A84FF',
+        backgroundColor: '#E5F1FF',
+      };
+    case 'equipment_remove':
+      return {
+        icon: Tractor,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
+      };
+    case 'expense':
+      return {
+        icon: DollarSign,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
+      };
+    case 'receipt':
+      return {
+        icon: DollarSign,
+        color: '#34C759',
+        backgroundColor: '#E9FAF0',
+      };
+    case 'order_pending':
+      return {
+        icon: ShoppingCart,
+        color: '#FF9500',
+        backgroundColor: '#FFF3D6',
+      };
+    case 'order_sent':
+      return {
+        icon: ShoppingCart,
+        color: '#0A84FF',
+        backgroundColor: '#E5F1FF',
+      };
+    case 'order_approved':
+      return {
+        icon: ShoppingCart,
+        color: '#34C759',
+        backgroundColor: '#E9FAF0',
+      };
+    case 'order_rejected':
+      return {
+        icon: ShoppingCart,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
+      };
+    case 'employee_add':
+      return {
+        icon: Users,
+        color: '#0A84FF',
+        backgroundColor: '#E5F1FF',
+      };
+    case 'employee_remove':
+      return {
+        icon: Users,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
+      };
+    case 'contract_add':
+      return {
+        icon: FileText,
+        color: '#0A84FF',
+        backgroundColor: '#E5F1FF',
+      };
+    case 'contract_remove':
+      return {
+        icon: FileText,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
+      };
+    default:
+      return {
+        icon: PlusCircle,
+        color: '#0A84FF',
+        backgroundColor: '#E5F1FF',
+      };
+  }
+};
+
 export const DashboardScreen = () => {
+  const router = useRouter();
   const { selectedCenter } = useCostCenter();
   const { getEquipmentsByCenter, getAllEquipments, addEquipment } = useEquipment();
   const { getAllExpenses, getAllReceipts, addExpense } = useFinancial();
@@ -138,6 +240,19 @@ export const DashboardScreen = () => {
     allEquipments.forEach(eq => {
       if (eq.center !== selectedCenter) return;
       
+      // Equipamento excluído
+      if (eq.deletedAt) {
+        activities.push({
+          id: `eq-deleted-${eq.id}`,
+          title: 'Equipamento excluído',
+          description: eq.name,
+          timestamp: eq.deletedAt,
+          timeAgo: formatTimeAgo(eq.deletedAt),
+          type: 'equipment_remove',
+        });
+        return; // Não mostra outras atividades para equipamentos deletados
+      }
+      
       // Equipamento adicionado
       if (eq.createdAt) {
         activities.push({
@@ -146,6 +261,7 @@ export const DashboardScreen = () => {
           description: eq.name,
           timestamp: eq.createdAt,
           timeAgo: formatTimeAgo(eq.createdAt),
+          type: 'equipment_add',
         });
       }
 
@@ -157,6 +273,7 @@ export const DashboardScreen = () => {
           description: eq.name,
           timestamp: eq.statusChangedAt,
           timeAgo: formatTimeAgo(eq.statusChangedAt),
+          type: 'equipment_remove',
         });
       }
     });
@@ -173,6 +290,7 @@ export const DashboardScreen = () => {
         description: exp.name,
         timestamp: exp.createdAt,
         timeAgo: formatTimeAgo(exp.createdAt),
+        type: 'expense',
       });
     });
 
@@ -187,6 +305,7 @@ export const DashboardScreen = () => {
         description: rec.name,
         timestamp: rec.createdAt,
         timeAgo: formatTimeAgo(rec.createdAt),
+        type: 'receipt',
       });
     });
 
@@ -196,33 +315,58 @@ export const DashboardScreen = () => {
       if (order.costCenter !== selectedCenter) return;
       if (!order.createdAt) return;
 
+      // Determina o tipo de atividade baseado no status do pedido
+      let activityType: ActivityType = 'order_pending';
+      let activityTitle = 'Pedido de orçamento';
+
       if (order.status === 'orcamento_enviado') {
-        activities.push({
-          id: `order-sent-${order.id}`,
-          title: 'Orçamento enviado',
-          description: order.name,
-          timestamp: order.createdAt,
-          timeAgo: formatTimeAgo(order.createdAt),
-        });
+        activityType = 'order_sent';
+        activityTitle = 'Orçamento enviado';
+      } else if (order.status === 'orcamento_aprovado') {
+        activityType = 'order_approved';
+        activityTitle = 'Orçamento aprovado';
+      } else if (order.status === 'orcamento_reprovado') {
+        activityType = 'order_rejected';
+        activityTitle = 'Orçamento reprovado';
       } else {
-        activities.push({
-          id: `order-${order.id}`,
-          title: 'Pedido de orçamento',
-          description: order.name,
-          timestamp: order.createdAt,
-          timeAgo: formatTimeAgo(order.createdAt),
-        });
+        // orcamento_solicitado, orcamento_pendente, etc.
+        activityType = 'order_pending';
+        activityTitle = 'Pedido de orçamento';
       }
+
+      activities.push({
+        id: `order-${order.status}-${order.id}`,
+        title: activityTitle,
+        description: order.name,
+        timestamp: order.createdAt,
+        timeAgo: formatTimeAgo(order.createdAt),
+        type: activityType,
+      });
     });
 
     // 4. Funcionários (documentos)
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
     Object.values(centerDocs).forEach((docs) => {
       docs.forEach(doc => {
+        // Funcionário excluído
+        if (doc.deletedAt) {
+          activities.push({
+            id: `employee-deleted-${doc.id}`,
+            title: 'Funcionário excluído',
+            description: doc.employee,
+            timestamp: doc.deletedAt,
+            timeAgo: formatTimeAgo(doc.deletedAt),
+            type: 'employee_remove',
+          });
+          return; // Não mostra outras atividades para documentos deletados
+        }
+        
         const docTimestamp = doc.createdAt || Date.now();
         
         // Verifica se é um novo funcionário (primeiro documento deste funcionário neste equipamento)
-        const isNewEmployee = docs.filter(d => 
+        // Considera apenas documentos não deletados
+        const nonDeletedDocs = docs.filter(d => !d.deletedAt);
+        const isNewEmployee = nonDeletedDocs.filter(d => 
           d.employee === doc.employee && 
           (d.createdAt || Date.now()) <= docTimestamp
         ).length === 1;
@@ -234,6 +378,7 @@ export const DashboardScreen = () => {
             description: doc.employee,
             timestamp: docTimestamp,
             timeAgo: formatTimeAgo(docTimestamp),
+            type: 'employee_add',
           });
         }
       });
@@ -243,17 +388,33 @@ export const DashboardScreen = () => {
     const allContracts = getAllContracts();
     allContracts.forEach(contract => {
       if (contract.center !== selectedCenter) return;
-      if (!contract.createdAt) return;
 
-      activities.push({
-        id: `contract-${contract.id}`,
-        title: 'Contrato adicionado',
-        description: contract.name,
-        timestamp: contract.createdAt,
-        timeAgo: formatTimeAgo(contract.createdAt),
-      });
+      // Contrato excluído
+      if (contract.deletedAt) {
+        activities.push({
+          id: `contract-deleted-${contract.id}`,
+          title: 'Contrato excluído',
+          description: contract.name,
+          timestamp: contract.deletedAt,
+          timeAgo: formatTimeAgo(contract.deletedAt),
+          type: 'contract_remove',
+        });
+        return; // Não mostra outras atividades para contratos deletados
+      }
 
-      // Documentos de contratos
+      // Contrato adicionado
+      if (contract.createdAt) {
+        activities.push({
+          id: `contract-${contract.id}`,
+          title: 'Contrato adicionado',
+          description: contract.name,
+          timestamp: contract.createdAt,
+          timeAgo: formatTimeAgo(contract.createdAt),
+          type: 'contract_add',
+        });
+      }
+
+      // Documentos de contratos (apenas se o contrato não foi deletado)
       if (contract.documents) {
         contract.documents.forEach(doc => {
           // Usa o timestamp do contrato como aproximação, já que documentos não têm createdAt separado
@@ -263,6 +424,7 @@ export const DashboardScreen = () => {
             description: `${contract.name} - ${doc.fileName}`,
             timestamp: contract.createdAt || Date.now(),
             timeAgo: formatTimeAgo(contract.createdAt || Date.now()),
+            type: 'contract_add',
           });
         });
       }
@@ -294,32 +456,41 @@ export const DashboardScreen = () => {
       label: 'Equipamentos Ativos',
       value: String(activeEquipments),
       change: '',
-      icon: Package,
+      icon: Tractor,
+      onPress: () => router.push('/(tabs)/equipamentos'),
     },
     {
       label: 'Despesas do Mês',
       value: formatCurrency(monthlyExpenses),
       change: '',
       icon: DollarSign,
+      onPress: () => {
+        router.push({
+          pathname: '/(tabs)/financeiro',
+          params: { tab: 'Despesas', month: dayjs().month(), year: dayjs().year() },
+        });
+      },
     },
     {
       label: 'Funcionários',
       value: String(employeesCount),
       change: '',
       icon: Users,
+      onPress: () => router.push('/(tabs)/funcionarios'),
     },
     {
       label: 'Contratos Ativos',
       value: String(contractsCount),
       change: '',
       icon: FileText,
+      onPress: () => router.push('/(tabs)/contratos'),
     },
-  ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount]);
+  ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount, router]);
 
   const quickActions = [
     { 
       label: 'Novo Equipamento', 
-      icon: Package,
+      icon: Tractor,
       onPress: () => setIsEquipmentModalVisible(true),
     },
     { 
@@ -357,7 +528,12 @@ export const DashboardScreen = () => {
 
         <View style={styles.statsGrid}>
           {statCards.map((card) => (
-            <View key={card.label} style={styles.statCard}>
+            <TouchableOpacity
+              key={card.label}
+              style={styles.statCard}
+              onPress={card.onPress}
+              activeOpacity={0.7}
+            >
               <View style={styles.statIcon}>
                 <card.icon size={20} color="#0A84FF" />
               </View>
@@ -366,7 +542,7 @@ export const DashboardScreen = () => {
               {card.change ? (
                 <Text style={styles.statChange}>{card.change}</Text>
               ) : null}
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -374,20 +550,23 @@ export const DashboardScreen = () => {
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Atividades Recentes</Text>
             {recentActivities.length > 0 ? (
-              recentActivities.map((activity) => (
-                <View key={activity.id} style={styles.activityItem}>
-                  <View style={styles.activityIcon}>
-                    <PlusCircle size={18} color="#0A84FF" />
+              recentActivities.map((activity) => {
+                const { icon: Icon, color, backgroundColor } = getActivityIcon(activity.type);
+                return (
+                  <View key={activity.id} style={styles.activityItem}>
+                    <View style={[styles.activityIcon, { backgroundColor }]}>
+                      <Icon size={18} color={color} />
+                    </View>
+                    <View style={styles.activityText}>
+                      <Text style={styles.activityTitle}>{activity.title}</Text>
+                      <Text style={styles.activityDescription}>
+                        {activity.description}
+                      </Text>
+                    </View>
+                    <Text style={styles.activityTime}>{activity.timeAgo}</Text>
                   </View>
-                  <View style={styles.activityText}>
-                    <Text style={styles.activityTitle}>{activity.title}</Text>
-                    <Text style={styles.activityDescription}>
-                      {activity.description}
-                    </Text>
-                  </View>
-                  <Text style={styles.activityTime}>{activity.timeAgo}</Text>
-                </View>
-              ))
+                );
+              })
             ) : (
               <View style={styles.emptyActivities}>
                 <Text style={styles.emptyActivitiesText}>

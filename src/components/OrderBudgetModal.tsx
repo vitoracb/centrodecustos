@@ -12,12 +12,12 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { FileText, Image as ImageIcon, X } from 'lucide-react-native';
-import { OrderBudget } from '../context/OrderContext';
+import { OrderDocument } from '../context/OrderContext';
 
 interface OrderBudgetModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (budget: OrderBudget) => void;
+  onSubmit: (budget: OrderDocument) => void;
 }
 
 export const OrderBudgetModal = ({

@@ -24,3 +24,16 @@ CREATE POLICY "Allow anon insert order quotes"
   TO anon
   WITH CHECK (true);
 
+CREATE POLICY "Allow anon update order quotes"
+  ON public.order_quotes
+  FOR UPDATE
+  TO anon
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow anon delete order quotes"
+  ON public.order_quotes
+  FOR DELETE
+  TO anon
+  USING (true);
+

@@ -33,6 +33,12 @@ export type ExpenseCategory =
   | "terceirizados"
   | "diversos";
 
+export type ExpenseStatus =
+  | "confirmar"
+  | "confirmado"
+  | "a_pagar"
+  | "pago";
+
 export type GestaoSubcategory =
   | "aluguel"
   | "carro"
@@ -58,7 +64,7 @@ export interface Expense {
   equipmentId?: string;
   gestaoSubcategory?: GestaoSubcategory;
   observations?: string;
-  status?: string;
+  status?: ExpenseStatus;
   method?: string;
   createdAt?: number;
 }
@@ -159,6 +165,22 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     console.warn("⚠️ Erro ao carregar documentos da despesa:", e);
   }
 
+  // Determina o status: normaliza do banco para ExpenseStatus
+  let expenseStatus: ExpenseStatus = "confirmar";
+  if (row.status) {
+    const normalizedStatus = row.status.toLowerCase().replace(/_/g, "_");
+    if (normalizedStatus === "pago" || normalizedStatus === "PAGO") {
+      // Só permite "pago" se houver documentos (comprovante)
+      expenseStatus = documents.length > 0 ? "pago" : "confirmado";
+    } else if (normalizedStatus === "confirmado" || normalizedStatus === "CONFIRMADO") {
+      expenseStatus = "confirmado";
+    } else if (normalizedStatus === "a_pagar" || normalizedStatus === "a pagar" || normalizedStatus === "A_PAGAR") {
+      expenseStatus = "a_pagar";
+    } else if (normalizedStatus === "confirmar" || normalizedStatus === "CONFIRMAR") {
+      expenseStatus = "confirmar";
+    }
+  }
+
   return {
     id: row.id,
     name: row.description ?? "",
@@ -170,7 +192,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     equipmentId: row.equipment_id ?? undefined,
     gestaoSubcategory: undefined,
     observations: row.reference ?? undefined,
-    status: row.status ?? "CONFIRMADO",
+    status: expenseStatus,
     method: row.payment_method ?? undefined,
     createdAt: row.created_at
       ? new Date(row.created_at).getTime()
@@ -489,13 +511,26 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
+        // Converte ExpenseStatus para formato do banco
+        const statusToDb = (status?: ExpenseStatus): string => {
+          if (!status) return "CONFIRMAR";
+          switch (status) {
+            case "confirmar":
+              return "CONFIRMAR";
+            case "confirmado":
+              return "CONFIRMADO";
+            case "a_pagar":
+              return "A_PAGAR";
+            case "pago":
+              return "PAGO";
+            default:
+              return "CONFIRMAR";
+          }
+        };
+
         const payload: any = {
           type: "DESPESA",
-          status:
-            expense.status &&
-            expense.status.toLowerCase().startsWith("prev")
-              ? "PREVISTO"
-              : "CONFIRMADO",
+          status: statusToDb(expense.status),
           cost_center_id: ccData.id,
           equipment_id: expense.equipmentId ?? null,
           value: expense.value,
@@ -618,6 +653,23 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
+        // Converte ExpenseStatus para formato do banco
+        const statusToDb = (status?: ExpenseStatus): string => {
+          if (!status) return "CONFIRMAR";
+          switch (status) {
+            case "confirmar":
+              return "CONFIRMAR";
+            case "confirmado":
+              return "CONFIRMADO";
+            case "a_pagar":
+              return "A_PAGAR";
+            case "pago":
+              return "PAGO";
+            default:
+              return "CONFIRMAR";
+          }
+        };
+
         const payload: any = {
           cost_center_id: ccData.id,
           equipment_id: expense.equipmentId ?? null,
@@ -627,11 +679,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: expense.name,
           payment_method: expense.method ?? null,
           reference: expense.observations ?? null,
-          status:
-            expense.status &&
-            expense.status.toLowerCase().startsWith("prev")
-              ? "PREVISTO"
-              : "CONFIRMADO",
+          status: statusToDb(expense.status),
         };
 
         const { data, error } = await supabase

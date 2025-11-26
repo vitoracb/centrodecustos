@@ -19,6 +19,7 @@ export interface OrderFilters {
   equipmentId?: string;
   startDate?: string;
   endDate?: string;
+  status?: string;
 }
 
 interface OrderFilterModalProps {
@@ -42,8 +43,10 @@ export const OrderFilterModal = ({
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState('');
   const [activePicker, setActivePicker] = useState<PickerType>(null);
   const [equipmentDropdownVisible, setEquipmentDropdownVisible] = useState(false);
+  const [statusDropdownVisible, setStatusDropdownVisible] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -55,7 +58,9 @@ export const OrderFilterModal = ({
       setEndDate(
         initialFilters?.endDate ? dayjs(initialFilters.endDate).toDate() : null,
       );
+      setSelectedStatus(initialFilters?.status ?? '');
       setEquipmentDropdownVisible(false);
+      setStatusDropdownVisible(false);
       setActivePicker(null);
     }
   }, [visible, initialFilters]);
@@ -68,12 +73,26 @@ export const OrderFilterModal = ({
     );
   }, [equipments, selectedEquipmentId]);
 
+  const statusOptions = [
+    { value: '', label: 'Todos os status' },
+    { value: 'orcamento_pendente', label: 'Orçamento pendente' },
+    { value: 'orcamento_enviado', label: 'Orçamento enviado' },
+    { value: 'orcamento_aprovado', label: 'Orçamento aprovado' },
+    { value: 'orcamento_reprovado', label: 'Orçamento reprovado' },
+  ];
+
+  const statusLabel = useMemo(() => {
+    if (!selectedStatus) return 'Todos os status';
+    return statusOptions.find(opt => opt.value === selectedStatus)?.label ?? 'Todos os status';
+  }, [selectedStatus]);
+
   const handleApply = () => {
     onApply({
       name: name.trim() || undefined,
       equipmentId: selectedEquipmentId || undefined,
       startDate: startDate ? dayjs(startDate).format('YYYY-MM-DD') : undefined,
       endDate: endDate ? dayjs(endDate).format('YYYY-MM-DD') : undefined,
+      status: selectedStatus || undefined,
     });
     onClose();
   };
@@ -83,6 +102,7 @@ export const OrderFilterModal = ({
     setSelectedEquipmentId('');
     setStartDate(null);
     setEndDate(null);
+    setSelectedStatus('');
     onApply({});
     onClose();
   };
@@ -206,6 +226,45 @@ export const OrderFilterModal = ({
                   {endDate ? dayjs(endDate).format('DD/MM/YYYY') : 'Selecione a data'}
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Status do orçamento</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setStatusDropdownVisible(prev => !prev)}
+              >
+                <Text style={styles.inputText}>{statusLabel}</Text>
+                <ChevronDown size={18} color="#6C6C70" />
+              </TouchableOpacity>
+              {statusDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  {statusOptions.map((option, index) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.dropdownItem,
+                        selectedStatus === option.value && styles.dropdownItemSelected,
+                        index === statusOptions.length - 1 && styles.dropdownItemLast,
+                      ]}
+                      onPress={() => {
+                        setSelectedStatus(option.value);
+                        setStatusDropdownVisible(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          selectedStatus === option.value &&
+                            styles.dropdownItemTextSelected,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           </ScrollView>
 

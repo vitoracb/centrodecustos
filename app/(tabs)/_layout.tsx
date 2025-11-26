@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   LayoutDashboard,
-  Package,
+  Tractor,
   DollarSign,
   ShoppingCart,
   Users,
@@ -41,7 +41,7 @@ export default function TabLayout() {
         options={{
           title: 'Equipamentos',
           tabBarIcon: ({ size, color }) => (
-            <Package size={size} color={color} />
+            <Tractor size={size} color={color} />
           ),
         }}
       />

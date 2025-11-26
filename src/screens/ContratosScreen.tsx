@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useContracts } from '../context/ContractContext';
-import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon } from 'lucide-react-native';
+import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2 } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
@@ -46,7 +46,7 @@ const formatCurrency = (value?: number): string => {
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getContractsByCenter, addContract, addDocumentToContract, loading } = useContracts();
+  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, loading } = useContracts();
   const contracts = useMemo(
     () => getContractsByCenter(selectedCenter),
     [getContractsByCenter, selectedCenter]
@@ -271,6 +271,33 @@ export const ContratosScreen = () => {
                 >
                   <FilePlus size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Adicionar documento</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() =>
+                    Alert.alert(
+                      'Excluir contrato',
+                      `Tem certeza que deseja excluir o contrato "${contract.name}"?`,
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Excluir',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await deleteContract(contract.id);
+                            } catch (error) {
+                              // Erro já foi tratado no contexto
+                              console.error('Erro ao excluir contrato:', error);
+                            }
+                          },
+                        },
+                      ]
+                    )
+                  }
+                >
+                  <Trash2 size={16} color="#FF3B30" />
+                  <Text style={styles.deleteText}>Excluir</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -542,6 +569,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: '#FDECEC',
+  },
+  deleteText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
   emptyState: {
     padding: 24,

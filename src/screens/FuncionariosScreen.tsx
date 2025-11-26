@@ -31,7 +31,8 @@ export const FuncionariosScreen = () => {
     documentsByCenter, 
     addEmployeeDocument, 
     updateEmployeeDocument, 
-    deleteEmployeeDocument 
+    deleteEmployeeDocument,
+    deleteEmployee
   } = useEmployees();
   
   // Filtra equipamentos pelo centro de custo selecionado
@@ -70,7 +71,9 @@ export const FuncionariosScreen = () => {
   const documents = useMemo(() => {
     if (!selectedEquipment) return [];
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
-    return centerDocs[selectedEquipment.id] ?? [];
+    const allDocs = centerDocs[selectedEquipment.id] ?? [];
+    // Filtra documentos deletados
+    return allDocs.filter(doc => !doc.deletedAt);
   }, [documentsByCenter, selectedCenter, selectedEquipment]);
 
   // Agrupa documentos por funcionário
@@ -181,16 +184,39 @@ export const FuncionariosScreen = () => {
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.addDocButton}
-                    onPress={() => {
-                      setAddingDocumentForEmployee(employeeName);
-                      setEmployeeModalVisible(true);
-                    }}
-                  >
-                    <Plus size={16} color="#0A84FF" />
-                    <Text style={styles.addDocText}>Adicionar</Text>
-                  </TouchableOpacity>
+                  <View style={styles.employeeHeaderActions}>
+                    <TouchableOpacity
+                      style={styles.addDocButton}
+                      onPress={() => {
+                        setAddingDocumentForEmployee(employeeName);
+                        setEmployeeModalVisible(true);
+                      }}
+                    >
+                      <Plus size={16} color="#0A84FF" />
+                      <Text style={styles.addDocText}>Adicionar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteEmployeeButton}
+                      onPress={() => {
+                        if (!selectedEquipment) return;
+                        Alert.alert(
+                          'Excluir funcionário',
+                          `Tem certeza que deseja excluir o funcionário "${employeeName}"? Todos os documentos deste funcionário serão excluídos.`,
+                          [
+                            { text: 'Cancelar', style: 'cancel' },
+                            {
+                              text: 'Excluir',
+                              style: 'destructive',
+                              onPress: () => deleteEmployee(employeeName, selectedEquipment.id, selectedCenter),
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Trash2 size={16} color="#FF3B30" />
+                      <Text style={styles.deleteEmployeeText}>Excluir</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 {employeeDocs.map((doc) => (
                   <View key={doc.id} style={styles.documentCard}>
@@ -565,6 +591,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  employeeHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteEmployeeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FDECEC',
+  },
+  deleteEmployeeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
   documentCard: {
     backgroundColor: '#F9F9FB',

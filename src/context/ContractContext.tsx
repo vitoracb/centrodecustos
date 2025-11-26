@@ -30,6 +30,7 @@ export interface Contract {
   center: CostCenter;
   documents?: ContractDocument[];
   createdAt?: number;
+  deletedAt?: number; // Timestamp quando foi deletado (soft delete)
 }
 
 interface ContractContextType {
@@ -37,6 +38,7 @@ interface ContractContextType {
   loading: boolean;
   error: string | null;
   addContract: (contract: Omit<Contract, 'id' | 'docs'>) => Promise<void>;
+  deleteContract: (id: string) => Promise<void>;
   getContractsByCenter: (center: CostCenter) => Contract[];
   addDocumentToContract: (contractId: string, document: Omit<ContractDocument, 'id'>) => Promise<void>;
   getAllContracts: () => Contract[];
@@ -93,6 +95,7 @@ const mapRowToContract = (row: any, documents: ContractDocument[] = []): Contrac
   center: normalizeCenter(row.cost_centers?.code),
   documents,
   createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
+  deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : undefined,
 });
 
 export const ContractProvider = ({ children }: ContractProviderProps) => {
@@ -114,6 +117,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           contract_date,
           value,
           created_at,
+          deleted_at,
           cost_centers ( code )
         `)
         .order('created_at', { ascending: false });
@@ -338,8 +342,60 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     [],
   );
 
+  const deleteContract = useCallback(
+    async (id: string) => {
+      try {
+        // Soft delete: marca como deletado ao invés de remover
+        const deletedAt = new Date().toISOString();
+        const { error, data } = await supabase
+          .from('contracts')
+          .update({ deleted_at: deletedAt })
+          .eq('id', id)
+          .select('id')
+          .maybeSingle();
+
+        if (error) {
+          console.error('❌ Erro ao deletar contrato:', error);
+          const errorMessage = error.message || 'Não foi possível excluir o contrato.';
+          
+          // Verifica se o erro é relacionado à coluna deleted_at não existir
+          if (error.message?.includes('deleted_at') || error.code === '42703') {
+            Alert.alert(
+              'Erro',
+              'A coluna deleted_at não existe na tabela contracts. Execute o script SQL: supabase_contracts_add_deleted_at.sql'
+            );
+          } else {
+            Alert.alert('Erro', errorMessage);
+          }
+          throw error;
+        }
+
+        if (!data) {
+          throw new Error('Contrato não encontrado');
+        }
+
+        // Atualiza o estado marcando como deletado
+        setContracts((prev) =>
+          prev.map((contract) =>
+            contract.id === id
+              ? { ...contract, deletedAt: new Date(deletedAt).getTime() }
+              : contract
+          )
+        );
+      } catch (err: any) {
+        console.error('❌ Erro em deleteContract:', err);
+        // Não mostra alert duplicado se já foi mostrado acima
+        if (!err.message?.includes('deleted_at') && err.code !== '42703') {
+          Alert.alert('Erro', err.message || 'Não foi possível excluir o contrato.');
+        }
+        throw err;
+      }
+    },
+    [],
+  );
+
   const getContractsByCenter = useCallback(
-    (center: CostCenter) => contracts.filter((contract) => contract.center === center),
+    (center: CostCenter) => contracts.filter((contract) => contract.center === center && !contract.deletedAt),
     [contracts],
   );
 
@@ -352,6 +408,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         loading,
         error,
         addContract,
+        deleteContract,
         getContractsByCenter,
         addDocumentToContract,
         getAllContracts,

@@ -31,6 +31,7 @@ export interface Equipment {
   status: EquipmentStatus;
   createdAt?: number;
   statusChangedAt?: number;
+  deletedAt?: number; // Timestamp quando foi deletado (soft delete)
 }
 
 interface EquipmentContextType {
@@ -114,6 +115,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           next_review_date,
           active,
           created_at,
+          deleted_at,
           cost_centers (
             code
           )
@@ -145,6 +147,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             status: row.active ? 'ativo' : 'inativo',
             createdAt: row.created_at
               ? new Date(row.created_at).getTime()
+              : undefined,
+            deletedAt: row.deleted_at
+              ? new Date(row.deleted_at).getTime()
               : undefined,
           };
         }) ?? [];
@@ -349,9 +354,11 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const deleteEquipment = useCallback(
     async (id: string) => {
       try {
+        // Soft delete: marca como deletado ao invés de remover
+        const deletedAt = new Date().toISOString();
         const { error } = await supabase
           .from('equipments')
-          .delete()
+          .update({ deleted_at: deletedAt })
           .eq('id', id);
 
         if (error) {
@@ -361,7 +368,12 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         }
 
         const deletedEquipment = equipments.find(eq => eq.id === id);
-        setEquipments(prev => prev.filter(eq => eq.id !== id));
+        // Atualiza o estado marcando como deletado
+        setEquipments(prev => prev.map(eq => 
+          eq.id === id 
+            ? { ...eq, deletedAt: new Date(deletedAt).getTime() }
+            : eq
+        ));
         showSuccess('Equipamento excluído', deletedEquipment?.name || '');
       } catch (err: any) {
         logger.error('Erro em deleteEquipment:', err);
@@ -372,7 +384,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   );
 
   const getEquipmentsByCenter = useCallback(
-    (center: CostCenter) => equipments.filter(eq => eq.center === center),
+    (center: CostCenter) => equipments.filter(eq => eq.center === center && !eq.deletedAt),
     [equipments],
   );
 

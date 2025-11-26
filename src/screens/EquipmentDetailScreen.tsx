@@ -608,6 +608,13 @@ export const EquipmentDetailScreen = () => {
                         : item.date ?? ''}
                     </Text>
 
+                    {/* Mostra a data da despesa */}
+                    {activeTab === 'despesas' && 'date' in item && item.date ? (
+                      <Text style={styles.cardMeta}>
+                        Data: {item.date}
+                      </Text>
+                    ) : null}
+
                     {'fileName' in item && item.fileName ? (
                       <Text style={styles.cardMeta}>
                         Arquivo: {item.fileName}
