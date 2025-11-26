@@ -8,14 +8,47 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
-import { X } from 'lucide-react-native';
+import { X, Filter, ChevronDown } from 'lucide-react-native';
+import { ExpenseCategory } from '../context/FinancialContext';
+import { Equipment } from '../context/EquipmentContext';
 
 dayjs.locale('pt-br');
 
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  manutencao: 'Manutenção',
+  funcionario: 'Funcionário',
+  gestao: 'Gestão',
+  terceirizados: 'Terceirizados',
+  diversos: 'Diversos',
+};
+
+// Formata número para moeda brasileira
+const formatCurrency = (value: string): string => {
+  const numbers = value.replace(/\D/g, '');
+  if (numbers === '') return '';
+  const numericValue = parseInt(numbers, 10) / 100;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+  }).format(numericValue);
+};
+
+// Extrai número de string formatada como moeda
+const parseCurrency = (value: string): number | null => {
+  const cleanValue = value.replace(/[^\d,.-]/g, '').replace(',', '.');
+  const parsed = parseFloat(cleanValue);
+  return isNaN(parsed) ? null : parsed;
+};
+
 export interface ExpenseFilters {
+  category?: ExpenseCategory | null;
+  equipmentId?: string | null;
+  value?: number | null;
   month?: number | null;
   year?: number | null;
 }
@@ -25,6 +58,7 @@ interface ExpenseFilterModalProps {
   onClose: () => void;
   onApply: (filters: ExpenseFilters) => void;
   initialFilters?: ExpenseFilters;
+  equipments?: Equipment[];
 }
 
 export const ExpenseFilterModal = ({
@@ -32,12 +66,25 @@ export const ExpenseFilterModal = ({
   onClose,
   onApply,
   initialFilters,
+  equipments = [],
 }: ExpenseFilterModalProps) => {
+  const [category, setCategory] = useState<ExpenseCategory | null>(null);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
+  const [value, setValue] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [usePeriodFilter, setUsePeriodFilter] = useState(false);
+  const [equipmentDropdownVisible, setEquipmentDropdownVisible] = useState(false);
 
   useEffect(() => {
     if (visible && initialFilters) {
+      setCategory(initialFilters.category || null);
+      setSelectedEquipmentId(initialFilters.equipmentId || '');
+      if (initialFilters.value) {
+        const cents = Math.round(initialFilters.value * 100);
+        setValue(formatCurrency(String(cents)));
+      } else {
+        setValue('');
+      }
       if (initialFilters.month !== null && initialFilters.month !== undefined && initialFilters.year) {
         setSelectedDate(dayjs().month(initialFilters.month).year(initialFilters.year));
         setUsePeriodFilter(true);
@@ -46,13 +93,29 @@ export const ExpenseFilterModal = ({
         setSelectedDate(dayjs());
       }
     } else if (!visible) {
+      setCategory(null);
+      setSelectedEquipmentId('');
+      setValue('');
       setUsePeriodFilter(false);
       setSelectedDate(dayjs());
+      setEquipmentDropdownVisible(false);
     }
   }, [visible, initialFilters]);
 
+  // Reset equipamento selecionado se não estiver mais na lista (quando centro de custo muda)
+  useEffect(() => {
+    if (selectedEquipmentId && !equipments.find(eq => eq.id === selectedEquipmentId)) {
+      setSelectedEquipmentId('');
+    }
+  }, [equipments, selectedEquipmentId]);
+
   const handleApply = () => {
+    const numericValue = value.trim() ? parseCurrency(value) : null;
+    
     onApply({
+      category: category || null,
+      equipmentId: selectedEquipmentId || null,
+      value: numericValue,
       month: usePeriodFilter ? selectedDate.month() : null,
       year: usePeriodFilter ? selectedDate.year() : null,
     });
@@ -60,9 +123,15 @@ export const ExpenseFilterModal = ({
   };
 
   const handleClear = () => {
+    setCategory(null);
+    setSelectedEquipmentId('');
+    setValue('');
     setUsePeriodFilter(false);
     setSelectedDate(dayjs());
     onApply({
+      category: null,
+      equipmentId: null,
+      value: null,
       month: null,
       year: null,
     });
@@ -85,7 +154,9 @@ export const ExpenseFilterModal = ({
     setSelectedDate((prev) => prev.add(1, 'year'));
   };
 
-  const hasFilters = usePeriodFilter;
+  const equipmentLabel = equipments.find(eq => eq.id === selectedEquipmentId)?.name || 'Selecione um equipamento';
+
+  const hasFilters = category || selectedEquipmentId || value.trim() || usePeriodFilter;
 
   return (
     <Modal transparent animationType="slide" visible={visible}>
@@ -93,7 +164,14 @@ export const ExpenseFilterModal = ({
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity 
+          style={styles.overlay} 
+          activeOpacity={1} 
+          onPress={() => {
+            setEquipmentDropdownVisible(false);
+            onClose();
+          }} 
+        />
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.header}>
@@ -104,6 +182,110 @@ export const ExpenseFilterModal = ({
           </View>
 
           <ScrollView style={styles.formScroll}>
+            <View style={styles.field}>
+              <Text style={styles.label}>Categoria</Text>
+              <View style={styles.categoryRow}>
+                <TouchableOpacity
+                  style={[styles.categoryChip, !category && styles.categoryChipSelected]}
+                  onPress={() => setCategory(null)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      !category && styles.categoryChipTextSelected,
+                    ]}
+                  >
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => {
+                  const isSelected = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                      onPress={() => setCategory(cat)}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          isSelected && styles.categoryChipTextSelected,
+                        ]}
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Equipamento</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setEquipmentDropdownVisible(!equipmentDropdownVisible)}
+              >
+                <Text style={[styles.dropdownText, !selectedEquipmentId && styles.dropdownPlaceholder]}>
+                  {equipmentLabel}
+                </Text>
+                <ChevronDown size={20} color="#6C6C70" />
+              </TouchableOpacity>
+              {equipmentDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedEquipmentId('');
+                        setEquipmentDropdownVisible(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, !selectedEquipmentId && styles.dropdownItemTextSelected]}>
+                        Todos os equipamentos
+                      </Text>
+                    </TouchableOpacity>
+                    {equipments.map((equipment) => {
+                      const isSelected = selectedEquipmentId === equipment.id;
+                      return (
+                        <TouchableOpacity
+                          key={equipment.id}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setSelectedEquipmentId(equipment.id);
+                            setEquipmentDropdownVisible(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextSelected]}>
+                            {equipment.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Valor</Text>
+              <TextInput
+                style={styles.input}
+                value={value}
+                onChangeText={(text) => {
+                  const numbers = text.replace(/\D/g, '');
+                  if (numbers === '') {
+                    setValue('');
+                  } else {
+                    const formatted = formatCurrency(numbers);
+                    setValue(formatted);
+                  }
+                }}
+                placeholder="R$ 0,00"
+                keyboardType="numeric"
+              />
+            </View>
+
             <View style={styles.field}>
               <View style={styles.periodHeader}>
                 <Text style={styles.label}>Filtrar por período</Text>
@@ -164,10 +346,11 @@ export const ExpenseFilterModal = ({
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.secondaryButton} onPress={handleClear}>
-              <Text style={styles.secondaryText}>Limpar Filtros</Text>
+              <Text style={styles.secondaryText}>Limpar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.primaryButton} onPress={handleApply}>
-              <Text style={styles.primaryText}>Aplicar Filtros</Text>
+              <Filter size={16} color="#FFFFFF" />
+              <Text style={styles.primaryText}>Aplicar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -224,6 +407,89 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     color: '#6C6C70',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderRadius: 14,
+    backgroundColor: '#F5F5F7',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1C1C1E',
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  categoryChipSelected: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6C6C70',
+  },
+  categoryChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    backgroundColor: '#F5F5F7',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  dropdownText: {
+    fontSize: 15,
+    color: '#1C1C1E',
+    flex: 1,
+  },
+  dropdownPlaceholder: {
+    color: '#8E8E93',
+  },
+  dropdownList: {
+    marginTop: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    maxHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F7',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#1C1C1E',
+  },
+  dropdownItemTextSelected: {
+    color: '#0A84FF',
+    fontWeight: '600',
   },
   periodHeader: {
     flexDirection: 'row',
@@ -310,6 +576,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     backgroundColor: '#0A84FF',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   primaryText: {
     fontSize: 15,

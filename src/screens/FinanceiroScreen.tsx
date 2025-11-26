@@ -25,6 +25,7 @@ import {
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useFinancial, Receipt, Expense, ExpenseCategory, ExpenseStatus } from '../context/FinancialContext';
+import { useEquipment } from '../context/EquipmentContext';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
 import { ReceiptFilterModal, ReceiptFilters } from '../components/ReceiptFilterModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
@@ -35,8 +36,10 @@ import { CostCenterComparisonChart } from '../components/CostCenterComparisonCha
 import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
+import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { exportToPDF, exportToExcel } from '../lib/reportExport';
 import { showSuccess, showError } from '../lib/toast';
+import { ReceiptStatus } from '../context/FinancialContext';
 import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -89,6 +92,13 @@ export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter } = useCostCenter();
   const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
+  const { getEquipmentsByCenter } = useEquipment();
+  
+  // Filtra equipamentos pelo centro de custo selecionado
+  const equipmentsForFilter = useMemo(
+    () => getEquipmentsByCenter(selectedCenter),
+    [getEquipmentsByCenter, selectedCenter]
+  );
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Recebimentos');
   const [isReceiptModalVisible, setReceiptModalVisible] = useState(false);
   const [isReceiptFilterVisible, setReceiptFilterVisible] = useState(false);
@@ -104,6 +114,8 @@ export const FinanceiroScreen = () => {
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
   const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<Expense | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [receiptStatusModalVisible, setReceiptStatusModalVisible] = useState(false);
+  const [selectedReceiptForStatus, setSelectedReceiptForStatus] = useState<Receipt | null>(null);
   const [previewFile, setPreviewFile] = useState<{
     uri: string;
     name?: string;
@@ -444,6 +456,22 @@ export const FinanceiroScreen = () => {
   const filteredExpenses = useMemo(() => {
     let filtered = [...allExpenses];
 
+    // Filtrar por categoria
+    if (expenseFilters.category) {
+      filtered = filtered.filter((expense) => expense.category === expenseFilters.category);
+    }
+
+    // Filtrar por equipamento
+    if (expenseFilters.equipmentId) {
+      filtered = filtered.filter((expense) => expense.equipmentId === expenseFilters.equipmentId);
+    }
+
+    // Filtrar por valor
+    if (expenseFilters.value !== null && expenseFilters.value !== undefined) {
+      filtered = filtered.filter((expense) => expense.value === expenseFilters.value);
+    }
+
+    // Filtrar por período
     if (expenseFilters.month !== null && expenseFilters.month !== undefined && expenseFilters.year) {
       filtered = filtered.filter((expense) => {
         const [day, month, year] = expense.date.split('/').map(Number);
@@ -471,9 +499,12 @@ export const FinanceiroScreen = () => {
 
   const hasActiveExpenseFilters = useMemo(() => {
     return !!(
-      expenseFilters.month !== null &&
-      expenseFilters.month !== undefined &&
-      expenseFilters.year
+      expenseFilters.category ||
+      expenseFilters.equipmentId ||
+      (expenseFilters.value !== null && expenseFilters.value !== undefined) ||
+      (expenseFilters.month !== null &&
+        expenseFilters.month !== undefined &&
+        expenseFilters.year)
     );
   }, [expenseFilters]);
 
@@ -572,6 +603,29 @@ export const FinanceiroScreen = () => {
   const filteredReceipts = useMemo(() => {
     let filtered = [...allReceipts];
 
+    // Filtrar por nome
+    if (receiptFilters.name) {
+      const searchTerm = receiptFilters.name.toLowerCase();
+      filtered = filtered.filter((receipt) =>
+        receipt.name.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Filtrar por valor
+    if (receiptFilters.value !== null && receiptFilters.value !== undefined) {
+      filtered = filtered.filter((receipt) =>
+        receipt.value === receiptFilters.value
+      );
+    }
+
+    // Filtrar por status
+    if (receiptFilters.status) {
+      filtered = filtered.filter((receipt) =>
+        receipt.status === receiptFilters.status
+      );
+    }
+
+    // Filtrar por período
     if (receiptFilters.month !== null && receiptFilters.month !== undefined && receiptFilters.year) {
       filtered = filtered.filter((receipt) => {
         // Parse da data no formato DD/MM/YYYY
@@ -582,8 +636,6 @@ export const FinanceiroScreen = () => {
           if (!receiptDate.isValid()) {
             return false;
           }
-          // dayjs.month() retorna 0-11, então subtraímos 1 do mês do filtro
-          // Mas espera, o filtro já está em 0-11, então comparamos diretamente
           return receiptDate.month() === receiptFilters.month && receiptDate.year() === receiptFilters.year;
         }
         // month vem como 1-12 do formato brasileiro, convertemos para 0-11
@@ -604,9 +656,12 @@ export const FinanceiroScreen = () => {
 
   const hasActiveFilters = useMemo(() => {
     return !!(
-      receiptFilters.month !== null &&
-      receiptFilters.month !== undefined &&
-      receiptFilters.year
+      receiptFilters.name ||
+      (receiptFilters.value !== null && receiptFilters.value !== undefined) ||
+      receiptFilters.status ||
+      (receiptFilters.month !== null &&
+        receiptFilters.month !== undefined &&
+        receiptFilters.year)
     );
   }, [receiptFilters]);
 
@@ -687,9 +742,34 @@ export const FinanceiroScreen = () => {
                     </View>
                   </View>
                   {item.status && (
-                    <View style={styles.statusPill}>
-                      <Text style={styles.statusText}>{item.status}</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.statusPill,
+                        item.status === 'a_confirmar' && styles.statusPillAConfirmar,
+                        item.status === 'confirmado' && styles.statusPillConfirmado,
+                        item.status === 'a_receber' && styles.statusPillAReceber,
+                        item.status === 'recebido' && styles.statusPillRecebido,
+                      ]}
+                      onPress={() => {
+                        setSelectedReceiptForStatus(item);
+                        setReceiptStatusModalVisible(true);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          item.status === 'a_confirmar' && styles.statusTextAConfirmar,
+                          item.status === 'confirmado' && styles.statusTextConfirmado,
+                          item.status === 'a_receber' && styles.statusTextAReceber,
+                          item.status === 'recebido' && styles.statusTextRecebido,
+                        ]}
+                      >
+                        {item.status === 'a_confirmar' && 'A Confirmar'}
+                        {item.status === 'confirmado' && 'Confirmado'}
+                        {item.status === 'a_receber' && 'A Receber'}
+                        {item.status === 'recebido' && 'Recebido'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               ))
@@ -1371,10 +1451,12 @@ export const FinanceiroScreen = () => {
         }
       />
       <ExpenseFilterModal
+        key={`expense-filter-${selectedCenter}`}
         visible={isExpenseFilterVisible}
         onClose={() => setExpenseFilterVisible(false)}
         onApply={setExpenseFilters}
         initialFilters={expenseFilters}
+        equipments={equipmentsForFilter}
       />
       <ExpenseDocumentsModal
         visible={expenseDocumentsModalVisible}
@@ -1441,6 +1523,36 @@ export const FinanceiroScreen = () => {
         onClose={() => setStatusModalExpense(null)}
         expense={statusModalExpense}
         onStatusChange={handleStatusChange}
+      />
+      <ReceiptStatusModal
+        visible={receiptStatusModalVisible}
+        onClose={() => {
+          setReceiptStatusModalVisible(false);
+          setSelectedReceiptForStatus(null);
+        }}
+        currentStatus={selectedReceiptForStatus?.status}
+        onSelect={async (newStatus: ReceiptStatus) => {
+          if (selectedReceiptForStatus) {
+            try {
+              const updated = await updateReceipt({
+                ...selectedReceiptForStatus,
+                status: newStatus,
+              });
+              
+              if (updated) {
+                setReceiptStatusModalVisible(false);
+                setSelectedReceiptForStatus(null);
+                showSuccess('Status atualizado com sucesso!');
+              } else {
+                throw new Error('Receipt não foi atualizado');
+              }
+            } catch (error: any) {
+              console.error('Erro ao atualizar status:', error);
+              const errorMessage = error?.message || 'Erro ao atualizar status. Verifique se o script SQL foi executado.';
+              showError(errorMessage);
+            }
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -1643,10 +1755,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    backgroundColor: '#FFF9C4',
+  },
+  statusPillAConfirmar: {
+    backgroundColor: '#FFF9C4', // Amarelo
+  },
+  statusPillConfirmado: {
+    backgroundColor: '#E3F2FD', // Azul
+  },
+  statusPillAReceber: {
+    backgroundColor: '#FFEBEE', // Vermelho
+  },
+  statusPillRecebido: {
+    backgroundColor: '#E8F5E9', // Verde
   },
   statusText: {
     fontSize: 12,
     fontWeight: '700',
+    color: '#F9A825',
+  },
+  statusTextAConfirmar: {
+    color: '#F9A825', // Amarelo
+  },
+  statusTextConfirmado: {
+    color: '#1976D2', // Azul
+  },
+  statusTextAReceber: {
+    color: '#D32F2F', // Vermelho
+  },
+  statusTextRecebido: {
+    color: '#388E3C', // Verde
   },
   secondaryButton: {
     flexDirection: 'row',

@@ -116,11 +116,13 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           active,
           created_at,
           deleted_at,
+          cost_center_id,
           cost_centers (
             code
           )
         `,
         )
+        .is('deleted_at', null) // Filtra apenas equipamentos não deletados
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -130,29 +132,83 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         return;
       }
 
-      const mapped: Equipment[] =
-        data?.map((row: any) => {
-          const costCenter = Array.isArray(row.cost_centers)
-            ? row.cost_centers[0]
-            : row.cost_centers;
+      // Se algum equipamento não tiver o relacionamento cost_centers, busca diretamente
+      const equipmentsWithCenters = await Promise.all(
+        (data ?? []).map(async (row: any) => {
+          // Trata o relacionamento cost_centers (pode ser objeto ou array)
+          let costCenterCode: string | undefined;
+          if (row.cost_centers) {
+            if (Array.isArray(row.cost_centers)) {
+              costCenterCode = row.cost_centers[0]?.code;
+            } else {
+              costCenterCode = row.cost_centers.code;
+            }
+          }
+
+          // Se não encontrou o código do centro de custo pelo relacionamento, busca diretamente
+          if (!costCenterCode && row.cost_center_id) {
+            try {
+              const { data: ccData } = await supabase
+                .from('cost_centers')
+                .select('code')
+                .eq('id', row.cost_center_id)
+                .maybeSingle();
+              
+              if (ccData) {
+                costCenterCode = ccData.code;
+              }
+            } catch (err) {
+              logger.error('Erro ao buscar centro de custo:', err);
+            }
+          }
 
           return {
-            id: row.id,
-            name: row.name,
-            brand: row.brand ?? '',
-            year: row.year ?? new Date().getFullYear(),
-            purchaseDate: isoToBr(row.purchase_date),
-            nextReview: isoToBr(row.next_review_date),
-            center: (costCenter?.code ?? 'valenca') as CostCenter,
-            status: row.active ? 'ativo' : 'inativo',
-            createdAt: row.created_at
-              ? new Date(row.created_at).getTime()
-              : undefined,
-            deletedAt: row.deleted_at
-              ? new Date(row.deleted_at).getTime()
-              : undefined,
+            ...row,
+            costCenterCode: costCenterCode ?? 'valenca',
           };
-        }) ?? [];
+        })
+      );
+
+      const mapped: Equipment[] = equipmentsWithCenters.map((row: any) => {
+        const equipment = {
+          id: row.id,
+          name: row.name,
+          brand: row.brand ?? '',
+          year: row.year ?? new Date().getFullYear(),
+          purchaseDate: isoToBr(row.purchase_date),
+          nextReview: isoToBr(row.next_review_date),
+          center: row.costCenterCode as CostCenter,
+          status: (row.active ? 'ativo' : 'inativo') as 'ativo' | 'inativo',
+          createdAt: row.created_at
+            ? new Date(row.created_at).getTime()
+            : undefined,
+          deletedAt: row.deleted_at
+            ? new Date(row.deleted_at).getTime()
+            : undefined,
+        };
+        
+        console.log(`📦 Equipamento mapeado:`, {
+          id: equipment.id,
+          name: equipment.name,
+          center: equipment.center,
+          costCenterCode: row.costCenterCode,
+          cost_center_id: row.cost_center_id,
+          cost_centers_raw: row.cost_centers,
+          deletedAt: equipment.deletedAt
+        });
+        
+        return equipment;
+      });
+
+      console.log(`📦 Total de equipamentos carregados do banco:`, data?.length || 0);
+      console.log(`📦 Total de equipamentos mapeados:`, mapped.length);
+      console.log(`📦 Equipamentos por centro:`, {
+        valenca: mapped.filter(eq => eq.center === 'valenca' && !eq.deletedAt).length,
+        cna: mapped.filter(eq => eq.center === 'cna' && !eq.deletedAt).length,
+        cabralia: mapped.filter(eq => eq.center === 'cabralia' && !eq.deletedAt).length,
+        deletados: mapped.filter(eq => eq.deletedAt).length,
+        sem_centro: mapped.filter(eq => !eq.deletedAt && eq.center === 'valenca' && !equipmentsWithCenters.find((r: any) => r.id === eq.id && r.cost_centers)).length
+      });
 
       setEquipments(mapped);
     } catch (err: any) {
@@ -353,6 +409,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const deleteEquipment = useCallback(
     async (id: string) => {
       try {
+        const deletedEquipment = equipments.find(eq => eq.id === id);
+        
         // Soft delete: marca como deletado ao invés de remover
         const deletedAt = new Date().toISOString();
         const { error } = await supabase
@@ -366,20 +424,23 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           throw error;
         }
 
-        const deletedEquipment = equipments.find(eq => eq.id === id);
         // Atualiza o estado marcando como deletado
         setEquipments(prev => prev.map(eq => 
           eq.id === id 
             ? { ...eq, deletedAt: new Date(deletedAt).getTime() }
             : eq
         ));
+        
         showSuccess('Equipamento excluído', deletedEquipment?.name || '');
+        
+        // Recarrega os equipamentos para garantir sincronização
+        await loadEquipments();
       } catch (err: any) {
         logger.error('Erro em deleteEquipment:', err);
         throw err;
       }
     },
-    [equipments],
+    [equipments, loadEquipments],
   );
 
   const getEquipmentsByCenter = useCallback(

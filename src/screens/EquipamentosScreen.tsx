@@ -54,8 +54,8 @@ export const EquipamentosScreen = () => {
 
   // Aplica os filtros
   const filteredEquipments = useMemo(() => {
-    // Primeiro filtra pelo centro de custo selecionado no dropdown superior
-    let filtered = allEquipments.filter((eq) => eq.center === selectedCenter);
+    // Primeiro filtra pelo centro de custo selecionado no dropdown superior e remove os deletados
+    let filtered = allEquipments.filter((eq) => eq.center === selectedCenter && !eq.deletedAt);
 
     // Filtrar por nome
     if (filters.name) {

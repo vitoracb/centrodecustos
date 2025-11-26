@@ -14,6 +14,12 @@ import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/sto
 // TIPOS
 // ========================
 
+export type ReceiptStatus =
+  | "a_confirmar"
+  | "confirmado"
+  | "a_receber"
+  | "recebido";
+
 export interface Receipt {
   id: string;
   name: string;
@@ -21,7 +27,7 @@ export interface Receipt {
   value: number;
   center: CostCenter;
   category?: string;
-  status?: string;
+  status?: ReceiptStatus;
   method?: string;
   createdAt?: number; // timestamp
 }
@@ -74,7 +80,7 @@ interface FinancialContextType {
   expenses: Expense[];
 
   addReceipt: (receipt: Omit<Receipt, "id">) => void;
-  updateReceipt: (receipt: Receipt) => void;
+  updateReceipt: (receipt: Receipt) => Promise<Receipt>;
   deleteReceipt: (id: string) => void;
 
   addExpense: (expense: Omit<Expense, "id">) => void;
@@ -213,6 +219,21 @@ function mapRowToReceipt(row: any): Receipt {
 
   const centerCode = (rawCostCenter?.code ?? "valenca") as CostCenter;
 
+  // Mapeia o status do banco para o tipo ReceiptStatus
+  let receiptStatus: ReceiptStatus = "a_confirmar";
+  if (row.status) {
+    const statusLower = row.status.toLowerCase();
+    if (statusLower === "confirmado" || statusLower === "confirmada") {
+      receiptStatus = "confirmado";
+    } else if (statusLower === "a_receber" || statusLower === "a receber") {
+      receiptStatus = "a_receber";
+    } else if (statusLower === "recebido" || statusLower === "recebida") {
+      receiptStatus = "recebido";
+    } else if (statusLower === "a_confirmar" || statusLower === "a confirmar") {
+      receiptStatus = "a_confirmar";
+    }
+  }
+
   return {
     id: row.id,
     name: row.description ?? "",
@@ -220,7 +241,7 @@ function mapRowToReceipt(row: any): Receipt {
     value: Number(row.value ?? 0),
     center: centerCode,
     category: row.category ?? undefined,
-    status: row.status ?? "CONFIRMADO",
+    status: receiptStatus,
     method: row.payment_method ?? undefined,
     createdAt: row.created_at
       ? new Date(row.created_at).getTime()
@@ -393,9 +414,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     })();
   }, []);
 
-  const updateReceipt = useCallback((receipt: Receipt) => {
-    (async () => {
-      try {
+  const updateReceipt = useCallback(async (receipt: Receipt) => {
+    try {
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
           .select("id, code")
@@ -416,6 +436,27 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
+        // Mapeia ReceiptStatus para o formato do banco
+        let statusValue = "A_CONFIRMAR";
+        if (receipt.status) {
+          switch (receipt.status) {
+            case "a_confirmar":
+              statusValue = "A_CONFIRMAR";
+              break;
+            case "confirmado":
+              statusValue = "CONFIRMADO";
+              break;
+            case "a_receber":
+              statusValue = "A_RECEBER";
+              break;
+            case "recebido":
+              statusValue = "RECEBIDO";
+              break;
+            default:
+              statusValue = "A_CONFIRMAR";
+          }
+        }
+
         const payload: any = {
           cost_center_id: ccData.id,
           value: receipt.value,
@@ -423,17 +464,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           category: receipt.category ?? null,
           description: receipt.name,
           payment_method: receipt.method ?? null,
-          status:
-            receipt.status &&
-            receipt.status.toLowerCase().startsWith("prev")
-              ? "PREVISTO"
-              : "CONFIRMADO",
+          status: statusValue,
         };
 
         const { data, error } = await supabase
           .from("financial_transactions")
           .update(payload)
           .eq("id", receipt.id)
+          .eq("type", "RECEITA") // Garante que só atualiza receitas
           .select(
             `
             id,
@@ -451,19 +489,31 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           )
           .single();
 
-        if (error || !data) {
+        if (error) {
           console.error("❌ Erro ao atualizar receita:", error);
-          return;
+          console.error("❌ Status tentado:", statusValue);
+          console.error("❌ Payload completo:", payload);
+          throw new Error(`Erro ao atualizar receita: ${error.message || 'Erro desconhecido'}`);
+        }
+
+        if (!data) {
+          console.error("❌ Nenhum dado retornado ao atualizar receita");
+          throw new Error('Nenhum dado retornado ao atualizar receita');
         }
 
         const updated = mapRowToReceipt(data);
+        
+        // Atualiza o estado local
         setReceipts((prev) =>
           prev.map((r) => (r.id === receipt.id ? updated : r))
         );
-      } catch (e) {
-        console.error("❌ Erro inesperado ao atualizar receita:", e);
-      }
-    })();
+        
+        console.log("✅ Receita atualizada com sucesso:", updated);
+        return updated;
+    } catch (e) {
+      console.error("❌ Erro inesperado ao atualizar receita:", e);
+      throw e;
+    }
   }, []);
 
   const deleteReceipt = useCallback((id: string) => {
