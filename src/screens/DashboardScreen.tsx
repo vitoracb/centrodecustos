@@ -45,6 +45,7 @@ const centerLabels = {
 type ActivityType = 
   | 'equipment_add'
   | 'equipment_remove'
+  | 'equipment_activate'
   | 'expense'
   | 'receipt'
   | 'order_pending'
@@ -99,6 +100,12 @@ const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; 
         icon: Tractor,
         color: '#FF3B30',
         backgroundColor: '#FDECEC',
+      };
+    case 'equipment_activate':
+      return {
+        icon: Tractor,
+        color: '#34C759',
+        backgroundColor: '#E9FAF0',
       };
     case 'expense':
       return {
@@ -189,6 +196,7 @@ export const DashboardScreen = () => {
     switch (activity.type) {
       case 'equipment_add':
       case 'equipment_remove':
+      case 'equipment_activate':
         if (activity.equipmentId) {
           // Busca o equipamento para obter os dados necessários
           const allEquipments = getAllEquipments();
@@ -349,6 +357,19 @@ export const DashboardScreen = () => {
           timestamp: eq.statusChangedAt,
           timeAgo: formatTimeAgo(eq.statusChangedAt),
           type: 'equipment_remove',
+          equipmentId: eq.id,
+        });
+      }
+
+      // Equipamento ativado
+      if (eq.statusChangedAt && eq.status === 'ativo') {
+        activities.push({
+          id: `eq-active-${eq.id}`,
+          title: 'Equipamento ativado',
+          description: eq.name,
+          timestamp: eq.statusChangedAt,
+          timeAgo: formatTimeAgo(eq.statusChangedAt),
+          type: 'equipment_activate',
           equipmentId: eq.id,
         });
       }

@@ -47,7 +47,7 @@ export type GestaoSubcategory =
   | "diversos";
 
 export interface ExpenseDocument {
-  type: "nota_fiscal" | "recibo";
+  type: "nota_fiscal" | "recibo" | "comprovante_pagamento";
   fileName: string;
   fileUri: string;
   mimeType?: string | null;
@@ -80,7 +80,7 @@ interface FinancialContextType {
   addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
-  addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" }) => Promise<ExpenseDocument>;
+  addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" }) => Promise<ExpenseDocument>;
 
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
   getExpensesByCenter: (center: CostCenter) => Expense[];
@@ -156,7 +156,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
       }
     } else if (docsData) {
       documents = docsData.map((doc: any) => ({
-        type: (doc.type ?? "recibo") as "nota_fiscal" | "recibo",
+        type: (doc.type ?? "recibo") as "nota_fiscal" | "recibo" | "comprovante_pagamento",
         fileName: doc.file_name ?? "",
         fileUri: doc.file_url ?? "",
         mimeType: doc.mime_type ?? null,
@@ -750,7 +750,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   }, []);
 
   const addDocumentToExpense = useCallback(
-    async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" }): Promise<ExpenseDocument> => {
+    async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" }): Promise<ExpenseDocument> => {
       try {
         // Faz upload do arquivo para o Supabase Storage
         const fileUrl = await uploadFileToStorage(
@@ -784,7 +784,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Atualiza o estado local
         const newDocument: ExpenseDocument = {
-          type: data.type as "nota_fiscal" | "recibo",
+          type: data.type as "nota_fiscal" | "recibo" | "comprovante_pagamento",
           fileName: data.file_name,
           fileUri: data.file_url,
           mimeType: data.mime_type ?? null,

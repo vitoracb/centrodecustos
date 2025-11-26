@@ -198,6 +198,92 @@ export const FinanceiroScreen = () => {
     }
   };
 
+  const handleAddPaymentReceiptDocument = async () => {
+    if (!selectedExpenseForDocument) return;
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+        fileName: asset.name ?? 'Comprovante de Pagamento',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType,
+        type: 'comprovante_pagamento',
+      });
+
+      // Atualiza a lista de documentos imediatamente
+      setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+      setSelectedExpenseForDocument(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          documents: [...(prev.documents || []), newDocument],
+        };
+      });
+
+      Alert.alert('Sucesso', 'Comprovante de pagamento adicionado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao adicionar comprovante de pagamento:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar o comprovante de pagamento.');
+    }
+  };
+
+  const handleAddPaymentReceiptPhoto = async () => {
+    if (!selectedExpenseForDocument) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+
+      const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+        fileName: asset.fileName ?? 'Comprovante de Pagamento',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        type: 'comprovante_pagamento',
+      });
+
+      // Atualiza a lista de documentos imediatamente
+      setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+      setSelectedExpenseForDocument(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          documents: [...(prev.documents || []), newDocument],
+        };
+      });
+
+      Alert.alert('Sucesso', 'Comprovante de pagamento adicionado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao adicionar comprovante de pagamento:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar o comprovante de pagamento.');
+    }
+  };
+
   const handleStatusChange = (expense: Expense, newStatus: ExpenseStatus) => {
     // Validação: "pago" só pode ser selecionado se houver documentos
     if (newStatus === 'pago' && (!expense.documents || expense.documents.length === 0)) {
@@ -1002,6 +1088,8 @@ export const FinanceiroScreen = () => {
         }}
         onAddDocument={handleAddExpenseDocument}
         onAddPhoto={handleAddExpensePhoto}
+        onAddPaymentReceiptDocument={handleAddPaymentReceiptDocument}
+        onAddPaymentReceiptPhoto={handleAddPaymentReceiptPhoto}
       />
       <FilePreviewModal
         visible={previewVisible}

@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ExpenseCategory, ExpenseDocument, GestaoSubcategory } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
-import { FileText, Image as ImageIcon, XCircle, ChevronDown } from 'lucide-react-native';
+import { FileText, Camera, XCircle, ChevronDown } from 'lucide-react-native';
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
@@ -149,9 +149,13 @@ export const ExpenseFormModal = ({
     }
   }, [visible, initialData]);
 
-  const handlePickDocument = async (type: 'nota_fiscal' | 'recibo') => {
+  const handlePickDocument = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
       copyToCacheDirectory: true,
     });
     if (!result.canceled && result.assets?.length) {
@@ -168,7 +172,7 @@ export const ExpenseFormModal = ({
     }
   };
 
-  const handlePickPhoto = async (type: 'nota_fiscal' | 'recibo') => {
+  const handlePickPhoto = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permissão necessária', 'Por favor, conceda acesso à galeria de fotos para selecionar uma imagem.');
@@ -459,37 +463,56 @@ export const ExpenseFormModal = ({
 
             <View style={styles.field}>
               <Text style={styles.label}>Documentos</Text>
-              <View style={styles.documentButtonsRow}>
-                <TouchableOpacity
-                  style={styles.documentButton}
-                  onPress={() => handlePickDocument('nota_fiscal')}
-                >
-                  <FileText size={18} color="#0A84FF" />
-                  <Text style={styles.documentButtonText}>Nota Fiscal</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.documentButton}
-                  onPress={() => handlePickDocument('recibo')}
-                >
-                  <FileText size={18} color="#0A84FF" />
-                  <Text style={styles.documentButtonText}>Recibo</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.documentButtonsRow}>
-                <TouchableOpacity
-                  style={[styles.documentButton, styles.documentButtonSecondary]}
-                  onPress={() => handlePickPhoto('nota_fiscal')}
-                >
-                  <ImageIcon size={18} color="#0A84FF" />
-                  <Text style={styles.documentButtonText}>Foto Nota Fiscal</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.documentButton, styles.documentButtonSecondary]}
-                  onPress={() => handlePickPhoto('recibo')}
-                >
-                  <ImageIcon size={18} color="#0A84FF" />
-                  <Text style={styles.documentButtonText}>Foto Recibo</Text>
-                </TouchableOpacity>
+              <View style={styles.documentButtonsGrid}>
+                {/* Coluna Esquerda - Documentos */}
+                <View style={styles.documentButtonsColumn}>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickDocument('nota_fiscal')}
+                  >
+                    <FileText size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Nota Fiscal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickDocument('recibo')}
+                  >
+                    <FileText size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Recibo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickDocument('comprovante_pagamento')}
+                  >
+                    <FileText size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Comprovante</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Coluna Direita - Fotos */}
+                <View style={styles.documentButtonsColumn}>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickPhoto('nota_fiscal')}
+                  >
+                    <Camera size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Nota Fiscal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickPhoto('recibo')}
+                  >
+                    <Camera size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Recibo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => handlePickPhoto('comprovante_pagamento')}
+                  >
+                    <Camera size={18} color="#0A84FF" />
+                    <Text style={styles.documentButtonText}>Comprovante</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               {documents.length > 0 && (
                 <View style={styles.documentsList}>
@@ -502,7 +525,11 @@ export const ExpenseFormModal = ({
                             {doc.fileName}
                           </Text>
                           <Text style={styles.documentItemType}>
-                            {doc.type === 'nota_fiscal' ? 'Nota Fiscal' : 'Recibo'}
+                            {doc.type === 'nota_fiscal' 
+                              ? 'Nota Fiscal' 
+                              : doc.type === 'recibo' 
+                              ? 'Recibo' 
+                              : 'Comprovante de Pagamento'}
                           </Text>
                         </View>
                       </View>
@@ -655,13 +682,16 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  documentButtonsRow: {
+  documentButtonsGrid: {
     flexDirection: 'row',
     gap: 10,
     marginBottom: 10,
   },
-  documentButton: {
+  documentButtonsColumn: {
     flex: 1,
+    gap: 10,
+  },
+  documentButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -670,9 +700,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#0A84FF',
     paddingVertical: 12,
-  },
-  documentButtonSecondary: {
-    borderColor: '#E5E5EA',
   },
   documentButtonText: {
     fontSize: 14,

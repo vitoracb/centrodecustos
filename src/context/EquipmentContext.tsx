@@ -331,9 +331,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
               showInfo('Equipamento inativado', equipmentName);
             }
             if (updates.status === 'ativo' && eq.status === 'inativo') {
-              const { statusChangedAt, ...rest } = merged;
+              merged.statusChangedAt = Date.now();
               showInfo('Equipamento ativado', equipmentName);
-              return rest;
             }
 
             return merged;

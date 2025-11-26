@@ -18,6 +18,8 @@ interface ExpenseDocumentsModalProps {
   onDocumentPress: (document: ExpenseDocument) => void;
   onAddDocument?: () => void;
   onAddPhoto?: () => void;
+  onAddPaymentReceiptDocument?: () => void;
+  onAddPaymentReceiptPhoto?: () => void;
 }
 
 export const ExpenseDocumentsModal = ({
@@ -27,9 +29,20 @@ export const ExpenseDocumentsModal = ({
   onDocumentPress,
   onAddDocument,
   onAddPhoto,
+  onAddPaymentReceiptDocument,
+  onAddPaymentReceiptPhoto,
 }: ExpenseDocumentsModalProps) => {
-  const getDocumentTypeLabel = (type: 'nota_fiscal' | 'recibo') => {
-    return type === 'nota_fiscal' ? 'Nota Fiscal' : 'Recibo';
+  const getDocumentTypeLabel = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+    switch (type) {
+      case 'nota_fiscal':
+        return 'Nota Fiscal';
+      case 'recibo':
+        return 'Recibo';
+      case 'comprovante_pagamento':
+        return 'Comprovante de Pagamento';
+      default:
+        return 'Documento';
+    }
   };
 
   return (
@@ -72,7 +85,7 @@ export const ExpenseDocumentsModal = ({
           )}
         </ScrollView>
 
-        {(onAddDocument || onAddPhoto) && (
+        {(onAddDocument || onAddPhoto || onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto) && (
           <View style={styles.footer}>
             {onAddDocument && (
               <TouchableOpacity
@@ -90,6 +103,24 @@ export const ExpenseDocumentsModal = ({
               >
                 <ImageIcon size={18} color="#0A84FF" />
                 <Text style={styles.addButtonText}>Adicionar Foto</Text>
+              </TouchableOpacity>
+            )}
+            {onAddPaymentReceiptDocument && (
+              <TouchableOpacity
+                style={[styles.addButton, styles.paymentReceiptButton]}
+                onPress={onAddPaymentReceiptDocument}
+              >
+                <FileText size={18} color="#34C759" />
+                <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>Comprovante de Pagamento (Documento)</Text>
+              </TouchableOpacity>
+            )}
+            {onAddPaymentReceiptPhoto && (
+              <TouchableOpacity
+                style={[styles.addButton, styles.paymentReceiptButton]}
+                onPress={onAddPaymentReceiptPhoto}
+              >
+                <ImageIcon size={18} color="#34C759" />
+                <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>Comprovante de Pagamento (Foto)</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -190,6 +221,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  paymentReceiptButton: {
+    borderColor: '#34C759',
+    backgroundColor: '#F0FDF4',
+  },
+  paymentReceiptButtonText: {
+    color: '#34C759',
   },
 });
 
