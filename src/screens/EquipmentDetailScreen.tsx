@@ -36,6 +36,7 @@ import { ExpenseDocument } from '../context/FinancialContext';
 
 import dayjs from 'dayjs';
 import { supabase } from '@/src/lib/supabaseClient';
+import { uploadFileToStorage } from '../lib/storageUtils';
 
 const centerLabels: Record<CostCenter, string> = {
   valenca: 'Valença',
@@ -129,7 +130,7 @@ export const EquipmentDetailScreen = () => {
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
   const { getEquipmentById, updateEquipment } = useEquipment();
-  const { addExpense, getAllExpenses } = useFinancial();
+  const { addExpense, updateExpense, deleteExpense, deleteExpenseDocument, getAllExpenses } = useFinancial();
 
   const [activeTab, setActiveTab] = useState<TabKey>('despesas');
 
@@ -147,12 +148,19 @@ export const EquipmentDetailScreen = () => {
   );
   const [editingPhoto, setEditingPhoto] = useState<PhotoItem | null>(null);
   const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<{
     uri: string;
     name?: string;
     mimeType?: string | null;
+    files?: Array<{
+      fileUri: string;
+      fileName: string;
+      mimeType: string | null;
+    }>;
+    initialIndex?: number;
   } | null>(null);
 
   const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] =
@@ -160,6 +168,7 @@ export const EquipmentDetailScreen = () => {
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<
     ExpenseDocument[]
   >([]);
+  const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<ExpenseItem | null>(null);
 
   // Carrega o equipamento (do contexto ou dos params)
   const equipment = useMemo(() => {
@@ -379,18 +388,52 @@ export const EquipmentDetailScreen = () => {
       Array.isArray(item.documents) &&
       item.documents.length > 0
     ) {
+      setSelectedExpenseForDocument(item as ExpenseItem);
       setSelectedExpenseDocuments(item.documents as ExpenseDocument[]);
       setExpenseDocumentsModalVisible(true);
       return;
     }
 
     if ('fileUri' in item && item.fileUri) {
-      setPreviewFile({
-        uri: item.fileUri!,
-        name: item.fileName ?? item.title,
-        mimeType:
-          'mimeType' in item ? (item.mimeType as string | null | undefined) : undefined,
-      });
+      // Determina qual lista usar baseado na aba ativa
+      let allFiles: Array<{ fileUri: string; fileName: string; mimeType: string | null }> = [];
+      let currentIndex = 0;
+
+      if (activeTab === 'documentos') {
+        allFiles = documents.map((doc) => ({
+          fileUri: doc.fileUri || '',
+          fileName: doc.fileName || doc.title,
+          mimeType: doc.mimeType || null,
+        }));
+        currentIndex = documents.findIndex((doc) => doc.fileUri === item.fileUri);
+      } else if (activeTab === 'fotos') {
+        allFiles = photos.map((photo) => ({
+          fileUri: photo.fileUri || '',
+          fileName: photo.fileName || photo.title,
+          mimeType: photo.mimeType || null,
+        }));
+        currentIndex = photos.findIndex((photo) => photo.fileUri === item.fileUri);
+      }
+
+      // Se encontrou o arquivo na lista, usa a lista completa para navegação
+      if (currentIndex >= 0 && allFiles.length > 0) {
+        setPreviewFile({
+          uri: item.fileUri!,
+          name: item.fileName ?? item.title,
+          mimeType:
+            'mimeType' in item ? (item.mimeType as string | null | undefined) : undefined,
+          files: allFiles,
+          initialIndex: currentIndex,
+        });
+      } else {
+        // Fallback: apenas um arquivo (compatibilidade)
+        setPreviewFile({
+          uri: item.fileUri!,
+          name: item.fileName ?? item.title,
+          mimeType:
+            'mimeType' in item ? (item.mimeType as string | null | undefined) : undefined,
+        });
+      }
       setPreviewVisible(true);
     }
   };
@@ -409,6 +452,9 @@ export const EquipmentDetailScreen = () => {
     } else if (activeTab === 'revisoes') {
       setEditingReview(item as ReviewItem);
       setReviewModalVisible(true);
+    } else if (activeTab === 'despesas') {
+      setEditingExpense(item as ExpenseItem);
+      setExpenseModalVisible(true);
     }
   };
 
@@ -418,7 +464,11 @@ export const EquipmentDetailScreen = () => {
   ) => {
     event.stopPropagation();
 
-    Alert.alert('Excluir registro', 'Tem certeza que deseja remover este item?', [
+    const confirmMessage = activeTab === 'despesas'
+      ? 'Tem certeza que deseja excluir esta despesa?'
+      : 'Tem certeza que deseja remover este item?';
+
+    Alert.alert('Excluir registro', confirmMessage, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',
@@ -449,6 +499,11 @@ export const EquipmentDetailScreen = () => {
                 .eq('id', rev.id);
               if (error) throw error;
               setReviews(prev => prev.filter(r => r.id !== rev.id));
+            } else if (activeTab === 'despesas') {
+              const expense = item as ExpenseItem;
+              if (expense.expenseId) {
+                await deleteExpense(expense.expenseId);
+              }
             }
           } catch (err) {
             console.log('❌ Erro ao excluir item:', err);
@@ -570,50 +625,52 @@ export const EquipmentDetailScreen = () => {
               const allowActions =
                 activeTab === 'documentos' ||
                 activeTab === 'fotos' ||
-                activeTab === 'revisoes';
+                activeTab === 'revisoes' ||
+                activeTab === 'despesas';
 
               return (
                 <View key={item.id} style={styles.card}>
-                  <View style={styles.cardHeader}>
+                  {allowActions ? (
+                    <TouchableOpacity
+                      style={styles.editButtonTopRight}
+                      onPress={event => handleEditCard(item, event)}
+                      hitSlop={{
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10,
+                      }}
+                    >
+                      <Edit3 size={16} color="#0A84FF" />
+                    </TouchableOpacity>
+                  ) : null}
+                  
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => handleCardPress(item)}
+                    style={styles.cardContent}
+                    disabled={activeTab === 'despesas' && (!('documents' in item) || !Array.isArray(item.documents) || item.documents.length === 0)}
+                  >
                     <View style={styles.cardHeaderInfo}>
                       <Text style={styles.cardTitle}>{item.title}</Text>
                       {'amount' in item ? (
                         <Text style={styles.cardValue}>{item.amount}</Text>
                       ) : null}
                     </View>
-                    {allowActions ? (
-                      <TouchableOpacity
-                        style={styles.cardActionButton}
-                        onPress={event => handleEditCard(item, event)}
-                        hitSlop={{
-                          top: 10,
-                          bottom: 10,
-                          left: 10,
-                          right: 10,
-                        }}
-                      >
-                        <Edit3 size={16} color="#1C1C1E" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => handleCardPress(item)}
-                    style={styles.cardContent}
-                  >
-                    <Text style={styles.cardSubtitle}>
-                      {'category' in item && item.category
-                        ? item.category
-                        : item.date ?? ''}
-                    </Text>
-
-                    {/* Mostra a data da despesa */}
-                    {activeTab === 'despesas' && 'date' in item && item.date ? (
-                      <Text style={styles.cardMeta}>
-                        Data: {item.date}
+                    
+                    <View style={styles.cardMetaRow}>
+                      <Text style={styles.cardSubtitle}>
+                        {'category' in item && item.category
+                          ? item.category
+                          : item.date ?? ''}
                       </Text>
-                    ) : null}
+                      {/* Mostra a data da despesa */}
+                      {activeTab === 'despesas' && 'date' in item && item.date ? (
+                        <Text style={styles.cardMeta}>
+                          {item.date}
+                        </Text>
+                      ) : null}
+                    </View>
 
                     {'fileName' in item && item.fileName ? (
                       <Text style={styles.cardMeta}>
@@ -622,7 +679,7 @@ export const EquipmentDetailScreen = () => {
                     ) : null}
 
                     {'description' in item && item.description ? (
-                      <Text style={styles.cardMeta}>{item.description}</Text>
+                      <Text style={styles.cardMeta} numberOfLines={2}>{item.description}</Text>
                     ) : null}
 
                     {'next' in item && item.next ? (
@@ -643,22 +700,20 @@ export const EquipmentDetailScreen = () => {
                         </View>
                       )}
                   </TouchableOpacity>
-
+                  
                   {allowActions ? (
-                    <View style={styles.cardFooter}>
-                      <TouchableOpacity
-                        style={[styles.cardActionButton, styles.deleteButton]}
-                        onPress={event => handleDeleteCard(item, event)}
-                        hitSlop={{
-                          top: 10,
-                          bottom: 10,
-                          left: 10,
-                          right: 10,
-                        }}
-                      >
-                        <Trash2 size={16} color="#FF3B30" />
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteButtonBottomRight}
+                      onPress={event => handleDeleteCard(item, event)}
+                      hitSlop={{
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10,
+                      }}
+                    >
+                      <Trash2 size={16} color="#FF3B30" />
+                    </TouchableOpacity>
                   ) : null}
                 </View>
               );
@@ -693,13 +748,34 @@ export const EquipmentDetailScreen = () => {
                 }
 
                 if (editingDocument) {
+                  // Se o arquivo mudou, faz upload do novo arquivo
+                  let fileUrl = editingDocument.fileUri;
+                  if (data.fileUri !== editingDocument.fileUri) {
+                    const uploadedUrl = await uploadFileToStorage(
+                      data.fileUri,
+                      data.fileName,
+                      data.mimeType,
+                      'documentos',
+                      'equipment'
+                    );
+                    if (uploadedUrl) {
+                      fileUrl = uploadedUrl;
+                    } else {
+                      Alert.alert(
+                        'Erro',
+                        'Não foi possível fazer upload do arquivo. Tente novamente.'
+                      );
+                      return;
+                    }
+                  }
+
                   const { error } = await supabase
                     .from('equipment_documents')
                     .update({
                       name: data.name,
                       date: isoDate,
                       file_name: data.fileName,
-                      file_url: data.fileUri,
+                      file_url: fileUrl,
                       mime_type: data.mimeType,
                     })
                     .eq('id', editingDocument.id);
@@ -714,7 +790,7 @@ export const EquipmentDetailScreen = () => {
                             title: data.name,
                             date: data.date,
                             fileName: data.fileName,
-                            fileUri: data.fileUri,
+                            fileUri: fileUrl,
                             mimeType: data.mimeType,
                           }
                         : doc,
@@ -722,12 +798,29 @@ export const EquipmentDetailScreen = () => {
                   );
                   setEditingDocument(null);
                 } else {
+                  // Faz upload do arquivo para o Supabase Storage
+                  const fileUrl = await uploadFileToStorage(
+                    data.fileUri,
+                    data.fileName,
+                    data.mimeType,
+                    'documentos',
+                    'equipment'
+                  );
+
+                  if (!fileUrl) {
+                    Alert.alert(
+                      'Erro',
+                      'Não foi possível fazer upload do arquivo. Tente novamente.'
+                    );
+                    return;
+                  }
+
                   const insertPayload = {
                     equipment_id: equipment.id,
                     name: data.name,
                     date: isoDate,
                     file_name: data.fileName,
-                    file_url: data.fileUri,
+                    file_url: fileUrl,
                     mime_type: data.mimeType,
                   };
 
@@ -737,7 +830,14 @@ export const EquipmentDetailScreen = () => {
                     .select('*')
                     .maybeSingle();
 
-                  if (error) throw error;
+                  if (error) {
+                    console.error('❌ Erro ao inserir documento no banco:', error);
+                    throw error;
+                  }
+
+                  if (!inserted) {
+                    throw new Error('Documento não foi inserido no banco de dados.');
+                  }
 
                   const newDoc: DocumentItem = {
                     id: inserted.id,
@@ -753,11 +853,12 @@ export const EquipmentDetailScreen = () => {
                 }
 
                 setDocumentModalVisible(false);
-              } catch (err) {
-                console.log('❌ Erro ao salvar documento:', err);
+              } catch (err: any) {
+                console.error('❌ Erro ao salvar documento:', err);
+                const errorMessage = err?.message || 'Não foi possível salvar o documento do equipamento.';
                 Alert.alert(
                   'Erro',
-                  'Não foi possível salvar o documento do equipamento.',
+                  errorMessage,
                 );
               }
             }}
@@ -772,6 +873,8 @@ export const EquipmentDetailScreen = () => {
             fileUri={previewFile?.uri}
             fileName={previewFile?.name}
             mimeType={previewFile?.mimeType}
+            files={previewFile?.files}
+            initialIndex={previewFile?.initialIndex}
           />
 
           <ExpenseDocumentsModal
@@ -779,44 +882,129 @@ export const EquipmentDetailScreen = () => {
             onClose={() => {
               setExpenseDocumentsModalVisible(false);
               setSelectedExpenseDocuments([]);
+              setSelectedExpenseForDocument(null);
             }}
             documents={selectedExpenseDocuments}
             onDocumentPress={document => {
               setExpenseDocumentsModalVisible(false);
+              // Encontra o índice do documento clicado
+              const documentIndex = selectedExpenseDocuments?.findIndex(
+                (doc) => doc.fileUri === document.fileUri
+              ) || 0;
               setPreviewFile({
                 uri: document.fileUri,
                 name: document.fileName,
                 mimeType: document.mimeType,
+                files: selectedExpenseDocuments?.map((doc) => ({
+                  fileUri: doc.fileUri,
+                  fileName: doc.fileName,
+                  mimeType: doc.mimeType || null,
+                })) || [],
+                initialIndex: documentIndex >= 0 ? documentIndex : 0,
               });
               setPreviewVisible(true);
+            }}
+            onDeleteDocument={async (document) => {
+              if (!selectedExpenseForDocument || !selectedExpenseForDocument.expenseId) return;
+              try {
+                await deleteExpenseDocument(selectedExpenseForDocument.expenseId, document.fileUri);
+                // Atualiza os documentos locais
+                setSelectedExpenseDocuments((prev) => 
+                  prev?.filter((doc) => doc.fileUri !== document.fileUri) || []
+                );
+                // Atualiza a despesa na lista local
+                const expenseToUpdate = getAllExpenses().find(
+                  exp => exp.id === selectedExpenseForDocument.expenseId
+                );
+                if (expenseToUpdate) {
+                  setSelectedExpenseForDocument({
+                    ...selectedExpenseForDocument,
+                    documents: expenseToUpdate.documents?.filter((doc) => doc.fileUri !== document.fileUri) || [],
+                  });
+                }
+              } catch (error: any) {
+                Alert.alert('Erro', 'Não foi possível excluir o documento.');
+              }
             }}
           />
 
           <ExpenseFormModal
             visible={isExpenseModalVisible}
-            onClose={() => setExpenseModalVisible(false)}
-            onSubmit={data => {
-              addExpense({
-                name: data.name,
-                category: data.category,
-                date: data.date,
-                value: data.value,
-                center: selectedCenter,
-                equipmentId: equipment.id,
-                gestaoSubcategory: data.gestaoSubcategory,
-                observations: data.observations,
-                documents: data.documents,
-              });
+            onClose={() => {
               setExpenseModalVisible(false);
+              setEditingExpense(null);
             }}
-            initialData={{
-              category: 'manutencao',
-              equipmentId: equipment.id,
-              name: '',
-              date: dayjs().format('DD/MM/YYYY'),
-              value: 0,
-              documents: [],
+            onSubmit={data => {
+              if (editingExpense && editingExpense.expenseId) {
+                // Editar despesa existente
+                const expenseToUpdate = getAllExpenses().find(
+                  exp => exp.id === editingExpense.expenseId
+                );
+                if (expenseToUpdate) {
+                  updateExpense({
+                    ...expenseToUpdate,
+                    name: data.name,
+                    category: data.category,
+                    date: data.date,
+                    value: data.value,
+                    gestaoSubcategory: data.gestaoSubcategory,
+                    observations: data.observations,
+                    documents: data.documents,
+                  });
+                }
+              } else {
+                // Adicionar nova despesa
+                addExpense({
+                  name: data.name,
+                  category: data.category,
+                  date: data.date,
+                  value: data.value,
+                  center: selectedCenter,
+                  equipmentId: equipment.id,
+                  gestaoSubcategory: data.gestaoSubcategory,
+                  observations: data.observations,
+                  documents: data.documents,
+                });
+              }
+              setExpenseModalVisible(false);
+              setEditingExpense(null);
             }}
+            initialData={
+              editingExpense && editingExpense.expenseId
+                ? (() => {
+                    const expenseToEdit = getAllExpenses().find(
+                      exp => exp.id === editingExpense.expenseId
+                    );
+                    return expenseToEdit
+                      ? {
+                          id: expenseToEdit.id,
+                          category: expenseToEdit.category,
+                          equipmentId: expenseToEdit.equipmentId,
+                          name: expenseToEdit.name,
+                          date: expenseToEdit.date,
+                          value: expenseToEdit.value,
+                          documents: expenseToEdit.documents || [],
+                          gestaoSubcategory: expenseToEdit.gestaoSubcategory,
+                          observations: expenseToEdit.observations,
+                        }
+                      : {
+                          category: 'manutencao',
+                          equipmentId: equipment.id,
+                          name: '',
+                          date: dayjs().format('DD/MM/YYYY'),
+                          value: 0,
+                          documents: [],
+                        };
+                  })()
+                : {
+                    category: 'manutencao',
+                    equipmentId: equipment.id,
+                    name: '',
+                    date: dayjs().format('DD/MM/YYYY'),
+                    value: 0,
+                    documents: [],
+                  }
+            }
           />
 
           <PhotoUploadModal
@@ -836,19 +1024,41 @@ export const EquipmentDetailScreen = () => {
             onSubmit={async data => {
               try {
                 const isoDate = brToIso(data.date);
-                const insertPayload = {
-                  equipment_id: equipment.id,
-                  file_url: data.uri,
-                  file_name: data.fileName,
-                  description: data.title,
-                  mime_type: data.mimeType,
-                  uploaded_at: isoDate ?? new Date().toISOString(),
-                };
-
+                
                 if (editingPhoto) {
+                  // Se o arquivo mudou, faz upload do novo arquivo
+                  let fileUrl = editingPhoto.fileUri;
+                  if (data.uri !== editingPhoto.fileUri) {
+                    const uploadedUrl = await uploadFileToStorage(
+                      data.uri,
+                      data.fileName,
+                      data.mimeType,
+                      'documentos',
+                      'equipment'
+                    );
+                    if (uploadedUrl) {
+                      fileUrl = uploadedUrl;
+                    } else {
+                      Alert.alert(
+                        'Erro',
+                        'Não foi possível fazer upload da foto. Tente novamente.'
+                      );
+                      return;
+                    }
+                  }
+
+                  const updatePayload = {
+                    equipment_id: equipment.id,
+                    file_url: fileUrl,
+                    file_name: data.fileName,
+                    description: data.title,
+                    mime_type: data.mimeType,
+                    uploaded_at: isoDate ?? new Date().toISOString(),
+                  };
+
                   const { error } = await supabase
                     .from('equipment_photos')
-                    .update(insertPayload)
+                    .update(updatePayload)
                     .eq('id', editingPhoto.id);
 
                   if (error) throw error;
@@ -861,7 +1071,7 @@ export const EquipmentDetailScreen = () => {
                             title: data.title,
                             date: data.date,
                             fileName: data.fileName,
-                            fileUri: data.uri,
+                            fileUri: fileUrl,
                             mimeType: data.mimeType,
                           }
                         : photo,
@@ -869,13 +1079,82 @@ export const EquipmentDetailScreen = () => {
                   );
                   setEditingPhoto(null);
                 } else {
-                  const { data: inserted, error } = await supabase
+                  // Faz upload da foto para o Supabase Storage
+                  const fileUrl = await uploadFileToStorage(
+                    data.uri,
+                    data.fileName,
+                    data.mimeType,
+                    'documentos',
+                    'equipment'
+                  );
+
+                  if (!fileUrl) {
+                    Alert.alert(
+                      'Erro',
+                      'Não foi possível fazer upload da foto. Tente novamente.'
+                    );
+                    return;
+                  }
+
+                  // Tenta inserir com file_name primeiro
+                  let insertPayload: any = {
+                    equipment_id: equipment.id,
+                    file_url: fileUrl,
+                    file_name: data.fileName,
+                    description: data.title,
+                    mime_type: data.mimeType,
+                    uploaded_at: isoDate ?? new Date().toISOString(),
+                  };
+
+                  let { data: inserted, error } = await supabase
                     .from('equipment_photos')
                     .insert(insertPayload)
                     .select('*')
                     .maybeSingle();
 
-                  if (error) throw error;
+                  // Se der erro relacionado a file_name, tenta sem essa coluna
+                  if (error && error.message?.includes('file_name')) {
+                    console.warn('⚠️ Coluna file_name não encontrada, tentando sem ela...');
+                    insertPayload = {
+                      equipment_id: equipment.id,
+                      file_url: fileUrl,
+                      description: data.title,
+                      mime_type: data.mimeType,
+                      uploaded_at: isoDate ?? new Date().toISOString(),
+                    };
+
+                    const result = await supabase
+                      .from('equipment_photos')
+                      .insert(insertPayload)
+                      .select('*')
+                      .maybeSingle();
+
+                    inserted = result.data;
+                    error = result.error;
+
+                    // Se inseriu sem file_name, tenta atualizar com file_name
+                    if (inserted && !error) {
+                      const updateResult = await supabase
+                        .from('equipment_photos')
+                        .update({ file_name: data.fileName })
+                        .eq('id', inserted.id)
+                        .select('*')
+                        .maybeSingle();
+                      
+                      if (updateResult.data) {
+                        inserted = updateResult.data;
+                      }
+                    }
+                  }
+
+                  if (error) {
+                    console.error('❌ Erro ao inserir foto no banco:', error);
+                    throw error;
+                  }
+
+                  if (!inserted) {
+                    throw new Error('Foto não foi inserida no banco de dados.');
+                  }
 
                   const newPhoto: PhotoItem = {
                     id: inserted.id,
@@ -893,11 +1172,12 @@ export const EquipmentDetailScreen = () => {
                 }
 
                 setPhotoModalVisible(false);
-              } catch (err) {
-                console.log('❌ Erro ao salvar foto:', err);
+              } catch (err: any) {
+                console.error('❌ Erro ao salvar foto:', err);
+                const errorMessage = err?.message || 'Não foi possível salvar a foto do equipamento.';
                 Alert.alert(
                   'Erro',
-                  'Não foi possível salvar a foto do equipamento.',
+                  errorMessage,
                 );
               }
             }}
@@ -1159,8 +1439,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E5EA',
     borderRadius: 16,
-    padding: 10,
-    gap: 4,
+    padding: 12,
+    gap: 0,
+    position: 'relative',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    width: '100%',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1172,7 +1459,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    marginBottom: 4,
   },
   cardTitle: {
     fontSize: 15,
@@ -1186,7 +1474,13 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    gap: 4,
+    gap: 2,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
   },
   cardSubtitle: {
     fontSize: 13,
@@ -1216,10 +1510,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
   cardActionButton: {
     padding: 4,
     borderRadius: 999,
     backgroundColor: '#F5F5F7',
+  },
+  editButtonTopRight: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: '#F5F5F7',
+    zIndex: 10,
+  },
+  deleteButtonBottomRight: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,59,48,0.12)',
+    zIndex: 10,
   },
   deleteButton: {
     backgroundColor: 'rgba(255,59,48,0.12)',

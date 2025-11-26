@@ -119,8 +119,17 @@ export async function uploadFileToStorage(
     }
 
     return null;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro inesperado ao fazer upload:', error);
+    // Se for um erro de RLS, já foi tratado acima
+    if (error?.message?.includes('row-level security') || error?.message?.includes('violates row-level security')) {
+      return null; // Já foi exibido o Alert acima
+    }
+    // Para outros erros, mostra mensagem genérica
+    Alert.alert(
+      'Erro ao fazer upload',
+      error?.message || 'Ocorreu um erro inesperado ao fazer upload do arquivo. Verifique sua conexão e tente novamente.'
+    );
     return null;
   }
 }

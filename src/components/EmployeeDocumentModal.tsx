@@ -15,6 +15,8 @@ import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { ChevronDown } from 'lucide-react-native';
+import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
+import { Alert } from 'react-native';
 
 interface EmployeeDocumentData {
   employeeName: string;
@@ -109,6 +111,28 @@ export const EmployeeDocumentModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = ['application/pdf', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
+
       setFile({
         fileName: asset.name ?? 'Documento',
         fileUri: asset.uri,
@@ -129,6 +153,28 @@ export const EmployeeDocumentModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       setFile({
         fileName: asset.fileName ?? 'Foto',
         fileUri: asset.uri,
@@ -140,10 +186,23 @@ export const EmployeeDocumentModal = ({
   const handleSave = () => {
     if (!employeeName.trim() || !documentName.trim() || !file) return;
     if (showEquipmentSelector && !selectedEquipment) return;
+    
+    // Validação de data
+    const formattedDate = dayjs(date).format('DD/MM/YYYY');
+    const dateValidation = validateDate(formattedDate, {
+      allowFuture: true,
+      allowPast: true,
+    });
+    
+    if (!dateValidation.isValid) {
+      Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
+      return;
+    }
+    
     onSubmit({
       employeeName: employeeName.trim(),
       documentName: documentName.trim(),
-      date: dayjs(date).format('DD/MM/YYYY'),
+      date: formattedDate,
       fileName: file.fileName,
       fileUri: file.fileUri,
       mimeType: file.mimeType,

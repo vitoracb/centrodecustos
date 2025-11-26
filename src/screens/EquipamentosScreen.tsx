@@ -12,18 +12,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Plus,
   ChevronRight,
-  CreditCard,
-  FileText,
-  Camera,
-  History,
   Edit3,
   Trash2,
+  Filter,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useRouter } from 'expo-router';
 import { EquipmentFormModal } from '../components/EquipmentFormModal';
+import { EquipmentFilterModal, EquipmentFilters } from '../components/EquipmentFilterModal';
+import dayjs from 'dayjs';
 
 const centerLabels = {
   valenca: 'Valença',
@@ -33,9 +32,11 @@ const centerLabels = {
 
 export const EquipamentosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment } = useEquipment();
+  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment, getAllEquipments } = useEquipment();
   const router = useRouter();
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  const [filters, setFilters] = useState<EquipmentFilters>({});
   const [editingEquipment, setEditingEquipment] = useState<{
     id: string;
     name: string;
@@ -45,11 +46,61 @@ export const EquipamentosScreen = () => {
     nextReview: string;
   } | null>(null);
   
-  // Filtra equipamentos pelo centro de custo selecionado
-  const equipmentList = useMemo(
-    () => getEquipmentsByCenter(selectedCenter),
-    [selectedCenter, getEquipmentsByCenter]
+  // Pega todos os equipamentos (para filtrar por centro de custo também)
+  const allEquipments = useMemo(
+    () => getAllEquipments(),
+    [getAllEquipments]
   );
+
+  // Aplica os filtros
+  const filteredEquipments = useMemo(() => {
+    // Primeiro filtra pelo centro de custo selecionado no dropdown superior
+    let filtered = allEquipments.filter((eq) => eq.center === selectedCenter);
+
+    // Filtrar por nome
+    if (filters.name) {
+      const searchTerm = filters.name.toLowerCase();
+      filtered = filtered.filter((eq) =>
+        eq.name.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Filtrar por marca
+    if (filters.brand) {
+      const searchTerm = filters.brand.toLowerCase();
+      filtered = filtered.filter((eq) =>
+        eq.brand.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Filtrar por ano
+    if (filters.year !== null && filters.year !== undefined) {
+      filtered = filtered.filter((eq) => eq.year === filters.year);
+    }
+
+    // Filtrar por data da compra (mês e ano)
+    if (filters.purchaseMonth !== null && filters.purchaseMonth !== undefined && filters.purchaseYear) {
+      filtered = filtered.filter((eq) => {
+        const purchaseDate = dayjs(eq.purchaseDate, 'DD/MM/YYYY');
+        if (!purchaseDate.isValid()) return false;
+        return (
+          purchaseDate.month() === filters.purchaseMonth &&
+          purchaseDate.year() === filters.purchaseYear
+        );
+      });
+    }
+
+    return filtered;
+  }, [allEquipments, filters, selectedCenter]);
+
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      filters.name ||
+      filters.brand ||
+      (filters.year !== null && filters.year !== undefined) ||
+      (filters.purchaseMonth !== null && filters.purchaseMonth !== undefined && filters.purchaseYear)
+    );
+  }, [filters]);
 
   const handleEdit = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -107,12 +158,30 @@ export const EquipamentosScreen = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Lista de Equipamentos</Text>
-            <TouchableOpacity>
-              <Text style={styles.link}>Ver todos</Text>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                hasActiveFilters && styles.filterButtonActive
+              ]}
+              onPress={() => setFilterModalVisible(true)}
+            >
+              <Filter 
+                size={18} 
+                color={hasActiveFilters ? '#0A84FF' : '#6C6C70'} 
+              />
             </TouchableOpacity>
           </View>
 
-          {equipmentList.map((equipment) => (
+          {filteredEquipments.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                {hasActiveFilters 
+                  ? 'Nenhum equipamento encontrado com os filtros aplicados'
+                  : 'Nenhum equipamento cadastrado'}
+              </Text>
+            </View>
+          ) : (
+            filteredEquipments.map((equipment) => (
             <TouchableOpacity
               key={equipment.id}
               style={styles.card}
@@ -188,27 +257,9 @@ export const EquipamentosScreen = () => {
                   <Text style={styles.metaValue}>{equipment.nextReview}</Text>
                 </View>
               </View>
-
-              <View style={styles.actionsRow}>
-                <View style={styles.actionPill}>
-                  <CreditCard size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Despesas</Text>
-                </View>
-                <View style={styles.actionPill}>
-                  <FileText size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Documentos</Text>
-                </View>
-                <View style={styles.actionPill}>
-                  <Camera size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Fotos</Text>
-                </View>
-                <View style={styles.actionPill}>
-                  <History size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Revisões</Text>
-                </View>
-              </View>
             </TouchableOpacity>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
       <EquipmentFormModal
@@ -246,7 +297,13 @@ export const EquipamentosScreen = () => {
           year: String(editingEquipment.year),
           purchaseDate: editingEquipment.purchaseDate,
           nextReview: editingEquipment.nextReview,
-        } : undefined}
+          } : undefined}
+      />
+      <EquipmentFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={(newFilters) => setFilters(newFilters)}
+        initialFilters={filters}
       />
       </View>
     </SafeAreaView>
@@ -326,6 +383,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0A84FF',
     fontWeight: '600',
+  },
+  filterButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  filterButtonActive: {
+    backgroundColor: '#E5F1FF',
+  },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#6C6C70',
+    textAlign: 'center',
   },
   card: {
     borderWidth: 1,
@@ -409,24 +484,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
     marginTop: 2,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  actionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: '#F5F5F7',
-  },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1C1C1E',
   },
 });

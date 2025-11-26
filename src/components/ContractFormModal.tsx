@@ -14,6 +14,8 @@ import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { ContractCategory } from '../context/ContractContext';
+import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
+import { Alert } from 'react-native';
 
 const CATEGORY_LABELS: Record<ContractCategory, string> = {
   principal: 'Principal',
@@ -87,11 +89,27 @@ export const ContractFormModal = ({
   }, [visible]);
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o nome do contrato.');
+      return;
+    }
+    
+    // Validação de data
+    const formattedDate = dayjs(date).format('DD/MM/YYYY');
+    const dateValidation = validateDate(formattedDate, {
+      allowFuture: true,
+      allowPast: true,
+    });
+    
+    if (!dateValidation.isValid) {
+      Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
+      return;
+    }
+    
     onSubmit({
       name: name.trim(),
       category,
-      date: dayjs(date).format('DD/MM/YYYY'),
+      date: formattedDate,
       docs: documents.length,
       value: value ? parseCurrency(value) : undefined,
       documents,
@@ -105,6 +123,33 @@ export const ContractFormModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
+
       setDocuments((prev) => [
         ...prev,
         {
@@ -128,6 +173,28 @@ export const ContractFormModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       setDocuments((prev) => [
         ...prev,
         {

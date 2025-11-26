@@ -13,6 +13,8 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as ImagePicker from 'expo-image-picker';
+import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
+import { Alert } from 'react-native';
 
 interface PhotoUploadModalProps {
   visible: boolean;
@@ -80,6 +82,28 @@ export const PhotoUploadModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       setPhoto({
         uri: asset.uri,
         fileName: asset.fileName ?? 'Foto',
@@ -90,9 +114,22 @@ export const PhotoUploadModal = ({
 
   const handleSave = () => {
     if (!photo || !title.trim()) return;
+    
+    // Validação de data
+    const formattedDate = dayjs(date).format('DD/MM/YYYY');
+    const dateValidation = validateDate(formattedDate, {
+      allowFuture: true,
+      allowPast: true,
+    });
+    
+    if (!dateValidation.isValid) {
+      Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
+      return;
+    }
+    
     onSubmit({
       title,
-      date: dayjs(date).format('DD/MM/YYYY'),
+      date: formattedDate,
       uri: photo.uri,
       fileName: photo.fileName,
       mimeType: photo.mimeType,

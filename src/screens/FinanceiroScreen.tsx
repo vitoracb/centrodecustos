@@ -19,6 +19,8 @@ import {
   Trash2,
   FileText,
   ChevronDown,
+  Download,
+  BarChart3,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -29,9 +31,13 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { ExpenseFilterModal, ExpenseFilters } from '../components/ExpenseFilterModal';
 import { ExpensePieChart } from '../components/ExpensePieChart';
 import { ExpenseBarChart } from '../components/ExpenseBarChart';
+import { CostCenterComparisonChart } from '../components/CostCenterComparisonChart';
 import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
+import { exportToPDF, exportToExcel } from '../lib/reportExport';
+import { showSuccess, showError } from '../lib/toast';
+import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
@@ -82,7 +88,7 @@ const formatCurrency = (value: number): string => {
 export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter } = useCostCenter();
-  const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense } = useFinancial();
+  const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Recebimentos');
   const [isReceiptModalVisible, setReceiptModalVisible] = useState(false);
   const [isReceiptFilterVisible, setReceiptFilterVisible] = useState(false);
@@ -102,8 +108,15 @@ export const FinanceiroScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
+    files?: Array<{
+      fileUri: string;
+      fileName: string;
+      mimeType: string | null;
+    }>;
+    initialIndex?: number;
   } | null>(null);
   const [statusModalExpense, setStatusModalExpense] = useState<Expense | null>(null);
+  const [comparisonMode, setComparisonMode] = useState<'expenses' | 'receipts' | 'balance'>('expenses');
 
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
@@ -125,6 +138,31 @@ export const FinanceiroScreen = () => {
 
       const asset = result.assets[0];
       if (!asset) return;
+
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
 
       // Determina o tipo baseado no mimeType ou usa 'recibo' como padrão
       const isPdf = asset.mimeType?.includes('pdf');
@@ -174,6 +212,27 @@ export const FinanceiroScreen = () => {
 
       const asset = result.assets[0];
 
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
         fileName: asset.fileName ?? 'Foto',
         fileUri: asset.uri,
@@ -215,6 +274,31 @@ export const FinanceiroScreen = () => {
 
       const asset = result.assets[0];
       if (!asset) return;
+
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
 
       const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
         fileName: asset.name ?? 'Comprovante de Pagamento',
@@ -259,6 +343,27 @@ export const FinanceiroScreen = () => {
       if (result.canceled || !result.assets[0]) return;
 
       const asset = result.assets[0];
+
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
 
       const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
         fileName: asset.fileName ?? 'Comprovante de Pagamento',
@@ -371,6 +476,28 @@ export const FinanceiroScreen = () => {
       expenseFilters.year
     );
   }, [expenseFilters]);
+
+  // Calcular despesas por status para a aba Despesas
+  const expensesByStatusForDespesas = useMemo(() => {
+    const expensesByStatus = {
+      confirmar: filteredExpenses.filter((e) => e.status === 'confirmar' || !e.status),
+      confirmado: filteredExpenses.filter((e) => e.status === 'confirmado'),
+      a_pagar: filteredExpenses.filter((e) => e.status === 'a_pagar'),
+      pago: filteredExpenses.filter((e) => e.status === 'pago'),
+    };
+
+    const totalsByStatus = {
+      confirmar: expensesByStatus.confirmar.reduce((sum, e) => sum + e.value, 0),
+      confirmado: expensesByStatus.confirmado.reduce((sum, e) => sum + e.value, 0),
+      a_pagar: expensesByStatus.a_pagar.reduce((sum, e) => sum + e.value, 0),
+      pago: expensesByStatus.pago.reduce((sum, e) => sum + e.value, 0),
+    };
+
+    return {
+      expensesByStatus,
+      totalsByStatus,
+    };
+  }, [filteredExpenses]);
 
   const periodSummary = useMemo(() => {
     const selectedMonth = selectedPeriod.month();
@@ -606,19 +733,99 @@ export const FinanceiroScreen = () => {
             </TouchableOpacity>
             <ExpensePieChart expenses={filteredExpenses} />
             <ExpenseBarChart expenses={filteredExpenses} />
+            
+            {/* Despesas agrupadas por status */}
+            {filteredExpenses.length > 0 && (
+              <View style={styles.expensesByStatusContainer}>
+                <Text style={styles.expensesByStatusTitle}>Despesas por Status</Text>
+                
+                {/* A Confirmar */}
+                {expensesByStatusForDespesas.totalsByStatus.confirmar > 0 && (
+                  <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.confirmar.backgroundColor }]}>
+                    <View style={styles.statusExpenseHeader}>
+                      <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.confirmar.color }]}>
+                        {STATUS_LABELS.confirmar}
+                      </Text>
+                      <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.confirmar.color }]}>
+                        {formatCurrency(expensesByStatusForDespesas.totalsByStatus.confirmar)}
+                      </Text>
+                    </View>
+                    <Text style={styles.statusExpenseCount}>
+                      {expensesByStatusForDespesas.expensesByStatus.confirmar.length} {expensesByStatusForDespesas.expensesByStatus.confirmar.length === 1 ? 'despesa' : 'despesas'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Confirmado */}
+                {expensesByStatusForDespesas.totalsByStatus.confirmado > 0 && (
+                  <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.confirmado.backgroundColor }]}>
+                    <View style={styles.statusExpenseHeader}>
+                      <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.confirmado.color }]}>
+                        {STATUS_LABELS.confirmado}
+                      </Text>
+                      <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.confirmado.color }]}>
+                        {formatCurrency(expensesByStatusForDespesas.totalsByStatus.confirmado)}
+                      </Text>
+                    </View>
+                    <Text style={styles.statusExpenseCount}>
+                      {expensesByStatusForDespesas.expensesByStatus.confirmado.length} {expensesByStatusForDespesas.expensesByStatus.confirmado.length === 1 ? 'despesa' : 'despesas'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* A Pagar */}
+                {expensesByStatusForDespesas.totalsByStatus.a_pagar > 0 && (
+                  <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.a_pagar.backgroundColor }]}>
+                    <View style={styles.statusExpenseHeader}>
+                      <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.a_pagar.color }]}>
+                        {STATUS_LABELS.a_pagar}
+                      </Text>
+                      <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.a_pagar.color }]}>
+                        {formatCurrency(expensesByStatusForDespesas.totalsByStatus.a_pagar)}
+                      </Text>
+                    </View>
+                    <Text style={styles.statusExpenseCount}>
+                      {expensesByStatusForDespesas.expensesByStatus.a_pagar.length} {expensesByStatusForDespesas.expensesByStatus.a_pagar.length === 1 ? 'despesa' : 'despesas'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Pago */}
+                {expensesByStatusForDespesas.totalsByStatus.pago > 0 && (
+                  <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.pago.backgroundColor }]}>
+                    <View style={styles.statusExpenseHeader}>
+                      <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.pago.color }]}>
+                        {STATUS_LABELS.pago}
+                      </Text>
+                      <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.pago.color }]}>
+                        {formatCurrency(expensesByStatusForDespesas.totalsByStatus.pago)}
+                      </Text>
+                    </View>
+                    <Text style={styles.statusExpenseCount}>
+                      {expensesByStatusForDespesas.expensesByStatus.pago.length} {expensesByStatusForDespesas.expensesByStatus.pago.length === 1 ? 'despesa' : 'despesas'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+            
             {filteredExpenses.length > 0 ? (
               filteredExpenses.map((item) => (
-                <TouchableOpacity
+                <View
                   key={item.id}
                   style={styles.card}
-                  onPress={() => {
-                    setSelectedExpenseForDocument(item);
-                    setSelectedExpenseDocuments(item.documents || []);
-                    setExpenseDocumentsModalVisible(true);
-                  }}
-                  disabled={!item.documents || item.documents.length === 0}
                 >
-                  <View style={styles.cardRow}>
+                  <TouchableOpacity
+                    style={styles.cardRow}
+                    onPress={() => {
+                      if (item.documents && item.documents.length > 0) {
+                        setSelectedExpenseForDocument(item);
+                        setSelectedExpenseDocuments(item.documents || []);
+                        setExpenseDocumentsModalVisible(true);
+                      }
+                    }}
+                    disabled={!item.documents || item.documents.length === 0}
+                  >
                     <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
                       <ArrowUpCircle size={18} color="#FF3B30" />
                     </View>
@@ -639,7 +846,8 @@ export const FinanceiroScreen = () => {
                     <View style={styles.cardActions}>
                       <TouchableOpacity
                         style={styles.editButton}
-                        onPress={() => {
+                        onPress={(e) => {
+                          e.stopPropagation();
                           setEditingExpense(item);
                           setExpenseModalVisible(true);
                         }}
@@ -648,7 +856,8 @@ export const FinanceiroScreen = () => {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteButton}
-                        onPress={() => {
+                        onPress={(e) => {
+                          e.stopPropagation();
                           Alert.alert(
                             'Excluir despesa',
                             'Tem certeza que deseja excluir esta despesa?',
@@ -666,7 +875,7 @@ export const FinanceiroScreen = () => {
                         <Trash2 size={16} color="#FF3B30" />
                       </TouchableOpacity>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                   
                   {/* Status da despesa com botão para abrir modal */}
                   <View style={styles.statusContainer}>
@@ -693,14 +902,21 @@ export const FinanceiroScreen = () => {
                   </View>
 
                   {item.documents && item.documents.length > 0 && (
-                    <View style={styles.documentsIndicator}>
+                    <TouchableOpacity
+                      style={styles.documentsIndicator}
+                      onPress={() => {
+                        setSelectedExpenseForDocument(item);
+                        setSelectedExpenseDocuments(item.documents || []);
+                        setExpenseDocumentsModalVisible(true);
+                      }}
+                    >
                       <FileText size={14} color="#0A84FF" />
                       <Text style={styles.documentsIndicatorText}>
                         {item.documents.length} documento(s) anexado(s)
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </View>
               ))
             ) : (
               <View style={styles.emptyState}>
@@ -855,77 +1071,168 @@ export const FinanceiroScreen = () => {
               </View>
             </View>
 
-            {/* Despesas agrupadas por status */}
-            <View style={styles.expensesByStatusContainer}>
-              <Text style={styles.expensesByStatusTitle}>Despesas por Status</Text>
+            {/* Gráfico Comparativo entre Centros */}
+            <View style={styles.comparisonSection}>
+              <Text style={styles.comparisonTitle}>Comparativo entre Centros</Text>
               
-              {/* Confirmar */}
-              {periodSummary.totalsByStatus.confirmar > 0 && (
-                <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.confirmar.backgroundColor }]}>
-                  <View style={styles.statusExpenseHeader}>
-                    <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.confirmar.color }]}>
-                      {STATUS_LABELS.confirmar}
-                    </Text>
-                    <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.confirmar.color }]}>
-                      {formatCurrency(periodSummary.totalsByStatus.confirmar)}
-                    </Text>
-                  </View>
-                  <Text style={styles.statusExpenseCount}>
-                    {periodSummary.expensesByStatus.confirmar.length} {periodSummary.expensesByStatus.confirmar.length === 1 ? 'despesa' : 'despesas'}
+              {/* Botões de modo */}
+              <View style={styles.comparisonModeSelector}>
+                <TouchableOpacity
+                  style={[styles.comparisonModeButton, comparisonMode === 'expenses' && styles.comparisonModeButtonActive]}
+                  onPress={() => setComparisonMode('expenses')}
+                >
+                  <Text style={[styles.comparisonModeText, comparisonMode === 'expenses' && styles.comparisonModeTextActive]}>
+                    Despesas
                   </Text>
-                </View>
-              )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.comparisonModeButton, comparisonMode === 'receipts' && styles.comparisonModeButtonActive]}
+                  onPress={() => setComparisonMode('receipts')}
+                >
+                  <Text style={[styles.comparisonModeText, comparisonMode === 'receipts' && styles.comparisonModeTextActive]}>
+                    Recebimentos
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.comparisonModeButton, comparisonMode === 'balance' && styles.comparisonModeButtonActive]}
+                  onPress={() => setComparisonMode('balance')}
+                >
+                  <Text style={[styles.comparisonModeText, comparisonMode === 'balance' && styles.comparisonModeTextActive]}>
+                    Saldo
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Gráfico */}
+              <CostCenterComparisonChart
+                expenses={getAllExpenses()}
+                receipts={getAllReceipts()}
+                mode={comparisonMode}
+                period={{
+                  month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,
+                  year: selectedPeriod.year(),
+                }}
+              />
+            </View>
 
-              {/* Confirmado */}
-              {periodSummary.totalsByStatus.confirmado > 0 && (
-                <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.confirmado.backgroundColor }]}>
-                  <View style={styles.statusExpenseHeader}>
-                    <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.confirmado.color }]}>
-                      {STATUS_LABELS.confirmado}
-                    </Text>
-                    <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.confirmado.color }]}>
-                      {formatCurrency(periodSummary.totalsByStatus.confirmado)}
-                    </Text>
-                  </View>
-                  <Text style={styles.statusExpenseCount}>
-                    {periodSummary.expensesByStatus.confirmado.length} {periodSummary.expensesByStatus.confirmado.length === 1 ? 'despesa' : 'despesas'}
-                  </Text>
-                </View>
-              )}
+            {/* Botões de Exportação */}
+            <View style={styles.exportButtons}>
+              <TouchableOpacity
+                style={[styles.exportButton, styles.exportButtonPDF]}
+                onPress={async () => {
+                  try {
+                    // Usar os dados já calculados no periodSummary
+                    const selectedMonth = selectedPeriod.month();
+                    const selectedYear = selectedPeriod.year();
+                    
+                    const expensesInPeriod = allExpenses.filter((expense) => {
+                      const [day, month, year] = expense.date.split('/').map(Number);
+                      if (!day || !month || !year) {
+                        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+                        if (!expenseDate.isValid()) return false;
+                        if (closureMode === 'anual') {
+                          return expenseDate.year() === selectedYear;
+                        }
+                        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
+                      }
+                      if (closureMode === 'anual') {
+                        return year === selectedYear;
+                      }
+                      return month - 1 === selectedMonth && year === selectedYear;
+                    });
 
-              {/* A Pagar */}
-              {periodSummary.totalsByStatus.a_pagar > 0 && (
-                <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.a_pagar.backgroundColor }]}>
-                  <View style={styles.statusExpenseHeader}>
-                    <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.a_pagar.color }]}>
-                      {STATUS_LABELS.a_pagar}
-                    </Text>
-                    <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.a_pagar.color }]}>
-                      {formatCurrency(periodSummary.totalsByStatus.a_pagar)}
-                    </Text>
-                  </View>
-                  <Text style={styles.statusExpenseCount}>
-                    {periodSummary.expensesByStatus.a_pagar.length} {periodSummary.expensesByStatus.a_pagar.length === 1 ? 'despesa' : 'despesas'}
-                  </Text>
-                </View>
-              )}
+                    const receiptsInPeriod = allReceipts.filter((receipt) => {
+                      const [day, month, year] = receipt.date.split('/').map(Number);
+                      if (!day || !month || !year) {
+                        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
+                        if (!receiptDate.isValid()) return false;
+                        if (closureMode === 'anual') {
+                          return receiptDate.year() === selectedYear;
+                        }
+                        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
+                      }
+                      if (closureMode === 'anual') {
+                        return year === selectedYear;
+                      }
+                      return month - 1 === selectedMonth && year === selectedYear;
+                    });
 
-              {/* Pago */}
-              {periodSummary.totalsByStatus.pago > 0 && (
-                <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.pago.backgroundColor }]}>
-                  <View style={styles.statusExpenseHeader}>
-                    <Text style={[styles.statusExpenseLabel, { color: STATUS_STYLES.pago.color }]}>
-                      {STATUS_LABELS.pago}
-                    </Text>
-                    <Text style={[styles.statusExpenseValue, { color: STATUS_STYLES.pago.color }]}>
-                      {formatCurrency(periodSummary.totalsByStatus.pago)}
-                    </Text>
-                  </View>
-                  <Text style={styles.statusExpenseCount}>
-                    {periodSummary.expensesByStatus.pago.length} {periodSummary.expensesByStatus.pago.length === 1 ? 'despesa' : 'despesas'}
-                  </Text>
-                </View>
-              )}
+                    await exportToPDF({
+                      expenses: expensesInPeriod,
+                      receipts: receiptsInPeriod,
+                      period: {
+                        month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,
+                        year: selectedPeriod.year(),
+                      },
+                      center: selectedCenter,
+                    });
+                    showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
+                  } catch (error: any) {
+                    showError('Erro ao exportar', error.message);
+                  }
+                }}
+              >
+                <FileText size={18} color="#FFFFFF" />
+                <Text style={styles.exportButtonText}>Exportar PDF</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.exportButton, styles.exportButtonExcel]}
+                onPress={async () => {
+                  try {
+                    // Usar os dados já calculados no periodSummary
+                    const selectedMonth = selectedPeriod.month();
+                    const selectedYear = selectedPeriod.year();
+                    
+                    const expensesInPeriod = allExpenses.filter((expense) => {
+                      const [day, month, year] = expense.date.split('/').map(Number);
+                      if (!day || !month || !year) {
+                        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+                        if (!expenseDate.isValid()) return false;
+                        if (closureMode === 'anual') {
+                          return expenseDate.year() === selectedYear;
+                        }
+                        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
+                      }
+                      if (closureMode === 'anual') {
+                        return year === selectedYear;
+                      }
+                      return month - 1 === selectedMonth && year === selectedYear;
+                    });
+
+                    const receiptsInPeriod = allReceipts.filter((receipt) => {
+                      const [day, month, year] = receipt.date.split('/').map(Number);
+                      if (!day || !month || !year) {
+                        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
+                        if (!receiptDate.isValid()) return false;
+                        if (closureMode === 'anual') {
+                          return receiptDate.year() === selectedYear;
+                        }
+                        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
+                      }
+                      if (closureMode === 'anual') {
+                        return year === selectedYear;
+                      }
+                      return month - 1 === selectedMonth && year === selectedYear;
+                    });
+
+                    await exportToExcel({
+                      expenses: expensesInPeriod,
+                      receipts: receiptsInPeriod,
+                      period: {
+                        month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,
+                        year: selectedPeriod.year(),
+                      },
+                      center: selectedCenter,
+                    });
+                    showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
+                  } catch (error: any) {
+                    showError('Erro ao exportar', error.message);
+                  }
+                }}
+              >
+                <Download size={18} color="#FFFFFF" />
+                <Text style={styles.exportButtonText}>Exportar Excel</Text>
+              </TouchableOpacity>
             </View>
           </View>
         );
@@ -1079,17 +1386,43 @@ export const FinanceiroScreen = () => {
         documents={selectedExpenseDocuments || []}
         onDocumentPress={(document) => {
           setExpenseDocumentsModalVisible(false);
+          // Encontra o índice do documento clicado
+          const documentIndex = selectedExpenseDocuments?.findIndex(
+            (doc) => doc.fileUri === document.fileUri
+          ) || 0;
           setPreviewFile({
             uri: document.fileUri,
             name: document.fileName,
             mimeType: document.mimeType,
+            files: selectedExpenseDocuments?.map((doc) => ({
+              fileUri: doc.fileUri,
+              fileName: doc.fileName,
+              mimeType: doc.mimeType || null,
+            })) || [],
+            initialIndex: documentIndex >= 0 ? documentIndex : 0,
           });
           setPreviewVisible(true);
         }}
-        onAddDocument={handleAddExpenseDocument}
-        onAddPhoto={handleAddExpensePhoto}
-        onAddPaymentReceiptDocument={handleAddPaymentReceiptDocument}
-        onAddPaymentReceiptPhoto={handleAddPaymentReceiptPhoto}
+        onDeleteDocument={async (document) => {
+          if (!selectedExpenseForDocument) return;
+          try {
+            await deleteExpenseDocument(selectedExpenseForDocument.id, document.fileUri);
+            // Atualiza os documentos locais
+            setSelectedExpenseDocuments((prev) => 
+              prev?.filter((doc) => doc.fileUri !== document.fileUri) || []
+            );
+            setSelectedExpenseForDocument((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                documents: prev.documents?.filter((doc) => doc.fileUri !== document.fileUri) || [],
+              };
+            });
+            showSuccess('Documento excluído', 'O documento foi removido com sucesso');
+          } catch (error: any) {
+            showError('Erro ao excluir', error.message || 'Não foi possível excluir o documento');
+          }
+        }}
       />
       <FilePreviewModal
         visible={previewVisible}
@@ -1100,6 +1433,8 @@ export const FinanceiroScreen = () => {
         fileUri={previewFile?.uri}
         fileName={previewFile?.name}
         mimeType={previewFile?.mimeType}
+        files={previewFile?.files}
+        initialIndex={previewFile?.initialIndex}
       />
       <ExpenseStatusModal
         visible={statusModalExpense !== null}
@@ -1244,6 +1579,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+    width: '100%',
   },
   iconCircle: {
     width: 32,
@@ -1286,8 +1622,9 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 8,
+    marginTop: 2,
   },
   editButton: {
     padding: 4,
@@ -1488,6 +1825,78 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F3',
+  },
+  comparisonSection: {
+    marginBottom: 16,
+    gap: 12,
+  },
+  comparisonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 4,
+  },
+  comparisonModeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#E5E5EA',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    marginBottom: 8,
+    width: '100%',
+  },
+  comparisonModeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  comparisonModeButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  comparisonModeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6C6C70',
+  },
+  comparisonModeTextActive: {
+    color: '#0A84FF',
+  },
+  exportButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  exportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  exportButtonPDF: {
+    backgroundColor: '#FF3B30',
+  },
+  exportButtonExcel: {
+    backgroundColor: '#34C759',
+  },
+  exportButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   documentsIndicatorText: {
     fontSize: 12,

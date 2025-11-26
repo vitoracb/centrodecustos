@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
+import { validateDate } from '../lib/validations';
 
 interface ReceiptFormData {
   name: string;
@@ -88,9 +89,22 @@ export const ReceiptFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o valor do recebimento.');
       return;
     }
+    
+    // Validação de data
+    const formattedDate = dayjs(date).format('DD/MM/YYYY');
+    const dateValidation = validateDate(formattedDate, {
+      allowFuture: true,
+      allowPast: true,
+    });
+    
+    if (!dateValidation.isValid) {
+      Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
+      return;
+    }
+    
     onSubmit({
       name: name.trim(),
-      date: dayjs(date).format('DD/MM/YYYY'),
+      date: formattedDate,
       value: parseCurrency(value),
     });
     onClose();

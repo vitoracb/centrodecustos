@@ -81,6 +81,7 @@ interface FinancialContextType {
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
   addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" }) => Promise<ExpenseDocument>;
+  deleteExpenseDocument: (expenseId: string, documentUri: string) => Promise<void>;
 
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
   getExpensesByCenter: (center: CostCenter) => Expense[];
@@ -811,6 +812,39 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     []
   );
 
+  const deleteExpenseDocument = useCallback(
+    async (expenseId: string, documentUri: string) => {
+      try {
+        // Deleta o documento da tabela expense_documents
+        const { error } = await supabase
+          .from("expense_documents")
+          .delete()
+          .eq("transaction_id", expenseId)
+          .eq("file_url", documentUri);
+
+        if (error) {
+          throw error ?? new Error("Erro ao deletar documento");
+        }
+
+        // Atualiza o estado local removendo o documento
+        setExpenses((prev) =>
+          prev.map((expense) => {
+            if (expense.id !== expenseId) return expense;
+            const existingDocs = expense.documents ?? [];
+            return {
+              ...expense,
+              documents: existingDocs.filter((doc) => doc.fileUri !== documentUri),
+            };
+          })
+        );
+      } catch (err: any) {
+        console.error("❌ Erro em deleteExpenseDocument:", err);
+        throw err;
+      }
+    },
+    []
+  );
+
   // ========================
   // SELECTORS
   // ========================
@@ -842,6 +876,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         updateExpense,
         deleteExpense,
         addDocumentToExpense,
+        deleteExpenseDocument,
         getReceiptsByCenter,
         getExpensesByCenter,
         getAllReceipts,

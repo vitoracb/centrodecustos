@@ -13,6 +13,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { FileText, Image as ImageIcon, X } from 'lucide-react-native';
 import { OrderDocument } from '../context/OrderContext';
+import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
 
 interface OrderBudgetModalProps {
   visible: boolean;
@@ -32,6 +33,28 @@ export const OrderBudgetModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = ['application/pdf', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
+
       onSubmit({
         fileName: asset.name ?? 'Documento',
         fileUri: asset.uri,
@@ -54,6 +77,28 @@ export const OrderBudgetModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       onSubmit({
         fileName: asset.fileName ?? 'Foto',
         fileUri: asset.uri,

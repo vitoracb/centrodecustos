@@ -19,6 +19,7 @@ import { ExpenseCategory, ExpenseDocument, GestaoSubcategory } from '../context/
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import { FileText, Camera, XCircle, ChevronDown } from 'lucide-react-native';
+import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
@@ -160,6 +161,32 @@ export const ExpenseFormModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType,
+        asset.name,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Tipo de arquivo não permitido');
+        return;
+      }
+
       setDocuments((prev) => [
         ...prev,
         {
@@ -185,6 +212,28 @@ export const ExpenseFormModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
       setDocuments((prev) => [
         ...prev,
         {
@@ -198,7 +247,21 @@ export const ExpenseFormModal = ({
   };
 
   const handleRemoveDocument = (index: number) => {
-    setDocuments((prev) => prev.filter((_, i) => i !== index));
+    const document = documents[index];
+    Alert.alert(
+      'Excluir documento',
+      `Tem certeza que deseja excluir "${document.fileName}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => {
+            setDocuments((prev) => prev.filter((_, i) => i !== index));
+          },
+        },
+      ]
+    );
   };
 
   const handleSave = () => {

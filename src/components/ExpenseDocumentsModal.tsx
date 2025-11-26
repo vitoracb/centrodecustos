@@ -6,16 +6,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpenseDocument } from '../context/FinancialContext';
-import { FileText, X, Plus, Image as ImageIcon } from 'lucide-react-native';
+import { FileText, X, Plus, Image as ImageIcon, Trash2 } from 'lucide-react-native';
 
 interface ExpenseDocumentsModalProps {
   visible: boolean;
   onClose: () => void;
   documents: ExpenseDocument[];
   onDocumentPress: (document: ExpenseDocument) => void;
+  onDeleteDocument?: (document: ExpenseDocument) => void;
   onAddDocument?: () => void;
   onAddPhoto?: () => void;
   onAddPaymentReceiptDocument?: () => void;
@@ -27,6 +29,7 @@ export const ExpenseDocumentsModal = ({
   onClose,
   documents,
   onDocumentPress,
+  onDeleteDocument,
   onAddDocument,
   onAddPhoto,
   onAddPaymentReceiptDocument,
@@ -64,67 +67,48 @@ export const ExpenseDocumentsModal = ({
             </View>
           ) : (
             documents.map((doc, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.documentCard}
-                onPress={() => onDocumentPress(doc)}
-              >
-                <View style={styles.documentIcon}>
-                  <FileText size={20} color="#0A84FF" />
-                </View>
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentType}>
-                    {getDocumentTypeLabel(doc.type)}
-                  </Text>
-                  <Text style={styles.documentName} numberOfLines={1}>
-                    {doc.fileName}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+              <View key={index} style={styles.documentCard}>
+                <TouchableOpacity
+                  style={styles.documentCardContent}
+                  onPress={() => onDocumentPress(doc)}
+                >
+                  <View style={styles.documentIcon}>
+                    <FileText size={20} color="#0A84FF" />
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentType}>
+                      {getDocumentTypeLabel(doc.type)}
+                    </Text>
+                    <Text style={styles.documentName} numberOfLines={1}>
+                      {doc.fileName}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                {onDeleteDocument && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => {
+                      Alert.alert(
+                        'Excluir documento',
+                        `Tem certeza que deseja excluir "${doc.fileName}"?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          {
+                            text: 'Excluir',
+                            style: 'destructive',
+                            onPress: () => onDeleteDocument(doc),
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Trash2 size={18} color="#FF3B30" />
+                  </TouchableOpacity>
+                )}
+              </View>
             ))
           )}
         </ScrollView>
-
-        {(onAddDocument || onAddPhoto || onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto) && (
-          <View style={styles.footer}>
-            {onAddDocument && (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={onAddDocument}
-              >
-                <FileText size={18} color="#0A84FF" />
-                <Text style={styles.addButtonText}>Adicionar Documento</Text>
-              </TouchableOpacity>
-            )}
-            {onAddPhoto && (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={onAddPhoto}
-              >
-                <ImageIcon size={18} color="#0A84FF" />
-                <Text style={styles.addButtonText}>Adicionar Foto</Text>
-              </TouchableOpacity>
-            )}
-            {onAddPaymentReceiptDocument && (
-              <TouchableOpacity
-                style={[styles.addButton, styles.paymentReceiptButton]}
-                onPress={onAddPaymentReceiptDocument}
-              >
-                <FileText size={18} color="#34C759" />
-                <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>Comprovante de Pagamento (Documento)</Text>
-              </TouchableOpacity>
-            )}
-            {onAddPaymentReceiptPhoto && (
-              <TouchableOpacity
-                style={[styles.addButton, styles.paymentReceiptButton]}
-                onPress={onAddPaymentReceiptPhoto}
-              >
-                <ImageIcon size={18} color="#34C759" />
-                <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>Comprovante de Pagamento (Foto)</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
       </SafeAreaView>
     </Modal>
   );
@@ -177,6 +161,17 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     gap: 12,
+  },
+  documentCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFEBEE',
   },
   documentIcon: {
     width: 40,
