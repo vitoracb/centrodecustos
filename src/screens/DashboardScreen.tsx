@@ -20,6 +20,7 @@ import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { showSuccess, showError } from '../lib/toast';
+import { GlobalSearch } from '../components/GlobalSearch';
 import {
   Tractor,
   DollarSign,
@@ -627,6 +628,8 @@ export const DashboardScreen = () => {
               {centerLabels[selectedCenter]}
             </Text>
           </View>
+
+          <GlobalSearch />
 
         <View style={styles.statsGrid}>
           {statCards.map((card) => (
