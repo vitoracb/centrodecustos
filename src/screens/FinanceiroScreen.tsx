@@ -78,6 +78,8 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
+const EXPENSES_PAGE_SIZE = 12;
+
 const TABS = ['Recebimentos', 'Despesas', 'Fechamento'] as const;
 
 const formatCurrency = (value: number): string => {
@@ -128,6 +130,7 @@ export const FinanceiroScreen = () => {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(dayjs());
   const [closureMode, setClosureMode] = useState<'mensal' | 'anual'>('mensal');
+  const [expensePage, setExpensePage] = useState(1);
   const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
   const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<Expense | null>(null);
@@ -574,6 +577,30 @@ export const FinanceiroScreen = () => {
     );
   }, [allExpenses, expenseFilters]);
 
+  useEffect(() => {
+    setExpensePage(1);
+  }, [
+    selectedCenter,
+    expenseFilters.category,
+    expenseFilters.equipmentId,
+    expenseFilters.value,
+    expenseFilters.month,
+    expenseFilters.year,
+  ]);
+
+  const paginatedExpenses = useMemo(
+    () => filteredExpenses.slice(0, expensePage * EXPENSES_PAGE_SIZE),
+    [filteredExpenses, expensePage],
+  );
+
+  const hasMoreExpenses = paginatedExpenses.length < filteredExpenses.length;
+
+  const handleLoadMoreExpenses = () => {
+    if (hasMoreExpenses) {
+      setExpensePage(prev => prev + 1);
+    }
+  };
+
   const hasActiveExpenseFilters = useMemo(() => {
     return !!(
       expenseFilters.category ||
@@ -966,115 +993,127 @@ export const FinanceiroScreen = () => {
               </View>
             )}
             
-            {filteredExpenses.length > 0 ? (
-              filteredExpenses.map((item) => (
-                <View
-                  key={item.id}
-                  style={styles.card}
-                >
-                  <TouchableOpacity
-                    style={styles.cardRow}
-                    onPress={() => {
-                      if (item.documents && item.documents.length > 0) {
-                        setSelectedExpenseForDocument(item);
-                        setSelectedExpenseDocuments(item.documents || []);
-                        setExpenseDocumentsModalVisible(true);
-                      }
-                    }}
-                    disabled={!item.documents || item.documents.length === 0}
+            {paginatedExpenses.length > 0 ? (
+              <>
+                {paginatedExpenses.map((item) => (
+                  <View
+                    key={item.id}
+                    style={styles.card}
                   >
-                    <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
-                      <ArrowUpCircle size={18} color="#FF3B30" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>{formatCurrency(item.value)}</Text>
-                      <Text style={styles.cardSubtitle}>
-                        {item.name}
-                      </Text>
-                      <View style={styles.cardMeta}>
-                        <Text style={styles.cardDate}>{item.date}</Text>
-                        <View style={styles.categoryBadge}>
-                          <Text style={styles.categoryText}>
-                            {CATEGORY_LABELS[item.category]}
-                          </Text>
+                    <TouchableOpacity
+                      style={styles.cardRow}
+                      onPress={() => {
+                        if (item.documents && item.documents.length > 0) {
+                          setSelectedExpenseForDocument(item);
+                          setSelectedExpenseDocuments(item.documents || []);
+                          setExpenseDocumentsModalVisible(true);
+                        }
+                      }}
+                      disabled={!item.documents || item.documents.length === 0}
+                    >
+                      <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
+                        <ArrowUpCircle size={18} color="#FF3B30" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cardTitle}>{formatCurrency(item.value)}</Text>
+                        <Text style={styles.cardSubtitle}>
+                          {item.name}
+                        </Text>
+                        <View style={styles.cardMeta}>
+                          <Text style={styles.cardDate}>{item.date}</Text>
+                          <View style={styles.categoryBadge}>
+                            <Text style={styles.categoryText}>
+                              {CATEGORY_LABELS[item.category]}
+                            </Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
-                    <View style={styles.cardActions}>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setEditingExpense(item);
-                          setExpenseModalVisible(true);
-                        }}
-                      >
-                        <Edit3 size={16} color="#0A84FF" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          Alert.alert(
-                            'Excluir despesa',
-                            'Tem certeza que deseja excluir esta despesa?',
-                            [
-                              { text: 'Cancelar', style: 'cancel' },
-                              {
-                                text: 'Excluir',
-                                style: 'destructive',
-                                onPress: () => deleteExpense(item.id),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Trash2 size={16} color="#FF3B30" />
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                  
-                  {/* Status da despesa com botão para abrir modal */}
-                  <View style={styles.statusContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.statusPill,
-                        item.status && STATUS_STYLES[item.status] 
-                          ? { backgroundColor: STATUS_STYLES[item.status].backgroundColor }
-                          : { backgroundColor: '#FFF3D6' }
-                      ]}
-                      onPress={() => setStatusModalExpense(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.statusText,
-                        item.status && STATUS_STYLES[item.status]
-                          ? { color: STATUS_STYLES[item.status].color }
-                          : { color: '#FF9500' }
-                      ]}>
-                        {item.status ? STATUS_LABELS[item.status] : 'A Confirmar'}
-                      </Text>
-                      <ChevronDown size={14} color={item.status && STATUS_STYLES[item.status] ? STATUS_STYLES[item.status].color : '#FF9500'} />
+                      <View style={styles.cardActions}>
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setEditingExpense(item);
+                            setExpenseModalVisible(true);
+                          }}
+                        >
+                          <Edit3 size={16} color="#0A84FF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            Alert.alert(
+                              'Excluir despesa',
+                              'Tem certeza que deseja excluir esta despesa?',
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                  text: 'Excluir',
+                                  style: 'destructive',
+                                  onPress: () => deleteExpense(item.id),
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Trash2 size={16} color="#FF3B30" />
+                        </TouchableOpacity>
+                      </View>
                     </TouchableOpacity>
-                  </View>
+                    
+                    {/* Status da despesa com botão para abrir modal */}
+                    <View style={styles.statusContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.statusPill,
+                          item.status && STATUS_STYLES[item.status] 
+                            ? { backgroundColor: STATUS_STYLES[item.status].backgroundColor }
+                            : { backgroundColor: '#FFF3D6' }
+                        ]}
+                        onPress={() => setStatusModalExpense(item)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.statusText,
+                          item.status && STATUS_STYLES[item.status]
+                            ? { color: STATUS_STYLES[item.status].color }
+                            : { color: '#FF9500' }
+                        ]}>
+                          {item.status ? STATUS_LABELS[item.status] : 'A Confirmar'}
+                        </Text>
+                        <ChevronDown size={14} color={item.status && STATUS_STYLES[item.status] ? STATUS_STYLES[item.status].color : '#FF9500'} />
+                      </TouchableOpacity>
+                    </View>
 
-                  {item.documents && item.documents.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.documentsIndicator}
-                      onPress={() => {
-                        setSelectedExpenseForDocument(item);
-                        setSelectedExpenseDocuments(item.documents || []);
-                        setExpenseDocumentsModalVisible(true);
-                      }}
-                    >
-                      <FileText size={14} color="#0A84FF" />
-                      <Text style={styles.documentsIndicatorText}>
-                        {item.documents.length} documento(s) anexado(s)
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))
+                    {item.documents && item.documents.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.documentsIndicator}
+                        onPress={() => {
+                          setSelectedExpenseForDocument(item);
+                          setSelectedExpenseDocuments(item.documents || []);
+                          setExpenseDocumentsModalVisible(true);
+                        }}
+                      >
+                        <FileText size={14} color="#0A84FF" />
+                        <Text style={styles.documentsIndicatorText}>
+                          {item.documents.length} documento(s) anexado(s)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+
+                {hasMoreExpenses && (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMoreExpenses}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.loadMoreText}>Carregar mais</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>
@@ -1665,6 +1704,20 @@ const styles = StyleSheet.create({
     color: '#6C6C70',
     fontSize: 14,
     textAlign: 'center',
+  },
+  loadMoreButton: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    color: '#0A84FF',
+    fontWeight: '600',
+    fontSize: 14,
   },
   card: {
     borderWidth: 1,

@@ -8,13 +8,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as ImagePicker from 'expo-image-picker';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import { Alert } from 'react-native';
+import { Image } from 'expo-image';
 
 interface PhotoUploadModalProps {
   visible: boolean;
@@ -173,7 +173,12 @@ export const PhotoUploadModal = ({
 
           {photo ? (
             <View style={styles.previewContainer}>
-              <Image source={{ uri: photo.uri }} style={styles.preview} />
+              <Image
+                source={{ uri: photo.uri }}
+                style={styles.preview}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
               <Text style={styles.previewName}>{photo.fileName}</Text>
             </View>
           ) : null}

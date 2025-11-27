@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { useEquipment } from '../context/EquipmentContext';
 import { useRouter } from 'expo-router';
 import { EquipmentFormModal } from '../components/EquipmentFormModal';
 import { EquipmentFilterModal, EquipmentFilters } from '../components/EquipmentFilterModal';
+import { EquipmentListSkeleton } from '../components/skeletons/EquipmentListSkeleton';
 import dayjs from 'dayjs';
 
 const centerLabels = {
@@ -31,9 +32,19 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
+const PAGE_SIZE = 10;
+
 export const EquipamentosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment, getAllEquipments, refresh } = useEquipment();
+  const {
+    getEquipmentsByCenter,
+    addEquipment,
+    updateEquipment,
+    deleteEquipment,
+    getAllEquipments,
+    refresh,
+    loading,
+  } = useEquipment();
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -58,6 +69,7 @@ export const EquipamentosScreen = () => {
     purchaseDate: string;
     nextReview: string;
   } | null>(null);
+  const [equipmentPage, setEquipmentPage] = useState(1);
   
   // Pega todos os equipamentos (para filtrar por centro de custo também)
   const allEquipments = useMemo(
@@ -115,6 +127,31 @@ export const EquipamentosScreen = () => {
     );
   }, [filters]);
 
+  useEffect(() => {
+    setEquipmentPage(1);
+  }, [
+    selectedCenter,
+    filters.name,
+    filters.brand,
+    filters.year,
+    filters.purchaseMonth,
+    filters.purchaseYear,
+  ]);
+
+  const paginatedEquipments = useMemo(
+    () => filteredEquipments.slice(0, equipmentPage * PAGE_SIZE),
+    [filteredEquipments, equipmentPage],
+  );
+
+  const hasMoreEquipments =
+    paginatedEquipments.length < filteredEquipments.length;
+
+  const handleLoadMoreEquipments = () => {
+    if (hasMoreEquipments) {
+      setEquipmentPage(prev => prev + 1);
+    }
+  };
+
   const handleEdit = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
     event.stopPropagation();
     setEditingEquipment({
@@ -143,6 +180,8 @@ export const EquipamentosScreen = () => {
       ]
     );
   };
+
+  const shouldShowSkeleton = loading && !refreshing;
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
@@ -189,7 +228,9 @@ export const EquipamentosScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {filteredEquipments.length === 0 ? (
+          {shouldShowSkeleton ? (
+            <EquipmentListSkeleton />
+          ) : paginatedEquipments.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
                 {hasActiveFilters 
@@ -198,7 +239,7 @@ export const EquipamentosScreen = () => {
               </Text>
             </View>
           ) : (
-            filteredEquipments.map((equipment) => (
+            paginatedEquipments.map((equipment) => (
             <TouchableOpacity
               key={equipment.id}
               style={styles.card}
@@ -276,6 +317,15 @@ export const EquipamentosScreen = () => {
               </View>
             </TouchableOpacity>
             ))
+          )}
+          {!shouldShowSkeleton && hasMoreEquipments && (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={handleLoadMoreEquipments}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.loadMoreText}>Carregar mais</Text>
+            </TouchableOpacity>
           )}
         </View>
       </ScrollView>
@@ -424,6 +474,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6C6C70',
     textAlign: 'center',
+  },
+  loadMoreButton: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    color: '#0A84FF',
+    fontWeight: '600',
+    fontSize: 14,
   },
   card: {
     borderWidth: 1,

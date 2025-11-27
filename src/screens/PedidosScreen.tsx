@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,10 +30,13 @@ import { OrderFormModal } from '../components/OrderFormModal';
 import { OrderBudgetModal } from '../components/OrderBudgetModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { OrderFilterModal, OrderFilters } from '../components/OrderFilterModal';
+import { OrderListSkeleton } from '../components/skeletons/OrderListSkeleton';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 
 dayjs.extend(customParseFormat);
+
+const PAGE_SIZE = 10;
 
 const centerLabels = {
   valenca: 'Valença',
@@ -132,6 +135,7 @@ export default function PedidosScreen() {
   const [currentOrderForPreview, setCurrentOrderForPreview] = useState<Order | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [orderFilters, setOrderFilters] = useState<OrderFilters>({});
+  const [orderPage, setOrderPage] = useState(1);
 
   const hasActiveFilters = useMemo(
     () => Object.values(orderFilters).some(value => value && value !== ''),
@@ -194,6 +198,24 @@ export default function PedidosScreen() {
     }
     return doc.type === "orcamento" && doc.fileUri && doc.fileUri.trim() !== '';
   }) || [];
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [
+    selectedCenter,
+    orderFilters.name,
+    orderFilters.equipmentId,
+    orderFilters.startDate,
+    orderFilters.endDate,
+    orderFilters.status,
+  ]);
+
+  const paginatedOrders = useMemo(
+    () => filteredOrders.slice(0, orderPage * PAGE_SIZE),
+    [filteredOrders, orderPage],
+  );
+
+  const hasMoreOrders = paginatedOrders.length < filteredOrders.length;
 
   const toggleBudgetDropdown = (orderId: string) => {
     if (openDropdownOrderId === orderId) {
@@ -373,6 +395,14 @@ export default function PedidosScreen() {
     ]);
   };
 
+  const handleLoadMoreOrders = () => {
+    if (hasMoreOrders) {
+      setOrderPage(prev => prev + 1);
+    }
+  };
+
+  const shouldShowSkeleton = loading && !refreshing;
+
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       <View style={styles.container}>
@@ -418,12 +448,10 @@ export default function PedidosScreen() {
               </TouchableOpacity>
             </View>
 
-            {loading ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>Carregando...</Text>
-              </View>
-            ) : filteredOrders.length > 0 ? (
-              filteredOrders.map((order) => {
+            {shouldShowSkeleton ? (
+              <OrderListSkeleton />
+            ) : paginatedOrders.length > 0 ? (
+              paginatedOrders.map((order) => {
                 // Se o pedido foi aprovado, mostra apenas o orçamento aprovado
                 // Se não foi aprovado, mostra todos os orçamentos enviados
                 let orcamentos = order.documents?.filter(doc => 
@@ -584,6 +612,15 @@ export default function PedidosScreen() {
                   Nenhum pedido encontrado para este centro de custo.
                 </Text>
               </View>
+            )}
+            {!shouldShowSkeleton && hasMoreOrders && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMoreOrders}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.loadMoreText}>Carregar mais</Text>
+              </TouchableOpacity>
             )}
           </View>
         </ScrollView>
@@ -1031,5 +1068,19 @@ const styles = StyleSheet.create({
     color: '#6C6C70',
     fontSize: 14,
     textAlign: 'center',
+  },
+  loadMoreButton: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    color: '#0A84FF',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

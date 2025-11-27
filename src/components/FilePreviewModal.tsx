@@ -6,11 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
   Platform,
 } from 'react-native';
 import { X, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
+import { Image } from 'expo-image';
 
 export interface FilePreviewItem {
   fileUri: string;
@@ -144,7 +144,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <Image
                   source={{ uri: currentFile.fileUri }}
                   style={styles.image}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
                   onLoadStart={() => {
                     setLoading(true);
                     setErrorLoading(null);

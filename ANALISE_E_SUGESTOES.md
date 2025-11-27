@@ -172,12 +172,13 @@
 ### 2. **Feedback Visual**
 - ✅ Loading states existem
 - ✅ Toast notifications implementadas
-- 💡 **Pendente**: Adicionar skeleton loaders para melhor UX
+- ✅ Skeleton loaders adicionados (Dashboard, Equipamentos, Pedidos)
+- 💡 Avaliar expansão dos skeletons para outras telas apenas se o carregamento se tornar perceptível
 
 ### 3. **Performance**
 - ✅ useMemo e useCallback já são usados
-- 💡 **Pendente**: Implementar paginação para listas grandes
-- 💡 **Pendente**: Cache de imagens com `react-native-fast-image`
+- ✅ Paginação incremental nas listas grandes (Equipamentos, Pedidos, Despesas)
+- ✅ Cache de imagens/previews com `expo-image` (pré-visualizações e fotos)
 
 ### 4. **Acessibilidade**
 - 💡 **Pendente**: Adicionar `accessibilityLabel` nos botões
@@ -322,9 +323,9 @@
 9. **Modo escuro** (UX)
 10. **Testes automatizados** (Qualidade)
 11. **Documentação completa** (Manutenção)
-12. **Skeleton loaders** (UX)
-13. **Paginação** (Performance)
-14. **Cache de imagens** (Performance)
+12. ✅ ~~Skeleton loaders~~ (UX) ✅ CONCLUÍDO
+13. ✅ ~~Paginação~~ (Performance) ✅ CONCLUÍDO
+14. ✅ ~~Cache de imagens~~ (Performance) ✅ CONCLUÍDO
 
 ---
 
@@ -367,6 +368,7 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [x] Busca global no Dashboard
 - [x] Pull to refresh em todas as telas principais
 - [x] Navegação entre documentos de funcionários e contratos
+- [x] Skeleton loaders nas telas críticas (Dashboard, Equipamentos, Pedidos)
 
 ### ⚠️ Parcial
 - [x] Gráficos básicos (PieChart, BarChart) - **COMPLETO**
@@ -389,6 +391,3 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [ ] Analytics
 - [ ] Acessibilidade completa
 - [ ] Offline support
-- [ ] Skeleton loaders
-- [ ] Paginação
-- [ ] Cache de imagens

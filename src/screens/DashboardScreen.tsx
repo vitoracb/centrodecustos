@@ -23,6 +23,7 @@ import { OrderFormModal } from '../components/OrderFormModal';
 import { showSuccess, showError } from '../lib/toast';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
+import { DashboardOverviewSkeleton } from '../components/skeletons/DashboardOverviewSkeleton';
 import {
   Tractor,
   DollarSign,
@@ -184,11 +185,27 @@ const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; 
 export const DashboardScreen = () => {
   const router = useRouter();
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, getAllEquipments, addEquipment, refresh: refreshEquipments } = useEquipment();
+  const {
+    getEquipmentsByCenter,
+    getAllEquipments,
+    addEquipment,
+    refresh: refreshEquipments,
+    loading: equipmentLoading,
+  } = useEquipment();
   const { getAllExpenses, getAllReceipts, addExpense } = useFinancial();
   const { documentsByCenter, addEmployeeDocument, loadDocuments } = useEmployees();
-  const { getContractsByCenter, getAllContracts, refresh: refreshContracts } = useContracts();
-  const { getAllOrders, addOrder, refresh: refreshOrders } = useOrders();
+  const {
+    getContractsByCenter,
+    getAllContracts,
+    refresh: refreshContracts,
+    loading: contractLoading,
+  } = useContracts();
+  const {
+    getAllOrders,
+    addOrder,
+    refresh: refreshOrders,
+    loading: ordersLoading,
+  } = useOrders();
 
   const [refreshing, setRefreshing] = useState(false);
   const [reportPreview, setReportPreview] = useState<{
@@ -218,6 +235,9 @@ export const DashboardScreen = () => {
   const [isEmployeeModalVisible, setEmployeeModalVisible] = useState(false);
   const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
   const [isOrderModalVisible, setOrderModalVisible] = useState(false);
+
+  const isDashboardLoading =
+    (equipmentLoading || contractLoading || ordersLoading) && !refreshing;
 
   // Função para navegar baseado no tipo de atividade
   const handleActivityPress = useCallback((activity: Activity) => {
@@ -738,78 +758,89 @@ export const DashboardScreen = () => {
 
           <GlobalSearch />
 
-        <View style={styles.statsGrid}>
-          {statCards.map((card) => (
-            <TouchableOpacity
-              key={card.label}
-              style={styles.statCard}
-              onPress={card.onPress}
-              activeOpacity={0.7}
-            >
-              <View style={styles.statIcon}>
-                <card.icon size={20} color="#0A84FF" />
-              </View>
-              <Text style={styles.statLabel}>{card.label}</Text>
-              <Text style={styles.statValue}>{card.value}</Text>
-              {card.change ? (
-                <Text style={styles.statChange}>{card.change}</Text>
-              ) : null}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-          <View style={styles.sectionsRow}>
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Atividades Recentes</Text>
-            {recentActivities.length > 0 ? (
-              recentActivities.map((activity) => {
-                const { icon: Icon, color, backgroundColor } = getActivityIcon(activity.type);
-                return (
-                  <TouchableOpacity
-                    key={activity.id}
-                    style={styles.activityItem}
-                    onPress={() => handleActivityPress(activity)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.activityIcon, { backgroundColor }]}>
-                      <Icon size={18} color={color} />
-                    </View>
-                    <View style={styles.activityText}>
-                      <Text style={styles.activityTitle}>{activity.title}</Text>
-                      <Text style={styles.activityDescription}>
-                        {activity.description}
-                      </Text>
-                    </View>
-                    <Text style={styles.activityTime}>{activity.timeAgo}</Text>
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <View style={styles.emptyActivities}>
-                <Text style={styles.emptyActivitiesText}>
-                  Nenhuma atividade recente
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-            <View style={styles.quickGrid}>
-              {quickActions.map((action) => (
+        {isDashboardLoading ? (
+          <DashboardOverviewSkeleton />
+        ) : (
+          <>
+            <View style={styles.statsGrid}>
+              {statCards.map(card => (
                 <TouchableOpacity
-                  key={action.label}
-                  style={styles.quickButton}
-                  activeOpacity={0.8}
-                  onPress={action.onPress}
+                  key={card.label}
+                  style={styles.statCard}
+                  onPress={card.onPress}
+                  activeOpacity={0.7}
                 >
-                  <action.icon size={20} color="#0A84FF" />
-                  <Text style={styles.quickLabel}>{action.label}</Text>
+                  <View style={styles.statIcon}>
+                    <card.icon size={20} color="#0A84FF" />
+                  </View>
+                  <Text style={styles.statLabel}>{card.label}</Text>
+                  <Text style={styles.statValue}>{card.value}</Text>
+                  {card.change ? (
+                    <Text style={styles.statChange}>{card.change}</Text>
+                  ) : null}
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
-          </View>
+
+            <View style={styles.sectionsRow}>
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Atividades Recentes</Text>
+                {recentActivities.length > 0 ? (
+                  recentActivities.map(activity => {
+                    const { icon: Icon, color, backgroundColor } =
+                      getActivityIcon(activity.type);
+                    return (
+                      <TouchableOpacity
+                        key={activity.id}
+                        style={styles.activityItem}
+                        onPress={() => handleActivityPress(activity)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.activityIcon, { backgroundColor }]}>
+                          <Icon size={18} color={color} />
+                        </View>
+                        <View style={styles.activityText}>
+                          <Text style={styles.activityTitle}>
+                            {activity.title}
+                          </Text>
+                          <Text style={styles.activityDescription}>
+                            {activity.description}
+                          </Text>
+                        </View>
+                        <Text style={styles.activityTime}>
+                          {activity.timeAgo}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyActivities}>
+                    <Text style={styles.emptyActivitiesText}>
+                      Nenhuma atividade recente
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+                <View style={styles.quickGrid}>
+                  {quickActions.map(action => (
+                    <TouchableOpacity
+                      key={action.label}
+                      style={styles.quickButton}
+                      activeOpacity={0.8}
+                      onPress={action.onPress}
+                    >
+                      <action.icon size={20} color="#0A84FF" />
+                      <Text style={styles.quickLabel}>{action.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </>
+        )}
         </ScrollView>
       </View>
 
