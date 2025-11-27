@@ -60,7 +60,17 @@ export const ContratosScreen = () => {
   const [documentsModalVisible, setDocumentsModalVisible] = useState(false);
   const [selectedContractDocuments, setSelectedContractDocuments] = useState<ContractDocument[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewFile, setPreviewFile] = useState<{ uri: string; name?: string; mimeType?: string | null } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{
+    uri: string;
+    name?: string;
+    mimeType?: string | null;
+    files?: Array<{
+      fileUri: string;
+      fileName: string;
+      mimeType: string | null;
+    }>;
+    initialIndex?: number;
+  } | null>(null);
 
   const filteredContracts = useMemo(() => {
     let filtered = [...contracts];
@@ -120,11 +130,31 @@ export const ContratosScreen = () => {
   };
 
   const openDocumentPreview = (document: ContractDocument) => {
-    setPreviewFile({
-      uri: document.fileUri,
-      name: document.fileName,
-      mimeType: document.mimeType,
-    });
+    // Prepara todos os documentos do contrato para navegação
+    const allFiles = selectedContractDocuments.map((d) => ({
+      fileUri: d.fileUri,
+      fileName: d.fileName,
+      mimeType: d.mimeType || null,
+    }));
+    const currentIndex = selectedContractDocuments.findIndex((d) => d.fileUri === document.fileUri);
+    
+    // Só passa files se houver mais de 1 documento para navegação
+    if (allFiles.length > 1) {
+      setPreviewFile({
+        uri: document.fileUri,
+        name: document.fileName,
+        mimeType: document.mimeType,
+        files: allFiles,
+        initialIndex: currentIndex >= 0 ? currentIndex : 0,
+      });
+    } else {
+      // Se houver apenas 1 documento, não passa files (sem navegação)
+      setPreviewFile({
+        uri: document.fileUri,
+        name: document.fileName,
+        mimeType: document.mimeType,
+      });
+    }
     setPreviewVisible(true);
     closeDocumentsList();
   };
@@ -420,6 +450,8 @@ export const ContratosScreen = () => {
         fileUri={previewFile?.uri}
         fileName={previewFile?.name}
         mimeType={previewFile?.mimeType}
+        files={previewFile?.files}
+        initialIndex={previewFile?.initialIndex}
       />
       </View>
     </SafeAreaView>

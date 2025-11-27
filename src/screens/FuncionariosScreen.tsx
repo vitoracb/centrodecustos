@@ -54,6 +54,12 @@ export const FuncionariosScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
+    files?: Array<{
+      fileUri: string;
+      fileName: string;
+      mimeType: string | null;
+    }>;
+    initialIndex?: number;
   } | null>(null);
 
   // Atualiza o equipamento selecionado quando a lista muda ou o centro muda
@@ -230,11 +236,31 @@ export const FuncionariosScreen = () => {
                       <TouchableOpacity
                         style={styles.actionPill}
                         onPress={() => {
-                          setPreviewFile({
-                            uri: doc.fileUri,
-                            name: doc.fileName,
-                            mimeType: doc.mimeType,
-                          });
+                          // Prepara todos os documentos do funcionário para navegação
+                          const allFiles = employeeDocs.map((d) => ({
+                            fileUri: d.fileUri,
+                            fileName: d.fileName,
+                            mimeType: d.mimeType || null,
+                          }));
+                          const currentIndex = employeeDocs.findIndex((d) => d.id === doc.id);
+                          
+                          // Só passa files se houver mais de 1 documento para navegação
+                          if (allFiles.length > 1) {
+                            setPreviewFile({
+                              uri: doc.fileUri,
+                              name: doc.fileName,
+                              mimeType: doc.mimeType,
+                              files: allFiles,
+                              initialIndex: currentIndex >= 0 ? currentIndex : 0,
+                            });
+                          } else {
+                            // Se houver apenas 1 documento, não passa files (sem navegação)
+                            setPreviewFile({
+                              uri: doc.fileUri,
+                              name: doc.fileName,
+                              mimeType: doc.mimeType,
+                            });
+                          }
                           setPreviewVisible(true);
                         }}
                       >
@@ -348,6 +374,8 @@ export const FuncionariosScreen = () => {
         fileUri={previewFile?.uri}
         fileName={previewFile?.name}
         mimeType={previewFile?.mimeType}
+        files={previewFile?.files}
+        initialIndex={previewFile?.initialIndex}
       />
       </View>
     </SafeAreaView>
