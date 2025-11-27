@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   GestureResponderEvent,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -32,7 +33,19 @@ const centerLabels = {
 
 export const EquipamentosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment, getAllEquipments } = useEquipment();
+  const { getEquipmentsByCenter, addEquipment, updateEquipment, deleteEquipment, getAllEquipments, refresh } = useEquipment();
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } catch (error) {
+      console.error('Erro ao atualizar equipamentos:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
   const router = useRouter();
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [isFilterModalVisible, setFilterModalVisible] = useState(false);
@@ -138,6 +151,9 @@ export const EquipamentosScreen = () => {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Equipamentos</Text>

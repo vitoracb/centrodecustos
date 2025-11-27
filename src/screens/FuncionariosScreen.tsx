@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
@@ -32,8 +33,21 @@ export const FuncionariosScreen = () => {
     addEmployeeDocument, 
     updateEmployeeDocument, 
     deleteEmployeeDocument,
-    deleteEmployee
+    deleteEmployee,
+    loadDocuments
   } = useEmployees();
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadDocuments();
+    } catch (error) {
+      console.error('Erro ao atualizar funcionários:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDocuments]);
   
   // Filtra equipamentos pelo centro de custo selecionado
   const equipments = useMemo(
@@ -105,6 +119,9 @@ export const FuncionariosScreen = () => {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Funcionários</Text>

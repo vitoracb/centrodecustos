@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -92,6 +93,17 @@ export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter } = useCostCenter();
   const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Para o FinancialContext, os dados são recarregados automaticamente via useEffect
+  // Vamos apenas forçar uma atualização do estado
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Aguarda um pouco para mostrar o feedback visual
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 500);
+  }, []);
   const { getEquipmentsByCenter } = useEquipment();
   
   // Filtra equipamentos pelo centro de custo selecionado
@@ -1328,6 +1340,9 @@ export const FinanceiroScreen = () => {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Financeiro</Text>

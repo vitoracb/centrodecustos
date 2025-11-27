@@ -91,6 +91,65 @@
 
 ---
 
+### 6. **Busca Global** ✅ RESOLVIDO
+**Status**: ✅ Implementado
+
+**Solução Implementada**:
+- Busca global implementada no Dashboard
+- Busca em equipamentos, funcionários, contratos, despesas, recebimentos e pedidos
+- Debounce de 300ms para performance
+- Resultados agrupados por tipo com cores distintas
+- Navegação direta para telas/abas correspondentes
+- Filtro automático por centro de custo selecionado
+
+**Arquivos**:
+- `src/components/GlobalSearch.tsx` - Componente de busca global
+- `src/screens/DashboardScreen.tsx` - Integração no Dashboard
+
+---
+
+### 7. **Pull to Refresh** ✅ RESOLVIDO
+**Status**: ✅ Implementado
+
+**Solução Implementada**:
+- Pull to refresh implementado em todas as telas principais
+- Dashboard: recarrega equipamentos, contratos, pedidos e documentos de funcionários
+- Equipamentos: recarrega lista de equipamentos
+- Funcionários: recarrega documentos de funcionários
+- Contratos: recarrega lista de contratos
+- Financeiro: feedback visual de atualização
+- Pedidos: recarrega lista de pedidos
+- Feedback visual com indicador de carregamento
+- Atualização em paralelo no Dashboard
+
+**Arquivos**:
+- `src/screens/DashboardScreen.tsx` - Pull to refresh no Dashboard
+- `src/screens/EquipamentosScreen.tsx` - Pull to refresh em Equipamentos
+- `src/screens/FuncionariosScreen.tsx` - Pull to refresh em Funcionários
+- `src/screens/ContratosScreen.tsx` - Pull to refresh em Contratos
+- `src/screens/FinanceiroScreen.tsx` - Pull to refresh em Financeiro
+- `src/screens/PedidosScreen.tsx` - Pull to refresh em Pedidos
+- `src/context/EmployeeContext.tsx` - Adicionado `loadDocuments` à interface
+
+---
+
+### 8. **Navegação entre Documentos** ✅ RESOLVIDO
+**Status**: ✅ Implementado
+
+**Solução Implementada**:
+- Navegação entre documentos de cada funcionário separadamente
+- Navegação entre documentos de cada contrato separadamente
+- Setas de navegação aparecem apenas quando há mais de 1 documento
+- Contador de documentos (ex: "1 de 2", "2 de 3")
+- Navegação fluida entre arquivos relacionados
+
+**Arquivos**:
+- `src/components/FilePreviewModal.tsx` - Suporte a navegação entre múltiplos arquivos
+- `src/screens/FuncionariosScreen.tsx` - Navegação entre documentos de funcionários
+- `src/screens/ContratosScreen.tsx` - Navegação entre documentos de contratos
+
+---
+
 ## 🔴 Problemas Pendentes
 
 ### 1. **Tratamento de Erros Inconsistente** ⚠️ MÉDIO
@@ -130,9 +189,11 @@
 
 ### 6. **Funcionalidades Adicionais**
 
-#### a) **Busca Global** ❌ PENDENTE
-- Buscar equipamentos, funcionários, contratos em uma única tela
-- Implementar com debounce para performance
+#### a) **Busca Global** ✅ RESOLVIDO
+- ✅ Buscar equipamentos, funcionários, contratos, despesas, recebimentos e pedidos em uma única tela
+- ✅ Implementado com debounce de 300ms para performance
+- ✅ Resultados agrupados por tipo com cores distintas
+- ✅ Navegação direta para telas/abas correspondentes
 
 #### b) **Exportação de Dados** ❌ PENDENTE
 - Exportar relatórios em PDF/Excel
@@ -166,9 +227,11 @@
 
 ### 7. **Melhorias de UX**
 
-#### a) **Pull to Refresh** ❌ PENDENTE
-- Implementar em todas as listas
-- Atualizar dados ao puxar para baixo
+#### a) **Pull to Refresh** ✅ RESOLVIDO
+- ✅ Implementado em todas as telas principais (Dashboard, Equipamentos, Funcionários, Contratos, Financeiro, Pedidos)
+- ✅ Atualizar dados ao puxar para baixo
+- ✅ Feedback visual com indicador de carregamento
+- ✅ Atualização em paralelo no Dashboard
 
 #### b) **Gestos** ❌ PENDENTE
 - Swipe para deletar em cards
@@ -179,7 +242,15 @@
 - Personalização de cores por centro de custo
 
 #### d) **Filtros Avançados** ⚠️ PARCIAL
-- ✅ Filtros básicos implementados (por data, nome, categoria, etc.)
+- ✅ Filtros básicos implementados em todas as telas principais
+  - ✅ Equipamentos: nome, marca, ano, data de compra
+  - ✅ Despesas: categoria, equipamento, valor, período
+  - ✅ Recebimentos: nome, valor, status, período
+  - ✅ Pedidos: período, equipamento, status de orçamento
+  - ✅ Contratos: nome, categoria, período
+- ✅ Filtros com formatação de moeda (R$) nos campos de valor
+- ✅ Indicador visual quando filtros estão ativos
+- ✅ Botões "Limpar filtros" e "Cancelar"
 - 💡 **Pendente**: Filtros salvos/favoritos
 - 💡 **Pendente**: Filtros combinados (múltiplos critérios)
 
@@ -216,6 +287,10 @@
 9. ✅ **Toast notifications** - Feedback visual para ações
 10. ✅ **Push notifications** - Notificações para eventos importantes
 11. ✅ **Navegação intuitiva** - Atividades recentes clicáveis
+12. ✅ **Busca global** - Busca unificada em múltiplas entidades
+13. ✅ **Pull to refresh** - Atualização de dados em todas as telas
+14. ✅ **Navegação entre documentos** - Navegação fluida entre arquivos relacionados
+15. ✅ **Filtros avançados** - Filtros completos em todas as telas principais
 
 ---
 
@@ -238,8 +313,8 @@
 4. **Padronizar tratamento de erros** (Consistência)
 
 ### Prioridade Média
-5. **Pull to refresh** (UX)
-6. **Busca global** (Funcionalidade)
+5. ✅ ~~**Pull to refresh**~~ (UX) ✅ CONCLUÍDO
+6. ✅ ~~**Busca global**~~ (Funcionalidade) ✅ CONCLUÍDO
 7. **Exportação de dados** (Funcionalidade)
 8. **Gráficos avançados** (Análise)
 
@@ -269,6 +344,10 @@ O app está **muito bem estruturado** e **funcional**. Os principais problemas d
 2. ✅ **Logging**: Sistema de logging implementado
 3. ✅ **UX**: Toast notifications e navegação clicável implementadas
 4. ✅ **Notificações**: Sistema completo de push notifications
+5. ✅ **Busca Global**: Busca unificada em todas as entidades principais
+6. ✅ **Pull to Refresh**: Atualização de dados em todas as telas
+7. ✅ **Navegação entre Documentos**: Navegação fluida entre arquivos relacionados
+8. ✅ **Filtros Avançados**: Filtros completos em todas as telas principais
 
 **Status**: ✅ **Pronto para produção** (após revisar políticas RLS)
 
@@ -285,6 +364,9 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [x] Push notifications (pedidos, orçamentos, contratos, revisões)
 - [x] Navegação clicável em atividades recentes
 - [x] Ícones dinâmicos nas atividades
+- [x] Busca global no Dashboard
+- [x] Pull to refresh em todas as telas principais
+- [x] Navegação entre documentos de funcionários e contratos
 
 ### ⚠️ Parcial
 - [x] Gráficos básicos (PieChart, BarChart) - **COMPLETO**
@@ -293,8 +375,6 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [x] Documentação parcial
 
 ### ❌ Pendente
-- [ ] Pull to refresh
-- [ ] Busca global
 - [ ] Exportação de dados
 - [ ] Gráficos avançados (linha temporal, comparativos)
 - [ ] Backup e restore

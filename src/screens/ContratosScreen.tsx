@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
@@ -46,7 +47,19 @@ const formatCurrency = (value?: number): string => {
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, loading } = useContracts();
+  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, loading, refresh } = useContracts();
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } catch (error) {
+      console.error('Erro ao atualizar contratos:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
   const contracts = useMemo(
     () => getContractsByCenter(selectedCenter),
     [getContractsByCenter, selectedCenter]
@@ -223,6 +236,9 @@ export const ContratosScreen = () => {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Contratos</Text>

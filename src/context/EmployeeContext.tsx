@@ -36,6 +36,7 @@ interface EmployeeContextType {
   getEmployeesByCenter: (center: CostCenter) => string[];
   getEmployeesCountByCenter: (center: CostCenter) => number;
   getAllEmployeeDocuments: () => EmployeeDocument[];
+  loadDocuments: () => Promise<void>;
 }
 
 const EmployeeContext = createContext<EmployeeContextType | undefined>(undefined);
@@ -494,6 +495,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         getEmployeesByCenter,
         getEmployeesCountByCenter,
         getAllEmployeeDocuments,
+        loadDocuments,
       }}
     >
       {children}

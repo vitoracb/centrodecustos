@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -93,7 +94,20 @@ export default function PedidosScreen() {
     approveOrder,
     rejectOrder,
     getOrdersByCenter,
+    refresh,
   } = useOrders();
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } catch (error) {
+      console.error('Erro ao atualizar pedidos:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
 
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [isBudgetModalVisible, setBudgetModalVisible] = useState(false);
@@ -308,6 +322,9 @@ export default function PedidosScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Pedidos</Text>

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -180,11 +181,29 @@ const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; 
 export const DashboardScreen = () => {
   const router = useRouter();
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentsByCenter, getAllEquipments, addEquipment } = useEquipment();
+  const { getEquipmentsByCenter, getAllEquipments, addEquipment, refresh: refreshEquipments } = useEquipment();
   const { getAllExpenses, getAllReceipts, addExpense } = useFinancial();
-  const { documentsByCenter, addEmployeeDocument } = useEmployees();
-  const { getContractsByCenter, getAllContracts } = useContracts();
-  const { getAllOrders, addOrder } = useOrders();
+  const { documentsByCenter, addEmployeeDocument, loadDocuments } = useEmployees();
+  const { getContractsByCenter, getAllContracts, refresh: refreshContracts } = useContracts();
+  const { getAllOrders, addOrder, refresh: refreshOrders } = useOrders();
+
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refreshEquipments(),
+        refreshContracts(),
+        refreshOrders(),
+        loadDocuments(),
+      ]);
+    } catch (error) {
+      console.error('Erro ao atualizar dados:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshEquipments, refreshContracts, refreshOrders, loadDocuments]);
 
   // Estados para controlar os modais
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false);
@@ -620,6 +639,9 @@ export const DashboardScreen = () => {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <View style={styles.header}>
             <Text style={styles.title}>Dashboard</Text>
