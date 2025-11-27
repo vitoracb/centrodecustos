@@ -177,13 +177,14 @@ export const EquipamentosScreen = () => {
             <TouchableOpacity
               style={[
                 styles.filterButton,
-                hasActiveFilters && styles.filterButtonActive
+                hasActiveFilters && styles.filterButtonActive,
               ]}
               onPress={() => setFilterModalVisible(true)}
+              activeOpacity={0.8}
             >
-              <Filter 
-                size={18} 
-                color={hasActiveFilters ? '#0A84FF' : '#6C6C70'} 
+              <Filter
+                size={18}
+                color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'}
               />
             </TouchableOpacity>
           </View>
@@ -401,12 +402,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#E5F1FF',
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   emptyState: {
     padding: 32,

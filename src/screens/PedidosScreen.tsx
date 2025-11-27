@@ -20,13 +20,20 @@ import {
   Edit3,
   Check,
   X,
+  Filter,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useOrders, Order, OrderStatus } from '../context/OrderContext';
+import { useEquipment } from '../context/EquipmentContext';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { OrderBudgetModal } from '../components/OrderBudgetModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { OrderFilterModal, OrderFilters } from '../components/OrderFilterModal';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 const centerLabels = {
   valenca: 'Valença',
@@ -96,6 +103,7 @@ export default function PedidosScreen() {
     getOrdersByCenter,
     refresh,
   } = useOrders();
+  const { getEquipmentsByCenter } = useEquipment();
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -122,11 +130,61 @@ export default function PedidosScreen() {
   } | null>(null);
   const [openDropdownOrderId, setOpenDropdownOrderId] = useState<string | null>(null);
   const [currentOrderForPreview, setCurrentOrderForPreview] = useState<Order | null>(null);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [orderFilters, setOrderFilters] = useState<OrderFilters>({});
 
-  const filteredOrders = useMemo(
-    () => getOrdersByCenter(selectedCenter),
-    [getOrdersByCenter, selectedCenter, orders]
+  const hasActiveFilters = useMemo(
+    () => Object.values(orderFilters).some(value => value && value !== ''),
+    [orderFilters],
   );
+
+  const equipmentOptions = useMemo(
+    () =>
+      getEquipmentsByCenter(selectedCenter).map(equipment => ({
+        id: equipment.id,
+        name: equipment.name,
+      })),
+    [getEquipmentsByCenter, selectedCenter],
+  );
+
+  const filteredOrders = useMemo(() => {
+    const ordersByCenter = getOrdersByCenter(selectedCenter);
+
+    return ordersByCenter.filter(order => {
+      if (orderFilters.name) {
+        const nameMatch = order.name
+          ?.toLowerCase()
+          .includes(orderFilters.name.toLowerCase());
+        if (!nameMatch) return false;
+      }
+
+      if (orderFilters.equipmentId && order.equipmentId !== orderFilters.equipmentId) {
+        return false;
+      }
+
+      if (orderFilters.status && order.status !== orderFilters.status) {
+        return false;
+      }
+
+      const orderDate = dayjs(order.date, 'DD/MM/YYYY', true);
+
+      if (orderFilters.startDate) {
+        const start = dayjs(orderFilters.startDate, 'YYYY-MM-DD', true);
+        if (orderDate.isValid() && start.isValid() && orderDate.isBefore(start, 'day')) {
+          return false;
+        }
+      }
+
+      if (orderFilters.endDate) {
+        const end = dayjs(orderFilters.endDate, 'YYYY-MM-DD', true);
+        if (orderDate.isValid() && end.isValid() && orderDate.isAfter(end, 'day')) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [getOrdersByCenter, selectedCenter, orderFilters]);
   
   // Encontra o pedido com dropdown aberto
   const orderWithOpenDropdown = filteredOrders.find(order => order.id === openDropdownOrderId);
@@ -345,6 +403,19 @@ export default function PedidosScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Lista de Pedidos</Text>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  hasActiveFilters && styles.filterButtonActive,
+                ]}
+                onPress={() => setIsFilterModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Filter
+                  size={18}
+                  color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'}
+                />
+              </TouchableOpacity>
             </View>
 
             {loading ? (
@@ -641,6 +712,14 @@ export default function PedidosScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <OrderFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setIsFilterModalVisible(false)}
+        onApply={filters => setOrderFilters(filters)}
+        initialFilters={orderFilters}
+        equipments={equipmentOptions}
+      />
     </SafeAreaView>
   );
 }
@@ -715,6 +794,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   card: {
     borderWidth: 1,

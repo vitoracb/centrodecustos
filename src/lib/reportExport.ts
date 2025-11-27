@@ -36,6 +36,8 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+const CHART_COLORS = ['#0A84FF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#5E5CE6', '#FFD60A'];
+
 const formatDate = (date: string): string => {
   return date; // Já vem no formato DD/MM/YYYY
 };
@@ -47,37 +49,79 @@ interface ReportData {
   center?: CostCenter;
 }
 
-export const exportToPDF = async (data: ReportData): Promise<void> => {
-  try {
-    const { expenses, receipts, period, center } = data;
+export const buildReportHTML = (data: ReportData): string => {
+  const { expenses, receipts, period, center } = data;
     
-    const periodLabel = period.month !== undefined
-      ? `${dayjs().month(period.month).format('MMMM')} de ${period.year}`
-      : `Ano ${period.year}`;
+  const periodLabel = period.month !== undefined
+    ? `${dayjs().month(period.month).format('MMMM')} de ${period.year}`
+    : `Ano ${period.year}`;
 
-    const centerLabel = center ? CENTER_LABELS[center] : 'Todos os Centros';
+  const centerLabel = center ? CENTER_LABELS[center] : 'Todos os Centros';
 
-    // Calcular totais
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
-    const totalReceipts = receipts.reduce((sum, r) => sum + r.value, 0);
-    const balance = totalReceipts - totalExpenses;
+  // Calcular totais
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
+  const totalReceipts = receipts.reduce((sum, r) => sum + r.value, 0);
+  const balance = totalReceipts - totalExpenses;
 
-    // Agrupar despesas por categoria
-    const expensesByCategory: Record<string, number> = {};
-    expenses.forEach((expense) => {
-      const category = CATEGORY_LABELS[expense.category] || expense.category;
-      expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.value;
-    });
+  // Agrupar despesas por categoria
+  const expensesByCategory: Record<string, number> = {};
+  expenses.forEach((expense) => {
+    const category = CATEGORY_LABELS[expense.category] || expense.category;
+    expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.value;
+  });
 
-    // Agrupar despesas por status
-    const expensesByStatus: Record<string, number> = {};
-    expenses.forEach((expense) => {
-      const status = STATUS_LABELS[expense.status] || expense.status;
-      expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
-    });
+  // Agrupar despesas por status
+  const expensesByStatus: Record<string, number> = {};
+  expenses.forEach((expense) => {
+    const status = STATUS_LABELS[expense.status] || expense.status;
+    expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
+  });
 
-    // Gerar HTML
-    const html = `
+  // Dados para gráfico de pizza (categorias)
+  const totalCategories = Object.values(expensesByCategory).reduce((sum, value) => sum + value, 0);
+  let categoryGradientStops = '';
+  let currentPercent = 0;
+  Object.entries(expensesByCategory).forEach(([category, value], index) => {
+    const percent = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
+    const nextPercent = currentPercent + percent;
+    const color = CHART_COLORS[index % CHART_COLORS.length];
+    categoryGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
+    currentPercent = nextPercent;
+  });
+  if (!categoryGradientStops) {
+    categoryGradientStops = '#E5E5EA 0% 100%, ';
+  }
+  categoryGradientStops = categoryGradientStops.slice(0, -2);
+
+  // Dados para gráfico de pizza (status)
+  const totalStatus = Object.values(expensesByStatus).reduce((sum, value) => sum + value, 0);
+  let statusGradientStops = '';
+  currentPercent = 0;
+  Object.entries(expensesByStatus).forEach(([status, value], index) => {
+    const percent = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
+    const nextPercent = currentPercent + percent;
+    const color = CHART_COLORS[index % CHART_COLORS.length];
+    statusGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
+    currentPercent = nextPercent;
+  });
+  if (!statusGradientStops) {
+    statusGradientStops = '#E5E5EA 0% 100%, ';
+  }
+  statusGradientStops = statusGradientStops.slice(0, -2);
+
+  // Dados para gráfico de barras (despesas mensais do ano selecionado)
+  const expensesByMonth = Array(12).fill(0);
+  expenses.forEach((expense) => {
+    const date = dayjs(expense.date, 'DD/MM/YYYY', true);
+    if (!date.isValid()) return;
+    if (date.year() === period.year) {
+      expensesByMonth[date.month()] += expense.value;
+    }
+  });
+  const maxMonthlyExpense = Math.max(...expensesByMonth, 1);
+
+  // Gerar HTML
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -138,6 +182,66 @@ export const exportToPDF = async (data: ReportData): Promise<void> => {
     .category-table {
       margin: 20px 0;
     }
+    .chart-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+      margin: 20px 0;
+    }
+    .pie-chart {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .chart-legend {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex: 1;
+    }
+    .chart-legend li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .legend-color {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .bar-chart {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      height: 180px;
+      padding: 10px 0;
+    }
+    .bar {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      text-align: center;
+      font-size: 10px;
+      color: #6C6C70;
+      height: 100%;
+      gap: 4px;
+    }
+    .bar-labels {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .bar-fill {
+      width: 100%;
+      border-radius: 8px 8px 0 0;
+      background: linear-gradient(180deg, #0A84FF 0%, #4AA6FF 100%);
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -171,6 +275,19 @@ export const exportToPDF = async (data: ReportData): Promise<void> => {
   </div>
 
   <h2>Despesas por Categoria</h2>
+  <div class="chart-section">
+    <div class="pie-chart" style="background: conic-gradient(${categoryGradientStops});"></div>
+    <ul class="chart-legend">
+      ${Object.entries(expensesByCategory)
+        .map(([category, value], index) => `
+          <li>
+            <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+            <span>${category} — ${formatCurrency(value)}</span>
+          </li>
+        `)
+        .join('')}
+    </ul>
+  </div>
   <table class="category-table">
     <thead>
       <tr>
@@ -191,6 +308,19 @@ export const exportToPDF = async (data: ReportData): Promise<void> => {
   </table>
 
   <h2>Despesas por Status</h2>
+  <div class="chart-section">
+    <div class="pie-chart" style="background: conic-gradient(${statusGradientStops});"></div>
+    <ul class="chart-legend">
+      ${Object.entries(expensesByStatus)
+        .map(([status, value], index) => `
+          <li>
+            <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+            <span>${status} — ${formatCurrency(value)}</span>
+          </li>
+        `)
+        .join('')}
+    </ul>
+  </div>
   <table class="category-table">
     <thead>
       <tr>
@@ -209,6 +339,24 @@ export const exportToPDF = async (data: ReportData): Promise<void> => {
         .join('')}
     </tbody>
   </table>
+
+  <h2>Gráfico de Despesas Mensais - ${period.year}</h2>
+  <div class="bar-chart">
+    ${expensesByMonth
+      .map((value, month) => {
+        const heightPercent = (value / maxMonthlyExpense) * 100;
+        return `
+          <div class="bar">
+            <div class="bar-fill" style="height:${heightPercent}%"></div>
+            <div class="bar-labels">
+              <span>${dayjs().month(month).format('MMM')}</span>
+              <span>${formatCurrency(value)}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join('')}
+  </div>
 
   <h2>Detalhamento de Despesas</h2>
   <table>
@@ -263,8 +411,12 @@ export const exportToPDF = async (data: ReportData): Promise<void> => {
   </p>
 </body>
 </html>
-    `;
+  `;
+};
 
+export const exportToPDF = async (data: ReportData): Promise<void> => {
+  try {
+    const html = buildReportHTML(data);
     // Salvar HTML temporariamente
     const fileUri = `${FileSystem.cacheDirectory}relatorio_${Date.now()}.html`;
     await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
@@ -355,6 +507,39 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
       const description = (receipt.description || receipt.name || '').replace(/"/g, '""');
       csv += `${receipt.date},"${description}",${receipt.value.toFixed(2)}\n`;
     });
+    csv += '\n';
+
+    // Dados para gráfico de pizza (categorias)
+    csv += 'DADOS GRÁFICO PIZZA (DESPESAS POR CATEGORIA)\n';
+    csv += 'Categoria,Valor\n';
+    Object.entries(expensesByCategory).forEach(([category, value]) => {
+      csv += `${CATEGORY_LABELS[category] || category},${value.toFixed(2)}\n`;
+    });
+    csv += '\n';
+
+    // Dados para gráfico de pizza (status)
+    csv += 'DADOS GRÁFICO PIZZA (DESPESAS POR STATUS)\n';
+    csv += 'Status,Valor\n';
+    Object.entries(expensesByStatus).forEach(([status, value]) => {
+      csv += `${STATUS_LABELS[status] || status},${value.toFixed(2)}\n`;
+    });
+    csv += '\n';
+
+    // Dados para gráfico de barras
+    const expensesByMonthForCsv = Array(12).fill(0);
+    expenses.forEach((expense) => {
+      const date = dayjs(expense.date, 'DD/MM/YYYY', true);
+      if (!date.isValid()) return;
+      if (date.year() === period.year) {
+        expensesByMonthForCsv[date.month()] += expense.value;
+      }
+    });
+    csv += 'DADOS GRÁFICO BARRA (DESPESAS MENSAIS)\n';
+    csv += 'Mês,Valor\n';
+    expensesByMonthForCsv.forEach((value, month) => {
+      csv += `${dayjs().month(month).format('MMMM')},${value.toFixed(2)}\n`;
+    });
+    csv += '\n';
 
     // Salvar CSV
     const fileUri = `${FileSystem.cacheDirectory}relatorio_${periodLabel}_${centerLabel}_${Date.now()}.csv`;

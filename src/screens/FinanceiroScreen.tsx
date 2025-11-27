@@ -38,7 +38,8 @@ import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
-import { exportToPDF, exportToExcel } from '../lib/reportExport';
+import { ReportPreviewModal } from '../components/ReportPreviewModal';
+import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { showSuccess, showError } from '../lib/toast';
 import { ReceiptStatus } from '../context/FinancialContext';
 import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
@@ -94,6 +95,11 @@ export const FinanceiroScreen = () => {
   const { selectedCenter } = useCostCenter();
   const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
   const [refreshing, setRefreshing] = useState(false);
+  const [reportPreview, setReportPreview] = useState<{
+    type: 'pdf' | 'excel';
+    html: string;
+    data: ReportData;
+  } | null>(null);
   
   // Para o FinancialContext, os dados são recarregados automaticamente via useEffect
   // Vamos apenas forçar uma atualização do estado
@@ -464,6 +470,65 @@ export const FinanceiroScreen = () => {
     () => getExpensesByCenter(selectedCenter),
     [getExpensesByCenter, selectedCenter]
   );
+
+  const buildClosureReportData = useCallback((): ReportData => {
+    const selectedMonth = selectedPeriod.month();
+    const selectedYear = selectedPeriod.year();
+
+    const filterByPeriod = (dateString: string) => {
+      const [day, month, year] = dateString.split('/').map(Number);
+      if (!day || !month || !year) {
+        const parsed = dayjs(dateString, 'DD/MM/YYYY', true);
+        if (!parsed.isValid()) return false;
+        if (closureMode === 'anual') {
+          return parsed.year() === selectedYear;
+        }
+        return parsed.month() === selectedMonth && parsed.year() === selectedYear;
+      }
+      if (closureMode === 'anual') {
+        return year === selectedYear;
+      }
+      return month - 1 === selectedMonth && year === selectedYear;
+    };
+
+    const expensesInPeriod = allExpenses.filter(expense => filterByPeriod(expense.date));
+    const receiptsInPeriod = allReceipts.filter(receipt => filterByPeriod(receipt.date));
+
+    return {
+      expenses: expensesInPeriod,
+      receipts: receiptsInPeriod,
+      period: {
+        month: closureMode === 'mensal' ? selectedMonth : undefined,
+        year: selectedYear,
+      },
+      center: selectedCenter,
+    };
+  }, [allExpenses, allReceipts, closureMode, selectedPeriod, selectedCenter]);
+
+  const handleOpenClosureReportPreview = useCallback(
+    (type: 'pdf' | 'excel') => {
+      const data = buildClosureReportData();
+      const html = buildReportHTML(data);
+      setReportPreview({ type, html, data });
+    },
+    [buildClosureReportData],
+  );
+
+  const handleDownloadClosureReport = useCallback(async () => {
+    if (!reportPreview) return;
+    try {
+      if (reportPreview.type === 'pdf') {
+        await exportToPDF(reportPreview.data);
+        showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
+      } else {
+        await exportToExcel(reportPreview.data);
+        showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
+      }
+      setReportPreview(null);
+    } catch (error: any) {
+      showError('Erro ao exportar', error.message || 'Tente novamente');
+    }
+  }, [reportPreview, showSuccess, showError]);
 
   const filteredExpenses = useMemo(() => {
     let filtered = [...allExpenses];
@@ -1211,119 +1276,17 @@ export const FinanceiroScreen = () => {
             <View style={styles.exportButtons}>
               <TouchableOpacity
                 style={[styles.exportButton, styles.exportButtonPDF]}
-                onPress={async () => {
-                  try {
-                    // Usar os dados já calculados no periodSummary
-                    const selectedMonth = selectedPeriod.month();
-                    const selectedYear = selectedPeriod.year();
-                    
-                    const expensesInPeriod = allExpenses.filter((expense) => {
-                      const [day, month, year] = expense.date.split('/').map(Number);
-                      if (!day || !month || !year) {
-                        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
-                        if (!expenseDate.isValid()) return false;
-                        if (closureMode === 'anual') {
-                          return expenseDate.year() === selectedYear;
-                        }
-                        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
-                      }
-                      if (closureMode === 'anual') {
-                        return year === selectedYear;
-                      }
-                      return month - 1 === selectedMonth && year === selectedYear;
-                    });
-
-                    const receiptsInPeriod = allReceipts.filter((receipt) => {
-                      const [day, month, year] = receipt.date.split('/').map(Number);
-                      if (!day || !month || !year) {
-                        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
-                        if (!receiptDate.isValid()) return false;
-                        if (closureMode === 'anual') {
-                          return receiptDate.year() === selectedYear;
-                        }
-                        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
-                      }
-                      if (closureMode === 'anual') {
-                        return year === selectedYear;
-                      }
-                      return month - 1 === selectedMonth && year === selectedYear;
-                    });
-
-                    await exportToPDF({
-                      expenses: expensesInPeriod,
-                      receipts: receiptsInPeriod,
-                      period: {
-                        month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,
-                        year: selectedPeriod.year(),
-                      },
-                      center: selectedCenter,
-                    });
-                    showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
-                  } catch (error: any) {
-                    showError('Erro ao exportar', error.message);
-                  }
-                }}
+                onPress={() => handleOpenClosureReportPreview('pdf')}
               >
                 <FileText size={18} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>Exportar PDF</Text>
+                <Text style={styles.exportButtonText}>Gerar Relatório PDF</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.exportButton, styles.exportButtonExcel]}
-                onPress={async () => {
-                  try {
-                    // Usar os dados já calculados no periodSummary
-                    const selectedMonth = selectedPeriod.month();
-                    const selectedYear = selectedPeriod.year();
-                    
-                    const expensesInPeriod = allExpenses.filter((expense) => {
-                      const [day, month, year] = expense.date.split('/').map(Number);
-                      if (!day || !month || !year) {
-                        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
-                        if (!expenseDate.isValid()) return false;
-                        if (closureMode === 'anual') {
-                          return expenseDate.year() === selectedYear;
-                        }
-                        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
-                      }
-                      if (closureMode === 'anual') {
-                        return year === selectedYear;
-                      }
-                      return month - 1 === selectedMonth && year === selectedYear;
-                    });
-
-                    const receiptsInPeriod = allReceipts.filter((receipt) => {
-                      const [day, month, year] = receipt.date.split('/').map(Number);
-                      if (!day || !month || !year) {
-                        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
-                        if (!receiptDate.isValid()) return false;
-                        if (closureMode === 'anual') {
-                          return receiptDate.year() === selectedYear;
-                        }
-                        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
-                      }
-                      if (closureMode === 'anual') {
-                        return year === selectedYear;
-                      }
-                      return month - 1 === selectedMonth && year === selectedYear;
-                    });
-
-                    await exportToExcel({
-                      expenses: expensesInPeriod,
-                      receipts: receiptsInPeriod,
-                      period: {
-                        month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,
-                        year: selectedPeriod.year(),
-                      },
-                      center: selectedCenter,
-                    });
-                    showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
-                  } catch (error: any) {
-                    showError('Erro ao exportar', error.message);
-                  }
-                }}
+                onPress={() => handleOpenClosureReportPreview('excel')}
               >
                 <Download size={18} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>Exportar Excel</Text>
+                <Text style={styles.exportButtonText}>Gerar Relatório Excel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1532,6 +1495,14 @@ export const FinanceiroScreen = () => {
         mimeType={previewFile?.mimeType}
         files={previewFile?.files}
         initialIndex={previewFile?.initialIndex}
+      />
+      <ReportPreviewModal
+        visible={!!reportPreview}
+        html={reportPreview?.html}
+        onClose={() => setReportPreview(null)}
+        onDownload={handleDownloadClosureReport}
+        downloadLabel={reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'}
+        title="Prévia do Relatório de Fechamento"
       />
       <ExpenseStatusModal
         visible={statusModalExpense !== null}
@@ -1901,6 +1872,7 @@ const styles = StyleSheet.create({
   },
   summaryGrid: {
     gap: 12,
+    marginBottom: 20,
   },
   summaryCard: {
     borderWidth: 1,
@@ -1937,13 +1909,14 @@ const styles = StyleSheet.create({
   },
   expensesByStatusContainer: {
     marginTop: 20,
+    marginBottom: 24,
     gap: 12,
   },
   expensesByStatusTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1C1C1E',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   statusExpenseCard: {
     borderRadius: 12,
@@ -1981,6 +1954,7 @@ const styles = StyleSheet.create({
   },
   comparisonSection: {
     marginBottom: 16,
+    marginTop: 16,
     gap: 12,
   },
   comparisonTitle: {
@@ -2041,7 +2015,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   exportButtonPDF: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#0A84FF',
   },
   exportButtonExcel: {
     backgroundColor: '#34C759',

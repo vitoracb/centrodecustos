@@ -761,6 +761,129 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
+        // Sincroniza documentos apenas quando o formulário enviar o array atualizado
+        if (Array.isArray(expense.documents)) {
+          try {
+            const desiredDocs = (expense.documents ?? []).filter(
+              (doc) => !!doc.fileUri
+            );
+
+            const { data: existingDocs, error: existingDocsError } =
+              await supabase
+                .from("expense_documents")
+                .select("id, file_url, file_name, mime_type, type")
+                .eq("transaction_id", expense.id);
+
+            if (existingDocsError) {
+              if (
+                existingDocsError.code === "PGRST205" ||
+                existingDocsError.message?.includes("Could not find the table")
+              ) {
+                console.warn(
+                  "⚠️ Tabela expense_documents não existe. Execute o script correspondente para criar a tabela."
+                );
+              } else {
+                console.error(
+                  "❌ Erro ao carregar documentos da despesa:",
+                  existingDocsError
+                );
+              }
+            } else if (existingDocs) {
+              const docsToDelete = existingDocs.filter(
+                (doc) =>
+                  !desiredDocs.some(
+                    (desired) => desired.fileUri === doc.file_url
+                  )
+              );
+
+              if (docsToDelete.length > 0) {
+                const { error: deleteError } = await supabase
+                  .from("expense_documents")
+                  .delete()
+                  .eq("transaction_id", expense.id)
+                  .in(
+                    "file_url",
+                    docsToDelete
+                      .map((doc) => doc.file_url)
+                      .filter((uri): uri is string => !!uri)
+                  );
+
+                if (deleteError) {
+                  console.error(
+                    "❌ Erro ao remover documentos da despesa:",
+                    deleteError
+                  );
+                }
+              }
+
+              const docsToAdd = desiredDocs.filter(
+                (doc) =>
+                  !existingDocs.some(
+                    (existing) => existing.file_url === doc.fileUri
+                  )
+              );
+
+              for (const doc of docsToAdd) {
+                let fileUrl = doc.fileUri;
+
+                const isRemote =
+                  fileUrl.startsWith("http://") ||
+                  fileUrl.startsWith("https://");
+
+                if (!isRemote) {
+                  const uploadedUrl = await uploadFileToStorage(
+                    doc.fileUri,
+                    doc.fileName,
+                    doc.mimeType,
+                    "documentos",
+                    "expenses"
+                  );
+
+                  if (!uploadedUrl) {
+                    console.warn(
+                      "⚠️ Não foi possível fazer upload do documento ao editar a despesa."
+                    );
+                    continue;
+                  }
+
+                  fileUrl = uploadedUrl;
+                }
+
+                const { error: insertError } = await supabase
+                  .from("expense_documents")
+                  .insert({
+                    transaction_id: expense.id,
+                    type: doc.type ?? "recibo",
+                    file_name: doc.fileName,
+                    file_url: fileUrl,
+                    mime_type: doc.mimeType ?? null,
+                  });
+
+                if (insertError) {
+                  if (
+                    insertError.code === "PGRST205" ||
+                    insertError.message?.includes("Could not find the table")
+                  ) {
+                    console.warn(
+                      "⚠️ Tabela expense_documents não existe. Execute o script correspondente para criar a tabela."
+                    );
+                    break;
+                  }
+                  console.error(
+                    "❌ Erro ao adicionar documento à despesa:",
+                    insertError
+                  );
+                }
+              }
+            }
+          } catch (docsError) {
+            console.error(
+              "❌ Erro ao sincronizar documentos da despesa:",
+              docsError
+            );
+          }
+        }
+
         const updatedExpense = await mapRowToExpense(data);
         setExpenses((prev) =>
           prev.map((e) => (e.id === expense.id ? updatedExpense : e))

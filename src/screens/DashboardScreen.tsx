@@ -22,6 +22,7 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { showSuccess, showError } from '../lib/toast';
 import { GlobalSearch } from '../components/GlobalSearch';
+import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import {
   Tractor,
   DollarSign,
@@ -30,10 +31,12 @@ import {
   PlusCircle,
   ShoppingCart,
   Trash2,
+  Download,
 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/pt-br';
+import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 
 dayjs.extend(relativeTime);
 dayjs.locale('pt-br');
@@ -188,6 +191,11 @@ export const DashboardScreen = () => {
   const { getAllOrders, addOrder, refresh: refreshOrders } = useOrders();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [reportPreview, setReportPreview] = useState<{
+    type: 'pdf' | 'excel';
+    html: string;
+    data: ReportData;
+  } | null>(null);
   
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -609,6 +617,73 @@ export const DashboardScreen = () => {
     },
   ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount, router]);
 
+  const expensesByCenter = useMemo(
+    () => getAllExpenses().filter(exp => exp.center === selectedCenter),
+    [getAllExpenses, selectedCenter],
+  );
+
+  const receiptsByCenter = useMemo(
+    () => getAllReceipts().filter(rec => rec.center === selectedCenter),
+    [getAllReceipts, selectedCenter],
+  );
+
+  const currentMonth = dayjs().month();
+  const currentYear = dayjs().year();
+
+  const expensesForCurrentPeriod = useMemo(
+    () =>
+      expensesByCenter.filter(expense => {
+        const date = dayjs(expense.date, 'DD/MM/YYYY', true);
+        if (!date.isValid()) return false;
+        return date.month() === currentMonth && date.year() === currentYear;
+      }),
+    [expensesByCenter, currentMonth, currentYear],
+  );
+
+  const receiptsForCurrentPeriod = useMemo(
+    () =>
+      receiptsByCenter.filter(receipt => {
+        const date = dayjs(receipt.date, 'DD/MM/YYYY', true);
+        if (!date.isValid()) return false;
+        return date.month() === currentMonth && date.year() === currentYear;
+      }),
+    [receiptsByCenter, currentMonth, currentYear],
+  );
+
+  const reportData = useMemo<ReportData>(
+    () => ({
+      expenses: expensesForCurrentPeriod,
+      receipts: receiptsForCurrentPeriod,
+      period: { month: currentMonth, year: currentYear },
+      center: selectedCenter,
+    }),
+    [expensesForCurrentPeriod, receiptsForCurrentPeriod, currentMonth, currentYear, selectedCenter],
+  );
+
+  const handleOpenReportPreview = useCallback(
+    (type: 'pdf' | 'excel') => {
+      const html = buildReportHTML(reportData);
+      setReportPreview({ type, html, data: reportData });
+    },
+    [reportData],
+  );
+
+  const handleDownloadReport = useCallback(async () => {
+    if (!reportPreview) return;
+    try {
+      if (reportPreview.type === 'pdf') {
+        await exportToPDF(reportPreview.data);
+        showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
+      } else {
+        await exportToExcel(reportPreview.data);
+        showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
+      }
+      setReportPreview(null);
+    } catch (error: any) {
+      showError('Erro ao exportar', error.message || 'Tente novamente');
+    }
+  }, [reportPreview, showSuccess, showError]);
+
   const quickActions = [
     { 
       label: 'Novo Equipamento', 
@@ -629,6 +704,16 @@ export const DashboardScreen = () => {
       label: 'Criar Pedido', 
       icon: ShoppingCart,
       onPress: () => setOrderModalVisible(true),
+    },
+    {
+      label: 'Gerar Relatório PDF',
+      icon: FileText,
+      onPress: () => handleOpenReportPreview('pdf'),
+    },
+    {
+      label: 'Gerar Relatório Excel',
+      icon: Download,
+      onPress: () => handleOpenReportPreview('excel'),
     },
   ];
 
@@ -727,6 +812,16 @@ export const DashboardScreen = () => {
           </View>
         </ScrollView>
       </View>
+
+      <ReportPreviewModal
+        visible={!!reportPreview}
+        html={reportPreview?.html}
+        onClose={() => setReportPreview(null)}
+        onDownload={handleDownloadReport}
+        downloadLabel={
+          reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'
+        }
+      />
 
       {/* Modal de Novo Equipamento */}
       <EquipmentFormModal
@@ -852,6 +947,30 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: '#6C6C70',
+  },
+  reportButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  reportButtonPDF: {
+    backgroundColor: '#0A84FF',
+  },
+  reportButtonExcel: {
+    backgroundColor: '#34C759',
+  },
+  reportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsGrid: {
     flexDirection: 'row',
