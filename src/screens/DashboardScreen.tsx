@@ -333,21 +333,27 @@ export const DashboardScreen = () => {
     return total;
   }, [selectedCenter, getAllExpenses]);
 
-  // Calcula funcionários únicos
+  // Calcula funcionários únicos (excluindo deletados e sem equipamento válido)
   const employeesCount = useMemo(() => {
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
+    const allEquipments = getAllEquipments();
     const allEmployees = new Set<string>();
     
     Object.values(centerDocs).forEach((docs) => {
       docs.forEach(doc => {
-        if (doc.employee) {
-          allEmployees.add(doc.employee);
+        // Só conta funcionários de documentos não deletados E com equipamento válido
+        if (doc.employee && !doc.deletedAt && doc.equipmentId) {
+          // Verifica se o equipamento existe e não foi deletado
+          const equipment = allEquipments.find(eq => eq.id === doc.equipmentId);
+          if (equipment && !equipment.deletedAt && equipment.center === selectedCenter) {
+            allEmployees.add(doc.employee);
+          }
         }
       });
     });
 
     return allEmployees.size;
-  }, [selectedCenter, documentsByCenter]);
+  }, [selectedCenter, documentsByCenter, getAllEquipments]);
 
   // Calcula contratos
   const contractsCount = useMemo(() => {

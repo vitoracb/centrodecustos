@@ -59,13 +59,9 @@ interface ContractProviderProps {
   children: ReactNode;
 }
 
-const allowedCenters: CostCenter[] = ['valenca', 'cna', 'cabralia'];
-
 const normalizeCenter = (code?: string | null): CostCenter => {
-  const normalized = code?.toLowerCase() ?? 'valenca';
-  return (allowedCenters.includes(normalized as CostCenter)
-    ? normalized
-    : 'valenca') as CostCenter;
+  // Normaliza o código para minúsculas e usa 'valenca' como fallback
+  return (code?.toLowerCase().trim() || 'valenca') as CostCenter;
 };
 
 const isoToBr = (iso?: string | null): string => {

@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Centros de Custo - Proposta</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 60px 80px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Navegação */
+        .navigation {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.2);
+            border: 2px solid #3b82f6;
+            color: #3b82f6;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-btn:hover {
+            background: #3b82f6;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            background: rgba(59, 130, 246, 0.2);
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            color: #3b82f6;
+            border: 1px solid #3b82f6;
+        }
+
+        /* Slide 1 - Capa */
+        .slide-1 {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            text-align: center;
+            justify-content: center !important;
+            align-items: center;
+        }
+
+        .slide-1 .logo {
+            font-size: 80px;
+            margin-bottom: 30px;
+        }
+
+        .slide-1 h1 {
+            font-size: 56px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .slide-1 .subtitle {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .slide-1 .date {
+            font-size: 18px;
+            opacity: 0.7;
+            margin-top: 40px;
+        }
+
+        /* Títulos gerais */
+        .slide h2 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .slide h3 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #60a5fa;
+        }
+
+        /* Grid de features */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            background: rgba(59, 130, 246, 0.2);
+            transform: translateY(-5px);
+            border-color: #3b82f6;
+        }
+
+        .feature-card .icon {
+            font-size: 40px;
+            margin-bottom: 15px;
+        }
+
+        .feature-card h4 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #60a5fa;
+        }
+
+        .feature-card p {
+            font-size: 16px;
+            line-height: 1.6;
+            opacity: 0.8;
+        }
+
+        /* Lista de checks */
+        .check-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .check-list li {
+            padding: 15px 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .check-list li:before {
+            content: "✓";
+            color: #10b981;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* Preço */
+        .pricing-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 2px solid #3b82f6;
+            border-radius: 30px;
+            padding: 50px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .pricing-box .price {
+            font-size: 72px;
+            font-weight: 700;
+            color: #3b82f6;
+            margin: 20px 0;
+        }
+
+        .pricing-box .period {
+            font-size: 24px;
+            opacity: 0.7;
+        }
+
+        .pricing-box .description {
+            font-size: 18px;
+            margin-top: 20px;
+            opacity: 0.8;
+        }
+
+        /* ROI Box */
+        .roi-box {
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 30px;
+            padding: 40px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .roi-box .number {
+            font-size: 64px;
+            font-weight: 700;
+            margin: 20px 0;
+        }
+
+        .roi-box .label {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+
+        /* Timeline */
+        .timeline {
+            margin-top: 40px;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 40px;
+            align-items: flex-start;
+        }
+
+        .timeline-item .week {
+            min-width: 150px;
+            background: rgba(59, 130, 246, 0.2);
+            padding: 15px 25px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid #3b82f6;
+        }
+
+        .timeline-item .content {
+            flex: 1;
+        }
+
+        .timeline-item h4 {
+            font-size: 22px;
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+
+        .timeline-item p {
+            font-size: 16px;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        /* Módulos grid */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin-top: 40px;
+        }
+
+        .module-card {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .module-card:hover {
+            transform: scale(1.05);
+            border-color: #3b82f6;
+        }
+
+        .module-card .icon {
+            font-size: 50px;
+            margin-bottom: 15px;
+        }
+
+        .module-card h4 {
+            font-size: 20px;
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+
+        /* Comparação */
+        .comparison {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .comparison-item {
+            padding: 30px;
+            border-radius: 20px;
+        }
+
+        .comparison-item.bad {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .comparison-item.good {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .comparison-item h4 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .comparison-item.bad h4 {
+            color: #ef4444;
+        }
+
+        .comparison-item.good h4 {
+            color: #10b981;
+        }
+
+        /* Garantias */
+        .guarantees {
+            display: flex;
+            gap: 20px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .guarantee-badge {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* CTA Button */
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            padding: 20px 50px;
+            border-radius: 50px;
+            font-size: 24px;
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 40px;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .slide {
+                padding: 40px;
+            }
+            
+            .slide-1 h1 {
+                font-size: 42px;
+            }
+            
+            .features-grid,
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            .navigation,
+            .slide-counter {
+                display: none;
+            }
+            
+            .slide {
+                page-break-after: always;
+                position: relative !important;
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <!-- Slide 1: Capa -->
+        <div class="slide slide-1 active">
+            <div class="logo">📊</div>
+            <h1>Sistema de Gestão de<br>Centros de Custo</h1>
+            <div class="subtitle">Solução Completa para Otimizar sua Operação</div>
+            <div class="date">Proposta Comercial • Novembro 2025</div>
+        </div>
+
+        <!-- Slide 2: O Problema -->
+        <div class="slide">
+            <h2>O Desafio Atual</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">📋</div>
+                    <h4>Informações Descentralizadas</h4>
+                    <p>Dados espalhados em planilhas, papéis e diferentes sistemas dificulta a tomada de decisão.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">⏱️</div>
+                    <h4>Perda de Tempo</h4>
+                    <p>Horas desperdiçadas buscando informações que deveriam estar na palma da mão.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">❌</div>
+                    <h4>Erros e Retrabalho</h4>
+                    <p>Duplicação de dados e falta de controle geram erros custosos e retrabalho.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📊</div>
+                    <h4>Falta de Visibilidade</h4>
+                    <p>Sem visão clara em tempo real, decisões são tomadas com base em dados desatualizados.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: A Solução -->
+        <div class="slide">
+            <h2>A Solução</h2>
+            <div style="display: flex; gap: 40px; align-items: center; margin-top: 40px;">
+                <div style="flex: 1;">
+                    <h3 style="font-size: 36px; margin-bottom: 30px;">Aplicativo Completo e Profissional</h3>
+                    <ul class="check-list">
+                        <li>iOS e Android com código único</li>
+                        <li>Interface moderna e intuitiva</li>
+                        <li>Dados em tempo real na nuvem</li>
+                        <li>Acesso de qualquer lugar</li>
+                        <li>Seguro e escalável</li>
+                        <li>Funciona offline (sync automático)</li>
+                    </ul>
+                </div>
+                <div style="flex: 1; text-align: center; font-size: 180px; opacity: 0.3;">
+                    📱
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Módulos -->
+        <div class="slide">
+            <h2>6 Módulos Completos</h2>
+            <div class="modules-grid">
+                <div class="module-card">
+                    <div class="icon">🚜</div>
+                    <h4>Equipamentos</h4>
+                    <p>Gestão completa com docs, fotos e revisões</p>
+                </div>
+                <div class="module-card">
+                    <div class="icon">💰</div>
+                    <h4>Financeiro</h4>
+                    <p>Receitas, despesas e fechamento automático</p>
+                </div>
+                <div class="module-card">
+                    <div class="icon">📦</div>
+                    <h4>Pedidos</h4>
+                    <p>Controle de orçamentos e aprovações</p>
+                </div>
+                <div class="module-card">
+                    <div class="icon">👥</div>
+                    <h4>Funcionários</h4>
+                    <p>Documentação por equipamento</p>
+                </div>
+                <div class="module-card">
+                    <div class="icon">📄</div>
+                    <h4>Contratos</h4>
+                    <p>Gestão de terceirizados e principais</p>
+                </div>
+                <div class="module-card">
+                    <div class="icon">📊</div>
+                    <h4>Dashboard</h4>
+                    <p>Visão geral com indicadores</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Financeiro Detalhado -->
+        <div class="slide">
+            <h2>Módulo Financeiro</h2>
+            <h3>O mais completo do mercado</h3>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">📈</div>
+                    <h4>Gráficos Visuais</h4>
+                    <p>Pizza, barras e comparação entre centros de custo para visualização clara dos dados.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📑</div>
+                    <h4>Relatórios Profissionais</h4>
+                    <p>Exportação em PDF e Excel com todos os dados organizados e prontos para apresentação.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🏷️</div>
+                    <h4>Categorização</h4>
+                    <p>Despesas organizadas por categoria: manutenção, funcionário, gestão, terceirizados.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">✅</div>
+                    <h4>Status de Pagamento</h4>
+                    <p>Controle total: a confirmar, confirmado, a pagar, pago. Sempre saber o que está pendente.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Recursos Avançados -->
+        <div class="slide">
+            <h2>Recursos que Fazem a Diferença</h2>
+            <div style="margin-top: 40px;">
+                <div class="feature-card" style="margin-bottom: 20px;">
+                    <h4>🔍 Busca Global Inteligente</h4>
+                    <p>Encontre qualquer informação em segundos. Busca em todos os módulos simultaneamente.</p>
+                </div>
+                <div class="feature-card" style="margin-bottom: 20px;">
+                    <h4>🎯 Filtros Avançados</h4>
+                    <p>Combine múltiplos critérios para encontrar exatamente o que precisa em cada módulo.</p>
+                </div>
+                <div class="feature-card" style="margin-bottom: 20px;">
+                    <h4>🔔 Notificações Inteligentes</h4>
+                    <p>Alertas de manutenção preventiva e lembretes de revisões para nunca perder prazos.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📤 Upload de Documentos</h4>
+                    <p>Anexe fotos, PDFs e documentos em qualquer módulo. Tudo organizado e seguro na nuvem.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: ROI -->
+        <div class="slide">
+            <h2>Retorno Sobre Investimento</h2>
+            <div class="roi-box">
+                <div class="label">Economia Anual Estimada</div>
+                <div class="number">R$ 422.400</div>
+                <div class="label">20 pessoas × 2h/dia × R$ 40/h × 22 dias × 12 meses</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 40px;">
+                <div style="background: rgba(59, 130, 246, 0.1); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.3);">
+                    <div style="font-size: 48px; font-weight: 700; color: #3b82f6; margin-bottom: 10px;">908%</div>
+                    <div style="font-size: 18px; opacity: 0.8;">ROI no Primeiro Ano</div>
+                </div>
+                <div style="background: rgba(59, 130, 246, 0.1); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.3);">
+                    <div style="font-size: 48px; font-weight: 700; color: #3b82f6; margin-bottom: 10px;">1,5 meses</div>
+                    <div style="font-size: 18px; opacity: 0.8;">Payback Period</div>
+                </div>
+                <div style="background: rgba(59, 130, 246, 0.1); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.3);">
+                    <div style="font-size: 48px; font-weight: 700; color: #3b82f6; margin-bottom: 10px;">90%</div>
+                    <div style="font-size: 18px; opacity: 0.8;">Redução de Tempo</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Comparação -->
+        <div class="slide">
+            <h2>Por Que Nossa Solução?</h2>
+            <div class="comparison">
+                <div class="comparison-item bad">
+                    <h4>❌ Planilhas Manuais</h4>
+                    <ul class="check-list">
+                        <li>Informações descentralizadas</li>
+                        <li>Difícil de compartilhar</li>
+                        <li>Sem controle de versão</li>
+                        <li>Risco de perder dados</li>
+                        <li>Não funciona no celular</li>
+                    </ul>
+                </div>
+                <div class="comparison-item good">
+                    <h4>✅ Nosso App</h4>
+                    <ul class="check-list">
+                        <li>Tudo centralizado e organizado</li>
+                        <li>Acesso de qualquer lugar</li>
+                        <li>Histórico completo automático</li>
+                        <li>Backup automático diário</li>
+                        <li>iOS e Android nativos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Tecnologia -->
+        <div class="slide">
+            <h2>Tecnologia de Ponta</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">⚛️</div>
+                    <h4>React Native + TypeScript</h4>
+                    <p>Código único para iOS e Android. Manutenção facilitada e updates simultâneos.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">☁️</div>
+                    <h4>Supabase (PostgreSQL)</h4>
+                    <p>Banco de dados escalável na nuvem. Suporta milhares de usuários sem problemas.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🔒</div>
+                    <h4>Segurança Enterprise</h4>
+                    <p>Criptografia, Row Level Security, backup automático e conformidade LGPD.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🚀</div>
+                    <h4>Performance Otimizada</h4>
+                    <p>Carregamento rápido, sincronização eficiente e experiência fluida.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Segurança -->
+        <div class="slide">
+            <h2>Segurança e Conformidade</h2>
+            <div style="margin-top: 50px;">
+                <div class="feature-card" style="margin-bottom: 25px;">
+                    <h4>🔐 Sistema de Login e Permissões</h4>
+                    <p>Autenticação segura com diferentes níveis de acesso: Administrador, Gestor, Visualizador.</p>
+                </div>
+                <div class="feature-card" style="margin-bottom: 25px;">
+                    <h4>🛡️ Row Level Security (RLS)</h4>
+                    <p>Cada usuário vê apenas os dados que tem permissão. Isolamento total no banco de dados.</p>
+                </div>
+                <div class="feature-card" style="margin-bottom: 25px;">
+                    <h4>💾 Backup Automático Diário</h4>
+                    <p>Seus dados são protegidos com backups diários automáticos. Recuperação garantida.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📜 Conformidade LGPD</h4>
+                    <p>Totalmente adequado à Lei Geral de Proteção de Dados. Direito de portabilidade garantido.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 11: Cronograma -->
+        <div class="slide">
+            <h2>Cronograma de Implementação</h2>
+            <h3>4 Semanas para o Go-Live</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">1-2</div>
+                        <div style="font-size: 14px; opacity: 0.8;">SEMANAS</div>
+                    </div>
+                    <div class="content">
+                        <h4>Setup e Autenticação</h4>
+                        <p>Configuração da infraestrutura de produção, implementação de login/senha, sistema de permissões e roles, configuração de segurança.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">3</div>
+                        <div style="font-size: 14px; opacity: 0.8;">SEMANA</div>
+                    </div>
+                    <div class="content">
+                        <h4>Testes e Ajustes</h4>
+                        <p>Distribuição para testadores, coleta de feedback, ajustes de UX/UI, correção de bugs, otimizações de performance.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">4</div>
+                        <div style="font-size: 14px; opacity: 0.8;">SEMANA</div>
+                    </div>
+                    <div class="content">
+                        <h4>Deploy e Treinamento</h4>
+                        <p>Publicação TestFlight/Internal Testing, treinamento da equipe (2-3h), documentação final, go-live e entrega completa.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 12: Investimento -->
+        <div class="slide">
+            <h2>Investimento</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px;">
+                <div>
+                    <h3>Implementação</h3>
+                    <div class="pricing-box">
+                        <div class="price">R$ 28.000</div>
+                        <div class="period">Pagamento único</div>
+                        <div class="description" style="margin-top: 30px; text-align: left;">
+                            <strong>Opção 1:</strong> Parcelas no projeto<br>
+                            • 30% entrada: R$ 8.400<br>
+                            • 40% desenvolvimento: R$ 11.200<br>
+                            • 30% entrega: R$ 8.400<br><br>
+                            <strong>Opção 2:</strong> Parcelado<br>
+                            • 12x de R$ 2.600<br>
+                            (já inclui ano 1 de suporte)
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3>Manutenção</h3>
+                    <div class="pricing-box">
+                        <div class="price">R$ 1.800</div>
+                        <div class="period">por mês</div>
+                        <div class="description" style="margin-top: 30px; text-align: left;">
+                            <strong>Inclui:</strong><br>
+                            • Correção de bugs<br>
+                            • Suporte prioritário (24h)<br>
+                            • Atualizações de segurança<br>
+                            • Backup diário automático<br>
+                            • 5h/mês de melhorias<br>
+                            • Hospedagem e infraestrutura<br>
+                            • Relatórios mensais
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 13: Garantias -->
+        <div class="slide">
+            <h2>Garantias Incluídas</h2>
+            <div class="guarantees">
+                <div class="guarantee-badge">✓ Correção de bugs por 90 dias</div>
+                <div class="guarantee-badge">✓ Código-fonte entregue</div>
+                <div class="guarantee-badge">✓ Documentação completa</div>
+                <div class="guarantee-badge">✓ Treinamento incluso</div>
+                <div class="guarantee-badge">✓ Suporte durante implementação</div>
+                <div class="guarantee-badge">✓ Portabilidade de dados</div>
+            </div>
+            <div style="margin-top: 60px;">
+                <h3>O Que Você Recebe</h3>
+                <ul class="check-list">
+                    <li>Aplicativo iOS e Android completo</li>
+                    <li>6 módulos totalmente funcionais</li>
+                    <li>Sistema de login e permissões</li>
+                    <li>Banco de dados configurado e seguro</li>
+                    <li>Hospedagem incluída no primeiro ano</li>
+                    <li>Sessão de treinamento de 2-3 horas</li>
+                    <li>Manual do usuário e documentação técnica</li>
+                    <li>4 semanas de suporte intensivo</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 14: Diferenciais -->
+        <div class="slide">
+            <h2>Por Que Escolher Esta Solução?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="icon">🎨</div>
+                    <h4>100% Customizado</h4>
+                    <p>Feito especificamente para suas necessidades, não é um sistema genérico adaptado.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">💰</div>
+                    <h4>Custo-Benefício</h4>
+                    <p>Mais barato que ERPs genéricos e infinitamente melhor que planilhas manuais.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📱</div>
+                    <h4>Mobile First</h4>
+                    <p>Acesse de qualquer lugar, a qualquer hora, do celular ou tablet.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">📈</div>
+                    <h4>Escalável</h4>
+                    <p>Cresce junto com sua empresa. Adicione usuários e centros sem limite.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🔧</div>
+                    <h4>Suporte Dedicado</h4>
+                    <p>Suporte técnico prioritário com resposta em até 24 horas úteis.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon">🚀</div>
+                    <h4>Implementação Rápida</h4>
+                    <p>Apenas 4 semanas do contrato até o go-live. Rápido e eficiente.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 15: Próximos Passos -->
+        <div class="slide">
+            <h2>Próximos Passos</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">1</div>
+                    </div>
+                    <div class="content">
+                        <h4>Aprovação da Proposta</h4>
+                        <p>Revisar escopo, confirmar valores e esclarecer dúvidas finais.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">2</div>
+                    </div>
+                    <div class="content">
+                        <h4>Assinatura do Contrato</h4>
+                        <p>Contrato formal de prestação de serviços com todas as garantias.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">3</div>
+                    </div>
+                    <div class="content">
+                        <h4>Pagamento da Entrada</h4>
+                        <p>Confirmação do pagamento e agendamento do kick-off meeting.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="week">
+                        <div style="font-size: 32px; font-weight: 700; color: #3b82f6;">4</div>
+                    </div>
+                    <div class="content">
+                        <h4>Início do Desenvolvimento</h4>
+                        <p>Kick-off meeting e início imediato do desenvolvimento.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 16: Final / CTA -->
+        <div class="slide slide-1">
+            <div style="font-size: 64px; margin-bottom: 30px;">🚀</div>
+            <h1 style="font-size: 48px;">Vamos Transformar<br>Sua Gestão?</h1>
+            <div class="subtitle" style="font-size: 24px;">Esta proposta é válida por 15 dias</div>
+            <div style="margin-top: 60px;">
+                <div style="font-size: 20px; opacity: 0.9; margin-bottom: 20px;">Entre em contato:</div>
+                <div style="font-size: 24px; font-weight: 600; margin-bottom: 10px;">
+                    📧 seuemail@exemplo.com
+                </div>
+                <div style="font-size: 24px; font-weight: 600; margin-bottom: 10px;">
+                    📱 (00) 00000-0000
+                </div>
+                <div style="font-size: 24px; font-weight: 600;">
+                    💼 linkedin.com/in/seuperfil
+                </div>
+            </div>
+            <button class="cta-button" onclick="alert('Ótimo! Vamos agendar uma reunião para assinar o contrato.')">
+                Vamos Começar! 🎉
+            </button>
+        </div>
+    </div>
+
+    <!-- Navegação -->
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">16</span>
+    </div>
+    
+    <div class="navigation">
+        <button class="nav-btn" id="prev-btn">←</button>
+        <button class="nav-btn" id="next-btn">→</button>
+    </div>
+
+    <script>
+        // Sistema de navegação
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+        
+        function showSlide(index) {
+            slides.forEach(slide => slide.classList.remove('active'));
+            
+            if (index < 0) {
+                currentSlide = totalSlides - 1;
+            } else if (index >= totalSlides) {
+                currentSlide = 0;
+            } else {
+                currentSlide = index;
+            }
+            
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+        }
+        
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            showSlide(currentSlide - 1);
+        });
+        
+        document.getElementById('next-btn').addEventListener('click', () => {
+            showSlide(currentSlide + 1);
+        });
+        
+        // Navegação por teclado
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                showSlide(currentSlide - 1);
+            } else if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                showSlide(currentSlide + 1);
+            }
+        });
+        
+        // Inicializar
+        showSlide(0);
+    </script>
+</body>
+</html>

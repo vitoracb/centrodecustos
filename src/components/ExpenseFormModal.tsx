@@ -15,7 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { ExpenseCategory, ExpenseDocument, GestaoSubcategory } from '../context/FinancialContext';
+import { ExpenseCategory, ExpenseDocument, GestaoSubcategory, ExpenseSector } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import { FileText, Camera, XCircle, ChevronDown } from 'lucide-react-native';
@@ -37,6 +37,14 @@ const GESTAO_SUBCATEGORY_LABELS: Record<GestaoSubcategory, string> = {
   diversos: 'Diversos',
 };
 
+const SECTOR_LABELS: Record<ExpenseSector, string> = {
+  now: 'Now',
+  felipe_viatransportes: 'Felipe Viatransportes',
+  terceirizados: 'Terceirizados',
+  gestao: 'Gestão',
+  ronaldo: 'Ronaldo',
+};
+
 interface ExpenseFormData {
   name: string;
   category: ExpenseCategory;
@@ -46,6 +54,8 @@ interface ExpenseFormData {
   equipmentId?: string;
   gestaoSubcategory?: GestaoSubcategory;
   observations?: string;
+  isFixed?: boolean;
+  sector?: ExpenseSector;
 }
 
 interface ExpenseFormModalProps {
@@ -77,6 +87,9 @@ export const ExpenseFormModal = ({
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<string>('');
   const [gestaoSubcategory, setGestaoSubcategory] = useState<GestaoSubcategory>('aluguel');
   const [observations, setObservations] = useState('');
+  const [isFixed, setIsFixed] = useState(false);
+  const [sector, setSector] = useState<ExpenseSector | ''>('');
+  const [sectorDropdownVisible, setSectorDropdownVisible] = useState(false);
 
   const formatCurrency = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -115,6 +128,9 @@ export const ExpenseFormModal = ({
       setSelectedEquipmentId('');
       setGestaoSubcategory('aluguel');
       setObservations('');
+      setIsFixed(false);
+      setSector('');
+      setSectorDropdownVisible(false);
     } else {
       // Sempre inicializa com initialData se fornecido, senão usa valores padrão
       if (initialData) {
@@ -136,6 +152,8 @@ export const ExpenseFormModal = ({
         setSelectedEquipmentId(initialData.equipmentId || '');
         setGestaoSubcategory(initialData.gestaoSubcategory || 'aluguel');
         setObservations(initialData.observations || '');
+        setIsFixed(initialData.isFixed || false);
+        setSector(initialData.sector || '');
       } else {
         // Valores padrão quando não há initialData
         setName('');
@@ -146,6 +164,8 @@ export const ExpenseFormModal = ({
         setSelectedEquipmentId('');
         setGestaoSubcategory('aluguel');
         setObservations('');
+        setIsFixed(false);
+        setSector('');
       }
     }
   }, [visible, initialData]);
@@ -275,12 +295,20 @@ export const ExpenseFormModal = ({
     }
     
     // Validações específicas por categoria
-    if ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) {
+    // Equipamento é obrigatório apenas para "manutenção" e "funcionário"
+    if ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) {
       Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento.');
       return;
     }
+    // Para "terceirizados" e "diversos", o equipamento é opcional
     if (category === 'gestao' && !gestaoSubcategory) {
       Alert.alert('Campo obrigatório', 'Por favor, selecione uma subcategoria de gestão.');
+      return;
+    }
+    
+    // Validação: se for despesa fixa, setor é obrigatório
+    if (isFixed && !sector) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione um setor para a despesa fixa.');
       return;
     }
 
@@ -290,9 +318,11 @@ export const ExpenseFormModal = ({
       date: dayjs(date).format('DD/MM/YYYY'),
       value: parseCurrency(value),
       documents,
-      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') ? selectedEquipmentId : undefined,
+      equipmentId: (category === 'manutencao' || category === 'funcionario' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) ? selectedEquipmentId : undefined,
       gestaoSubcategory: category === 'gestao' ? gestaoSubcategory : undefined,
       observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
+      isFixed,
+      sector: isFixed && sector ? sector : undefined,
     });
     onClose();
   };
@@ -373,10 +403,12 @@ export const ExpenseFormModal = ({
               )}
             </View>
 
-            {/* Dropdown de Equipamento para Manutenção, Funcionário e Terceirizados */}
-            {(category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && (
+            {/* Dropdown de Equipamento para Manutenção, Funcionário, Terceirizados e Diversos */}
+            {(category === 'manutencao' || category === 'funcionario' || category === 'terceirizados' || category === 'diversos') && (
               <View style={styles.field}>
-                <Text style={styles.label}>Equipamento *</Text>
+                <Text style={styles.label}>
+                  Equipamento {(category === 'manutencao' || category === 'funcionario') ? '*' : ''}
+                </Text>
                 <TouchableOpacity
                   style={styles.input}
                   onPress={() => setEquipmentDropdownVisible(!equipmentDropdownVisible)}
@@ -525,6 +557,67 @@ export const ExpenseFormModal = ({
             </View>
 
             <View style={styles.field}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setIsFixed(!isFixed)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, isFixed && styles.checkboxChecked]}>
+                  {isFixed && <Text style={styles.checkboxCheckmark}>✓</Text>}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Despesa fixa</Text>
+                  <Text style={styles.checkboxHint}>
+                    Esta despesa será gerada automaticamente todo mês
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Dropdown de Setor para Despesas Fixas */}
+            {isFixed && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Setor *</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setSectorDropdownVisible(!sectorDropdownVisible)}
+                >
+                  <Text style={styles.inputText}>
+                    {sector ? SECTOR_LABELS[sector] : 'Selecione um setor'}
+                  </Text>
+                  <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+                </TouchableOpacity>
+                {sectorDropdownVisible && (
+                  <View style={styles.dropdownList}>
+                    {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec, index, array) => (
+                      <TouchableOpacity
+                        key={sec}
+                        style={[
+                          styles.dropdownItem,
+                          sector === sec && styles.dropdownItemSelected,
+                          index === array.length - 1 && styles.dropdownItemLast,
+                        ]}
+                        onPress={() => {
+                          setSector(sec);
+                          setSectorDropdownVisible(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownItemText,
+                            sector === sec && styles.dropdownItemTextSelected,
+                          ]}
+                        >
+                          {SECTOR_LABELS[sec]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            <View style={styles.field}>
               <Text style={styles.label}>Documentos</Text>
               <View style={styles.documentButtonsGrid}>
                 {/* Coluna Esquerda - Documentos */}
@@ -616,16 +709,18 @@ export const ExpenseFormModal = ({
                 (!name.trim() ||
                   !value ||
                   parseCurrency(value) <= 0 ||
-                  ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) ||
-                  (category === 'gestao' && !gestaoSubcategory)) &&
+                  ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
+                  (category === 'gestao' && !gestaoSubcategory) ||
+                  (isFixed && !sector)) &&
                   styles.disabledButton,
               ]}
               disabled={
                 !name.trim() ||
                 !value ||
                 parseCurrency(value) <= 0 ||
-                ((category === 'manutencao' || category === 'funcionario' || category === 'terceirizados') && !selectedEquipmentId) ||
-                (category === 'gestao' && !gestaoSubcategory)
+                ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
+                (category === 'gestao' && !gestaoSubcategory) ||
+                (isFixed && !sector)
               }
               onPress={handleSave}
             >
@@ -844,5 +939,45 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
+  },
+  checkboxCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  checkboxLabelContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  checkboxHint: {
+    fontSize: 12,
+    color: '#6C6C70',
+    lineHeight: 16,
   },
 });

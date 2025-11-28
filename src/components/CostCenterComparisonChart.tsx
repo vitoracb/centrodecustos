@@ -2,22 +2,35 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { G, Rect, Line, Text as SvgText } from 'react-native-svg';
 import { Expense, Receipt } from '../context/FinancialContext';
-import { CostCenter } from '../context/CostCenterContext';
+import { CostCenter, useCostCenter } from '../context/CostCenterContext';
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 
 dayjs.locale('pt-br');
 
-const CENTER_COLORS: Record<CostCenter, string> = {
+// Cores padrão para os centros originais
+const DEFAULT_CENTER_COLORS: Record<string, string> = {
   valenca: '#0A84FF', // Azul
   cna: '#34C759', // Verde
   cabralia: '#FFD700', // Amarelo
 };
 
-const CENTER_LABELS: Record<CostCenter, string> = {
-  valenca: 'Valença',
-  cna: 'CNA',
-  cabralia: 'Cabrália',
+// Função para gerar uma cor baseada no código do centro (para novos centros)
+const generateColorFromCode = (code: string): string => {
+  // Se já tem cor padrão, usa ela
+  if (DEFAULT_CENTER_COLORS[code]) {
+    return DEFAULT_CENTER_COLORS[code];
+  }
+  
+  // Gera uma cor baseada no hash do código
+  let hash = 0;
+  for (let i = 0; i < code.length; i++) {
+    hash = code.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // Gera uma cor HSL com saturação e luminosidade fixas
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 50%)`;
 };
 
 interface CostCenterComparisonChartProps {
@@ -33,9 +46,12 @@ export const CostCenterComparisonChart = ({
   mode,
   period,
 }: CostCenterComparisonChartProps) => {
+  const { costCenters } = useCostCenter();
+  
   const chartData = useMemo(() => {
-    const centers: CostCenter[] = ['valenca', 'cna', 'cabralia'];
-    const data: Array<{ center: CostCenter; expenses: number; receipts: number; balance: number }> = [];
+    // Usa os centros dinâmicos do contexto
+    const centers = costCenters.map(cc => cc.code);
+    const data: Array<{ center: CostCenter; expenses: number; receipts: number; balance: number; name: string }> = [];
 
     centers.forEach((center) => {
       let centerExpenses = 0;
@@ -79,16 +95,18 @@ export const CostCenterComparisonChart = ({
         }
       });
 
+      const centerData = costCenters.find(cc => cc.code === center);
       data.push({
         center,
         expenses: centerExpenses,
         receipts: centerReceipts,
         balance: centerReceipts - centerExpenses,
+        name: centerData?.name || center,
       });
     });
 
     return data;
-  }, [expenses, receipts, period]);
+  }, [expenses, receipts, period, costCenters]);
 
   const chartWidth = 350;
   const chartHeight = 220;
@@ -96,7 +114,8 @@ export const CostCenterComparisonChart = ({
   const paddingRight = 20;
   const paddingTop = 20;
   const paddingBottom = 40;
-  const barWidth = (chartWidth - paddingLeft - paddingRight) / 3 - 8;
+  const numCenters = Math.max(chartData.length, 1); // Evita divisão por zero
+  const barWidth = (chartWidth - paddingLeft - paddingRight) / numCenters - 8;
   const maxBarHeight = chartHeight - paddingTop - paddingBottom;
 
   const formatCurrency = (value: number): string => {
@@ -127,8 +146,8 @@ export const CostCenterComparisonChart = ({
   }
 
   const getBarData = (item: typeof chartData[0]) => {
-    // Usar a cor específica do centro de custo
-    const centerColor = CENTER_COLORS[item.center];
+    // Usar a cor específica do centro de custo (dinâmica)
+    const centerColor = generateColorFromCode(item.center);
     
     if (mode === 'expenses') {
       return { value: item.expenses, color: centerColor };
@@ -264,7 +283,7 @@ export const CostCenterComparisonChart = ({
                   fill="#6C6C70"
                   textAnchor="middle"
                 >
-                  {CENTER_LABELS[item.center]}
+                  {item.name}
                 </SvgText>
               );
             })}
@@ -298,7 +317,7 @@ export const CostCenterComparisonChart = ({
             <View key={item.center} style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: barData.color }]} />
               <View style={styles.legendText}>
-                <Text style={styles.legendLabel}>{CENTER_LABELS[item.center]}</Text>
+                <Text style={styles.legendLabel}>{item.name}</Text>
                 <Text style={styles.legendValue}>{formatCurrency(barData.value)}</Text>
               </View>
             </View>

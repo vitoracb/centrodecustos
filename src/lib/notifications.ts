@@ -6,18 +6,44 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { logger } from './logger';
 
+// Verifica se está rodando no Expo Go
+// Usa verificação segura caso ExecutionEnvironment não esteja disponível
+const isExpoGo = (() => {
+  try {
+    if (!Constants.executionEnvironment) return false;
+    if (Constants.ExecutionEnvironment && Constants.ExecutionEnvironment.StoreClient) {
+      return Constants.executionEnvironment === Constants.ExecutionEnvironment.StoreClient;
+    }
+    // Fallback: verifica se está no Expo Go pela string
+    return Constants.executionEnvironment === 'storeClient';
+  } catch {
+    return false;
+  }
+})();
+
 // Configura o comportamento das notificações quando o app está em foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Nota: No Expo Go (SDK 53+), algumas funcionalidades podem ter limitações
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch (error) {
+  // Ignora erros de configuração no Expo Go
+  if (isExpoGo) {
+    logger.warn('Configuração de notificações limitada no Expo Go');
+  } else {
+    logger.error('Erro ao configurar handler de notificações:', error);
+  }
+}
 
 /**
  * Solicita permissão para enviar notificações
@@ -38,13 +64,18 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     }
 
     // Configura o canal de notificação para Android
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Notificações Gerais',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
+    // Nota: No Expo Go (SDK 53+), algumas funcionalidades podem não estar disponíveis
+    if (Platform.OS === 'android' && !isExpoGo) {
+      try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Notificações Gerais',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      } catch (error) {
+        logger.warn('Erro ao configurar canal de notificação Android:', error);
+      }
     }
 
     return true;
@@ -167,8 +198,17 @@ export const notificationService = {
 
 /**
  * Obtém o token de push notification (para notificações remotas futuras)
+ * 
+ * NOTA: Push notifications remotas não funcionam no Expo Go (SDK 53+).
+ * Use um development build para testar notificações push remotas.
  */
 export async function getPushToken(): Promise<string | null> {
+  // Push notifications remotas não estão disponíveis no Expo Go
+  if (isExpoGo) {
+    logger.warn('Push notifications remotas não estão disponíveis no Expo Go. Use um development build.');
+    return null;
+  }
+
   try {
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {

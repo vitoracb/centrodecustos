@@ -8,11 +8,13 @@ import {
   Users,
   FileText,
 } from 'lucide-react-native';
-import { useOrders } from '@/src/context/OrderContext';
+import { useContext } from 'react';
+import { OrderContext } from '@/src/context/OrderContext';
 
 export default function TabLayout() {
-  const { getUnreadNotificationsCount } = useOrders();
-  const notificationCount = getUnreadNotificationsCount();
+  // Usa useContext diretamente com fallback seguro
+  const orderContext = useContext(OrderContext);
+  const notificationCount = orderContext?.getUnreadNotificationsCount ? orderContext.getUnreadNotificationsCount() : 0;
 
   return (
     <Tabs

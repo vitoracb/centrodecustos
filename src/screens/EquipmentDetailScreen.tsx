@@ -98,6 +98,7 @@ type ExpenseItem = {
   category: string;
   documents?: ExpenseDocument[];
   expenseId?: string;
+  isFixed?: boolean;
 };
 
 /**
@@ -228,6 +229,7 @@ export const EquipmentDetailScreen = () => {
       category: 'Manutenção',
       documents: exp.documents || [],
       expenseId: exp.id,
+      isFixed: exp.isFixed,
     }));
   }, [equipment?.id, getAllExpenses]);
 
@@ -671,6 +673,12 @@ export const EquipmentDetailScreen = () => {
                         </Text>
                       ) : null}
                     </View>
+                    {/* Mostra "Despesa fixa" se for despesa fixa */}
+                    {activeTab === 'despesas' && 'isFixed' in item && item.isFixed ? (
+                      <View style={styles.fixedBadge}>
+                        <Text style={styles.fixedText}>Despesa fixa</Text>
+                      </View>
+                    ) : null}
 
                     {'fileName' in item && item.fileName ? (
                       <Text style={styles.cardMeta}>
@@ -950,6 +958,8 @@ export const EquipmentDetailScreen = () => {
                     gestaoSubcategory: data.gestaoSubcategory,
                     observations: data.observations,
                     documents: data.documents,
+                    isFixed: data.isFixed,
+                    sector: data.sector,
                   });
                 }
               } else {
@@ -964,6 +974,8 @@ export const EquipmentDetailScreen = () => {
                   gestaoSubcategory: data.gestaoSubcategory,
                   observations: data.observations,
                   documents: data.documents,
+                  isFixed: data.isFixed,
+                  sector: data.sector,
                 });
               }
               setExpenseModalVisible(false);
@@ -986,6 +998,8 @@ export const EquipmentDetailScreen = () => {
                           documents: expenseToEdit.documents || [],
                           gestaoSubcategory: expenseToEdit.gestaoSubcategory,
                           observations: expenseToEdit.observations,
+                          isFixed: expenseToEdit.isFixed,
+                          sector: expenseToEdit.sector,
                         }
                       : {
                           category: 'manutencao',
@@ -1503,6 +1517,19 @@ const styles = StyleSheet.create({
   cardMeta: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  fixedBadge: {
+    backgroundColor: '#E6FEEA',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  fixedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1B8A2F',
   },
   cardFooter: {
     flexDirection: 'row',

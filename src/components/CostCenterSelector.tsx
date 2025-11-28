@@ -6,44 +6,53 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  ScrollView,
 } from 'react-native';
-import { ChevronDown } from 'lucide-react-native';
-import { useCostCenter, CostCenter } from '../context/CostCenterContext';
-
-interface CostCenterOption {
-  id: CostCenter;
-  label: string;
-}
-
-const costCenterOptions: CostCenterOption[] = [
-  { id: 'valenca', label: 'Valença' },
-  { id: 'cna', label: 'CNA' },
-  { id: 'cabralia', label: 'Cabrália' },
-];
+import { ChevronDown, Plus } from 'lucide-react-native';
+import { useCostCenter } from '../context/CostCenterContext';
+import { CostCenterFormModal } from './CostCenterFormModal';
 
 export const CostCenterSelector = () => {
-  const { selectedCenter, setSelectedCenter } = useCostCenter();
+  const { selectedCenter, setSelectedCenter, costCenters, addCostCenter } = useCostCenter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isFormModalVisible, setIsFormModalVisible] = useState(false);
 
   const currentOption =
-    costCenterOptions.find((option) => option.id === selectedCenter) ??
-    costCenterOptions[0];
+    costCenters.find((option) => option.code === selectedCenter) ??
+    costCenters[0];
 
-  const handleSelect = (id: CostCenter) => {
-    setSelectedCenter(id);
+  const handleSelect = (code: string) => {
+    setSelectedCenter(code);
     setIsOpen(false);
+  };
+
+  const handleAddNew = () => {
+    setIsOpen(false);
+    setIsFormModalVisible(true);
+  };
+
+  const handleFormSubmit = async (name: string, code: string) => {
+    try {
+      await addCostCenter(name, code);
+      setIsFormModalVisible(false);
+    } catch (error) {
+      // O erro já foi tratado no modal
+      throw error;
+    }
   };
 
   return (
     <>
-    <View style={styles.container}>
+      <View style={styles.container}>
         <Text style={styles.label}>Centro de Custo</Text>
         <TouchableOpacity
           style={styles.dropdown}
           activeOpacity={0.8}
           onPress={() => setIsOpen(true)}
         >
-          <Text style={styles.dropdownLabel}>{currentOption.label}</Text>
+          <Text style={styles.dropdownLabel}>
+            {currentOption?.name || 'Selecione'}
+          </Text>
           <ChevronDown size={18} color="#1C1C1E" />
         </TouchableOpacity>
       </View>
@@ -51,32 +60,54 @@ export const CostCenterSelector = () => {
       <Modal visible={isOpen} transparent animationType="fade">
         <Pressable style={styles.backdrop} onPress={() => setIsOpen(false)}>
           <View style={styles.modalContent}>
-            {costCenterOptions.map((option) => {
-              const isSelected = option.id === selectedCenter;
-              return (
-          <TouchableOpacity
-            key={option.id}
-            style={[
-                    styles.option,
-                    isSelected && styles.optionSelected,
-            ]}
-                  activeOpacity={0.8}
-                  onPress={() => handleSelect(option.id)}
-          >
-            <Text
-              style={[
-                      styles.optionLabel,
-                      isSelected && styles.optionLabelSelected,
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-              );
-            })}
-      </View>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+              {costCenters.map((option) => {
+                const isSelected = option.code === selectedCenter;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.option,
+                      isSelected && styles.optionSelected,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => handleSelect(option.code)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        isSelected && styles.optionLabelSelected,
+                      ]}
+                    >
+                      {option.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              
+              {/* Botão para adicionar novo centro de custo */}
+              <TouchableOpacity
+                style={styles.addOption}
+                activeOpacity={0.8}
+                onPress={handleAddNew}
+              >
+                <View style={styles.addOptionContent}>
+                  <Plus size={18} color="#0A84FF" />
+                  <Text style={styles.addOptionLabel}>
+                    Adicionar novo centro de custo
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </Pressable>
       </Modal>
+
+      <CostCenterFormModal
+        visible={isFormModalVisible}
+        onClose={() => setIsFormModalVisible(false)}
+        onSubmit={handleFormSubmit}
+      />
     </>
   );
 };
@@ -127,6 +158,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 6,
+    maxHeight: '70%',
+  },
+  scrollView: {
+    maxHeight: 400,
   },
   option: {
     paddingVertical: 14,
@@ -141,6 +176,23 @@ const styles = StyleSheet.create({
   },
   optionLabelSelected: {
     fontWeight: '700',
+    color: '#0A84FF',
+  },
+  addOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    marginTop: 4,
+  },
+  addOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  addOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#0A84FF',
   },
 });

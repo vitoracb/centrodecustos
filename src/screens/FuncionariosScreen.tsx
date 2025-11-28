@@ -18,15 +18,9 @@ import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { CostCenter } from '../context/CostCenterContext';
 
-const centerLabels = {
-  valenca: 'Valença',
-  cna: 'CNA',
-  cabralia: 'Cabrália',
-};
-
 
 export const FuncionariosScreen = () => {
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const { getEquipmentsByCenter } = useEquipment();
   const { 
     documentsByCenter, 
@@ -36,6 +30,9 @@ export const FuncionariosScreen = () => {
     deleteEmployee,
     loadDocuments
   } = useEmployees();
+  
+  // Obtém o nome do centro de custo selecionado
+  const selectedCenterName = costCenters.find(cc => cc.code === selectedCenter)?.name || selectedCenter;
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -126,7 +123,7 @@ export const FuncionariosScreen = () => {
           <View style={styles.header}>
             <Text style={styles.title}>Funcionários</Text>
             <Text style={styles.subtitle}>
-              Documentos vinculados ao centro {centerLabels[selectedCenter]}
+              Documentos vinculados ao centro {selectedCenterName}
             </Text>
           </View>
 

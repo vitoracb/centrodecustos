@@ -52,6 +52,13 @@ export type GestaoSubcategory =
   | "combustivel"
   | "diversos";
 
+export type ExpenseSector =
+  | "now"
+  | "felipe_viatransportes"
+  | "terceirizados"
+  | "gestao"
+  | "ronaldo";
+
 export interface ExpenseDocument {
   type: "nota_fiscal" | "recibo" | "comprovante_pagamento";
   fileName: string;
@@ -73,6 +80,8 @@ export interface Expense {
   status?: ExpenseStatus;
   method?: string;
   createdAt?: number;
+  isFixed?: boolean; // Indica se é uma despesa fixa/recorrente
+  sector?: ExpenseSector; // Setor da despesa fixa
 }
 
 interface FinancialContextType {
@@ -94,6 +103,7 @@ interface FinancialContextType {
 
   getAllReceipts: () => Receipt[];
   getAllExpenses: () => Expense[];
+  generateFixedExpenses: () => Promise<void>;
 }
 
 // ========================
@@ -205,6 +215,8 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     createdAt: row.created_at
       ? new Date(row.created_at).getTime()
       : undefined,
+    isFixed: row.is_fixed ?? false,
+    sector: row.sector ? (row.sector.toLowerCase() as ExpenseSector) : undefined,
   };
 }
 
@@ -279,6 +291,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           payment_method,
           reference,
           equipment_id,
+          is_fixed,
+          sector,
           created_at,
           cost_centers ( code )
         `
@@ -580,9 +594,15 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           }
         };
 
+        // Se for despesa fixa, sempre começa como CONFIRMADO
+        // Se não for fixa, usa o status informado ou CONFIRMAR como padrão
+        const finalStatus = expense.isFixed 
+          ? "CONFIRMADO" 
+          : statusToDb(expense.status);
+
         const payload: any = {
           type: "DESPESA",
-          status: statusToDb(expense.status),
+          status: finalStatus,
           cost_center_id: ccData.id,
           equipment_id: expense.equipmentId ?? null,
           value: expense.value,
@@ -591,6 +611,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: expense.name,
           payment_method: expense.method ?? null,
           reference: expense.observations ?? null,
+          is_fixed: expense.isFixed ?? false,
+          sector: expense.sector ?? null,
         };
 
         const { data, error } = await supabase
@@ -608,6 +630,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             payment_method,
             reference,
             equipment_id,
+            is_fixed,
+            sector,
             created_at,
             cost_centers ( code )
           `
@@ -685,6 +709,12 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const updateExpense = useCallback((expense: Expense) => {
     (async () => {
       try {
+        // IMPORTANTE: Esta função atualiza APENAS o registro específico (pelo ID).
+        // Se for uma despesa fixa (is_fixed = true), apenas a template é atualizada.
+        // As despesas já geradas (is_fixed = false) são registros separados e NÃO são afetadas.
+        // Quando o valor de uma despesa fixa mudar, apenas as novas despesas geradas
+        // a partir do mês da alteração terão o novo valor.
+
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
           .select("id, code")
@@ -732,8 +762,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           payment_method: expense.method ?? null,
           reference: expense.observations ?? null,
           status: statusToDb(expense.status),
+          is_fixed: expense.isFixed ?? false,
+          sector: expense.sector ?? null,
         };
 
+        // Atualiza APENAS o registro específico (não afeta despesas geradas)
         const { data, error } = await supabase
           .from("financial_transactions")
           .update(payload)
@@ -750,6 +783,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             payment_method,
             reference,
             equipment_id,
+            is_fixed,
+            sector,
             created_at,
             cost_centers ( code )
           `
@@ -1037,6 +1072,146 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const getAllReceipts = useCallback(() => receipts, [receipts]);
   const getAllExpenses = useCallback(() => expenses, [expenses]);
 
+  // ========================
+  // GERAÇÃO DE DESPESAS FIXAS
+  // ========================
+  const generateFixedExpenses = useCallback(async () => {
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1; // 1-12
+      const currentYear = now.getFullYear();
+
+      // Busca todas as despesas fixas
+      const { data: fixedExpensesData, error: fixedError } = await supabase
+        .from("financial_transactions")
+        .select(
+          `
+          id,
+          type,
+          status,
+          date,
+          value,
+          category,
+          description,
+          payment_method,
+          reference,
+          equipment_id,
+          is_fixed,
+          cost_center_id,
+          cost_centers ( code )
+        `
+        )
+        .eq("type", "DESPESA")
+        .eq("is_fixed", true);
+
+      if (fixedError) {
+        console.error("❌ Erro ao buscar despesas fixas:", fixedError);
+        return;
+      }
+
+      if (!fixedExpensesData || fixedExpensesData.length === 0) {
+        return; // Não há despesas fixas
+      }
+
+      // Para cada despesa fixa, verifica se já foi gerada para o mês atual
+      for (const fixedExpense of fixedExpensesData) {
+        const centerCode = Array.isArray(fixedExpense.cost_centers)
+          ? fixedExpensesData[0]?.cost_centers?.[0]?.code
+          : fixedExpense.cost_centers?.code;
+
+        if (!centerCode) continue;
+
+        // Verifica se já existe uma despesa gerada para este mês/ano com a mesma descrição e centro
+        const monthStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
+        const monthEnd = `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
+
+        const { data: existingExpense, error: checkError } = await supabase
+          .from("financial_transactions")
+          .select("id")
+          .eq("type", "DESPESA")
+          .eq("description", fixedExpense.description)
+          .eq("cost_center_id", fixedExpense.cost_center_id)
+          .eq("is_fixed", false) // A cópia gerada não é fixa
+          .gte("date", monthStart)
+          .lte("date", monthEnd)
+          .maybeSingle();
+
+        if (checkError) {
+          console.error("❌ Erro ao verificar despesa existente:", checkError);
+          continue;
+        }
+
+        // Se já existe, pula
+        if (existingExpense) {
+          continue;
+        }
+
+        // Gera a nova despesa para o mês atual
+        // IMPORTANTE: Usa sempre o valor ATUAL da despesa fixa template.
+        // Se o valor foi alterado, apenas as novas despesas geradas a partir
+        // do mês da alteração terão o novo valor. Despesas já geradas mantêm o valor antigo.
+        const newExpenseDate = `${String(now.getDate()).padStart(2, "0")}/${String(currentMonth).padStart(2, "0")}/${currentYear}`;
+        const dbDate = toDbDate(newExpenseDate);
+
+        if (!dbDate) {
+          console.error("❌ Erro ao gerar data para despesa fixa");
+          continue;
+        }
+
+        const payload: any = {
+          type: "DESPESA",
+          status: "CONFIRMADO", // Despesas fixas geradas automaticamente já vêm confirmadas
+          cost_center_id: fixedExpense.cost_center_id,
+          equipment_id: fixedExpense.equipment_id ?? null,
+          value: fixedExpense.value, // Usa o valor ATUAL da template (pode ter sido alterado)
+          date: dbDate,
+          category: fixedExpense.category ?? "diversos",
+          description: fixedExpense.description,
+          payment_method: fixedExpense.payment_method ?? null,
+          reference: fixedExpense.reference ?? null,
+          is_fixed: false, // A cópia gerada não é fixa (é um registro separado)
+          sector: fixedExpense.sector ?? null, // Mantém o setor da template
+        };
+
+        const { data: newExpense, error: insertError } = await supabase
+          .from("financial_transactions")
+          .insert(payload)
+          .select(
+            `
+            id,
+            type,
+            status,
+            date,
+            value,
+            category,
+            description,
+            payment_method,
+            reference,
+            equipment_id,
+            is_fixed,
+            sector,
+            created_at,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (insertError || !newExpense) {
+          console.error("❌ Erro ao gerar despesa fixa:", insertError);
+          continue;
+        }
+
+        // Atualiza o estado local
+        const mappedExpense = await mapRowToExpense(newExpense);
+        setExpenses((prev) => [mappedExpense, ...prev]);
+      }
+
+      console.log("✅ Despesas fixas verificadas e geradas se necessário");
+    } catch (err) {
+      console.error("❌ Erro inesperado ao gerar despesas fixas:", err);
+    }
+  }, []);
+
   return (
     <FinancialContext.Provider
       value={{
@@ -1054,6 +1229,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         getExpensesByCenter,
         getAllReceipts,
         getAllExpenses,
+        generateFixedExpenses,
       }}
     >
       {children}

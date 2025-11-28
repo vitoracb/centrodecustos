@@ -78,7 +78,7 @@ interface OrderContextType {
 // CONTEXTO + HOOK
 // ============================
 
-const OrderContext = createContext<OrderContextType | undefined>(undefined);
+export const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const useOrders = () => {
   const ctx = useContext(OrderContext);

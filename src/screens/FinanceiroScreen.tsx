@@ -33,6 +33,7 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { ExpenseFilterModal, ExpenseFilters } from '../components/ExpenseFilterModal';
 import { ExpensePieChart } from '../components/ExpensePieChart';
 import { ExpenseBarChart } from '../components/ExpenseBarChart';
+import { ExpenseSectorChart } from '../components/ExpenseSectorChart';
 import { CostCenterComparisonChart } from '../components/CostCenterComparisonChart';
 import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
@@ -917,6 +918,7 @@ export const FinanceiroScreen = () => {
             </TouchableOpacity>
             <ExpensePieChart expenses={filteredExpenses} />
             <ExpenseBarChart expenses={filteredExpenses} />
+            <ExpenseSectorChart expenses={filteredExpenses} />
             
             {/* Despesas agrupadas por status */}
             {filteredExpenses.length > 0 && (
@@ -1027,6 +1029,11 @@ export const FinanceiroScreen = () => {
                             </Text>
                           </View>
                         </View>
+                        {item.isFixed && (
+                          <View style={styles.fixedBadge}>
+                            <Text style={styles.fixedText}>Despesa fixa</Text>
+                          </View>
+                        )}
                       </View>
                       <View style={styles.cardActions}>
                         <TouchableOpacity
@@ -1434,6 +1441,8 @@ export const FinanceiroScreen = () => {
               equipmentId: data.equipmentId,
               gestaoSubcategory: data.gestaoSubcategory,
               observations: data.observations,
+              isFixed: data.isFixed,
+              sector: data.sector,
             });
           } else {
             addExpense({
@@ -1447,6 +1456,8 @@ export const FinanceiroScreen = () => {
               gestaoSubcategory: data.gestaoSubcategory,
               observations: data.observations,
               status: 'confirmar', // Status padrão para novas despesas
+              isFixed: data.isFixed,
+              sector: data.sector,
             });
           }
           setEditingExpense(null);
@@ -1462,6 +1473,8 @@ export const FinanceiroScreen = () => {
                 equipmentId: editingExpense.equipmentId,
                 gestaoSubcategory: editingExpense.gestaoSubcategory,
                 observations: editingExpense.observations,
+                isFixed: editingExpense.isFixed,
+                sector: editingExpense.sector,
                 id: editingExpense.id,
               }
             : undefined
@@ -1770,6 +1783,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  fixedBadge: {
+    backgroundColor: '#E6FEEA',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  fixedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1B8A2F',
   },
   cardActions: {
     flexDirection: 'row',

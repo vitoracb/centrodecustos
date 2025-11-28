@@ -7,10 +7,16 @@ import 'dayjs/locale/pt-br';
 
 dayjs.locale('pt-br');
 
-const CENTER_LABELS: Record<CostCenter, string> = {
-  valenca: 'Valença',
-  cna: 'CNA',
-  cabralia: 'Cabrália',
+// Função para obter o nome do centro de custo
+// Como CostCenter agora é string, mantemos um mapeamento padrão
+// mas pode ser expandido dinamicamente
+const getCenterLabel = (center: CostCenter): string => {
+  const defaultLabels: Record<string, string> = {
+    valenca: 'Valença',
+    cna: 'CNA',
+    cabralia: 'Cabrália',
+  };
+  return defaultLabels[center] || center;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -26,6 +32,22 @@ const STATUS_LABELS: Record<string, string> = {
   confirmado: 'Confirmado',
   a_pagar: 'A Pagar',
   pago: 'Pago',
+};
+
+const SECTOR_LABELS: Record<string, string> = {
+  now: 'Now',
+  felipe_viatransportes: 'Felipe Viatransportes',
+  terceirizados: 'Terceirizados',
+  gestao: 'Gestão',
+  ronaldo: 'Ronaldo',
+};
+
+const SECTOR_COLORS: Record<string, string> = {
+  now: '#0A84FF',
+  felipe_viatransportes: '#34C759',
+  terceirizados: '#FF9500',
+  gestao: '#AF52DE',
+  ronaldo: '#FF3B30',
 };
 
 const formatCurrency = (value: number): string => {
@@ -56,7 +78,7 @@ export const buildReportHTML = (data: ReportData): string => {
     ? `${dayjs().month(period.month).format('MMMM')} de ${period.year}`
     : `Ano ${period.year}`;
 
-  const centerLabel = center ? CENTER_LABELS[center] : 'Todos os Centros';
+  const centerLabel = center ? getCenterLabel(center) : 'Todos os Centros';
 
   // Calcular totais
   const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
@@ -75,6 +97,15 @@ export const buildReportHTML = (data: ReportData): string => {
   expenses.forEach((expense) => {
     const status = STATUS_LABELS[expense.status] || expense.status;
     expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
+  });
+
+  // Agrupar despesas fixas por setor
+  const expensesBySector: Record<string, number> = {};
+  expenses.forEach((expense) => {
+    if (expense.isFixed && expense.sector) {
+      const sector = SECTOR_LABELS[expense.sector] || expense.sector;
+      expensesBySector[sector] = (expensesBySector[sector] || 0) + expense.value;
+    }
   });
 
   // Dados para gráfico de pizza (categorias)
@@ -108,6 +139,24 @@ export const buildReportHTML = (data: ReportData): string => {
     statusGradientStops = '#E5E5EA 0% 100%, ';
   }
   statusGradientStops = statusGradientStops.slice(0, -2);
+
+  // Dados para gráfico de pizza (setores)
+  const totalSectors = Object.values(expensesBySector).reduce((sum, value) => sum + value, 0);
+  let sectorGradientStops = '';
+  currentPercent = 0;
+  Object.entries(expensesBySector).forEach(([sector, value]) => {
+    const percent = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
+    const nextPercent = currentPercent + percent;
+    // Usa a cor específica do setor se disponível, senão usa do array
+    const sectorKey = Object.keys(SECTOR_LABELS).find(key => SECTOR_LABELS[key] === sector);
+    const color = sectorKey && SECTOR_COLORS[sectorKey] ? SECTOR_COLORS[sectorKey] : CHART_COLORS[Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length];
+    sectorGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
+    currentPercent = nextPercent;
+  });
+  if (!sectorGradientStops) {
+    sectorGradientStops = '#E5E5EA 0% 100%, ';
+  }
+  sectorGradientStops = sectorGradientStops.slice(0, -2);
 
   // Dados para gráfico de barras (despesas mensais do ano selecionado)
   const expensesByMonth = Array(12).fill(0);
@@ -340,6 +389,45 @@ export const buildReportHTML = (data: ReportData): string => {
     </tbody>
   </table>
 
+  ${Object.keys(expensesBySector).length > 0 ? `
+  <h2>Despesas por Setor</h2>
+  <div class="chart-section">
+    <div class="pie-chart" style="background: conic-gradient(${sectorGradientStops});"></div>
+    <ul class="chart-legend">
+      ${Object.entries(expensesBySector)
+        .map(([sector, value]) => {
+          const sectorKey = Object.keys(SECTOR_LABELS).find(key => SECTOR_LABELS[key] === sector);
+          const color = sectorKey && SECTOR_COLORS[sectorKey] ? SECTOR_COLORS[sectorKey] : CHART_COLORS[Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length];
+          return `
+          <li>
+            <span class="legend-color" style="background:${color}"></span>
+            <span>${sector} — ${formatCurrency(value)}</span>
+          </li>
+        `;
+        })
+        .join('')}
+    </ul>
+  </div>
+  <table class="category-table">
+    <thead>
+      <tr>
+        <th>Setor</th>
+        <th>Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${Object.entries(expensesBySector)
+        .map(([sector, value]) => `
+          <tr>
+            <td>${sector}</td>
+            <td>${formatCurrency(value)}</td>
+          </tr>
+        `)
+        .join('')}
+    </tbody>
+  </table>
+  ` : ''}
+
   <h2>Gráfico de Despesas Mensais - ${period.year}</h2>
   <div class="bar-chart">
     ${expensesByMonth
@@ -352,11 +440,79 @@ export const buildReportHTML = (data: ReportData): string => {
               <span>${dayjs().month(month).format('MMM')}</span>
               <span>${formatCurrency(value)}</span>
             </div>
-          </div>
-        `;
+      </div>
+    `;
       })
       .join('')}
   </div>
+
+  ${Object.keys(expensesBySector).length > 0 ? `
+  <h2>Detalhamento por Setor de Despesas Fixas</h2>
+  ${(() => {
+    // Agrupa despesas fixas por setor
+    const expensesBySectorDetail: Record<string, Expense[]> = {};
+    expenses.forEach((expense) => {
+      if (expense.isFixed && expense.sector) {
+        const sector = SECTOR_LABELS[expense.sector] || expense.sector;
+        if (!expensesBySectorDetail[sector]) {
+          expensesBySectorDetail[sector] = [];
+        }
+        expensesBySectorDetail[sector].push(expense);
+      }
+    });
+
+    // Ordena os setores pelo total de valor (decrescente)
+    const sortedSectors = Object.keys(expensesBySectorDetail).sort((a, b) => {
+      const totalA = expensesBySectorDetail[a].reduce((sum, exp) => sum + exp.value, 0);
+      const totalB = expensesBySectorDetail[b].reduce((sum, exp) => sum + exp.value, 0);
+      return totalB - totalA;
+    });
+
+    return sortedSectors.map((sector) => {
+      const sectorExpenses = expensesBySectorDetail[sector];
+      const sectorTotal = sectorExpenses.reduce((sum, exp) => sum + exp.value, 0);
+      
+      return `
+        <div style="margin-bottom: 30px;">
+          <h3 style="color: #0A84FF; margin-bottom: 10px; border-bottom: 2px solid #E5E5EA; padding-bottom: 5px;">
+            ${sector} — Total: ${formatCurrency(sectorTotal)}
+          </h3>
+          <table class="category-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th>Categoria</th>
+                <th>Status</th>
+                <th>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sectorExpenses
+                .sort((a, b) => {
+                  // Ordena por data (mais recente primeiro)
+                  const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+                  const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+                  if (!dateA.isValid() || !dateB.isValid()) return 0;
+                  return dateB.valueOf() - dateA.valueOf();
+                })
+                .map((expense) => `
+                  <tr>
+                    <td>${formatDate(expense.date)}</td>
+                    <td>${expense.description || expense.name || ''}</td>
+                    <td>${CATEGORY_LABELS[expense.category] || expense.category}</td>
+                    <td>${STATUS_LABELS[expense.status] || expense.status}</td>
+                    <td>${formatCurrency(expense.value)}</td>
+                  </tr>
+                `)
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }).join('');
+  })()}
+  ` : ''}
 
   <h2>Detalhamento de Despesas</h2>
   <table>
@@ -444,7 +600,7 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
       ? `${dayjs().month(period.month).format('MMMM')}_${period.year}`
       : `Ano_${period.year}`;
 
-    const centerLabel = center ? CENTER_LABELS[center].replace(/\s+/g, '_') : 'Todos_Centros';
+    const centerLabel = center ? getCenterLabel(center).replace(/\s+/g, '_') : 'Todos_Centros';
 
     // Calcular totais
     const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
@@ -457,7 +613,7 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     // Cabeçalho
     csv += 'RELATÓRIO FINANCEIRO\n';
     csv += `Período: ${period.month !== undefined ? `${dayjs().month(period.month).format('MMMM')} de ${period.year}` : `Ano ${period.year}`}\n`;
-    csv += `Centro de Custo: ${center ? CENTER_LABELS[center] : 'Todos os Centros'}\n`;
+    csv += `Centro de Custo: ${center ? getCenterLabel(center) : 'Todos os Centros'}\n`;
     csv += `Data de Geração: ${dayjs().format('DD/MM/YYYY [às] HH:mm')}\n\n`;
 
     // Resumo
@@ -491,6 +647,23 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     });
     csv += '\n';
 
+    // Despesas por Setor (apenas despesas fixas)
+    const expensesBySectorExcel: Record<string, number> = {};
+    expenses.forEach((expense) => {
+      if (expense.isFixed && expense.sector) {
+        const sector = SECTOR_LABELS[expense.sector] || expense.sector;
+        expensesBySectorExcel[sector] = (expensesBySectorExcel[sector] || 0) + expense.value;
+      }
+    });
+    if (Object.keys(expensesBySectorExcel).length > 0) {
+      csv += 'DESPESAS POR SETOR\n';
+      csv += 'Setor,Valor\n';
+      Object.entries(expensesBySectorExcel).forEach(([sector, value]) => {
+        csv += `${sector},${value.toFixed(2)}\n`;
+      });
+      csv += '\n';
+    }
+
     // Detalhamento de Despesas
     csv += 'DETALHAMENTO DE DESPESAS\n';
     csv += 'Data,Descrição,Categoria,Status,Valor\n';
@@ -517,6 +690,16 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     });
     csv += '\n';
 
+    // Dados para gráfico de pizza (setores) - apenas se houver despesas por setor
+    if (Object.keys(expensesBySectorExcel).length > 0) {
+      csv += 'DADOS GRÁFICO PIZZA (DESPESAS POR SETOR)\n';
+      csv += 'Setor,Valor\n';
+      Object.entries(expensesBySectorExcel).forEach(([sector, value]) => {
+        csv += `${sector},${value.toFixed(2)}\n`;
+      });
+      csv += '\n';
+    }
+
     // Dados para gráfico de pizza (status)
     csv += 'DADOS GRÁFICO PIZZA (DESPESAS POR STATUS)\n';
     csv += 'Status,Valor\n';
@@ -540,6 +723,50 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
       csv += `${dayjs().month(month).format('MMMM')},${value.toFixed(2)}\n`;
     });
     csv += '\n';
+
+    // Detalhamento por Setor de Despesas Fixas (após gráfico de barras mensais)
+    if (Object.keys(expensesBySectorExcel).length > 0) {
+      const expensesBySectorDetail: Record<string, Expense[]> = {};
+      expenses.forEach((expense) => {
+        if (expense.isFixed && expense.sector) {
+          const sector = SECTOR_LABELS[expense.sector] || expense.sector;
+          if (!expensesBySectorDetail[sector]) {
+            expensesBySectorDetail[sector] = [];
+          }
+          expensesBySectorDetail[sector].push(expense);
+        }
+      });
+
+      // Ordena os setores pelo total de valor (decrescente)
+      const sortedSectors = Object.keys(expensesBySectorDetail).sort((a, b) => {
+        const totalA = expensesBySectorDetail[a].reduce((sum, exp) => sum + exp.value, 0);
+        const totalB = expensesBySectorDetail[b].reduce((sum, exp) => sum + exp.value, 0);
+        return totalB - totalA;
+      });
+
+      sortedSectors.forEach((sector) => {
+        const sectorExpenses = expensesBySectorDetail[sector];
+        const sectorTotal = sectorExpenses.reduce((sum, exp) => sum + exp.value, 0);
+        
+        csv += `DETALHAMENTO POR SETOR - ${sector}\n`;
+        csv += `Total do Setor,${sectorTotal.toFixed(2)}\n`;
+        csv += 'Data,Descrição,Categoria,Status,Valor\n';
+        
+        sectorExpenses
+          .sort((a, b) => {
+            // Ordena por data (mais recente primeiro)
+            const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+            const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+            if (!dateA.isValid() || !dateB.isValid()) return 0;
+            return dateB.valueOf() - dateA.valueOf();
+          })
+          .forEach((expense) => {
+            const description = (expense.description || expense.name || '').replace(/"/g, '""');
+            csv += `${expense.date},"${description}",${CATEGORY_LABELS[expense.category] || expense.category},${STATUS_LABELS[expense.status] || expense.status},${expense.value.toFixed(2)}\n`;
+          });
+        csv += '\n';
+      });
+    }
 
     // Salvar CSV
     const fileUri = `${FileSystem.cacheDirectory}relatorio_${periodLabel}_${centerLabel}_${Date.now()}.csv`;

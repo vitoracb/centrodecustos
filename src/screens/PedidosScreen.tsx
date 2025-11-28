@@ -38,12 +38,6 @@ dayjs.extend(customParseFormat);
 
 const PAGE_SIZE = 10;
 
-const centerLabels = {
-  valenca: 'Valença',
-  cna: 'CNA',
-  cabralia: 'Cabrália',
-};
-
 const statusLabels: Record<OrderStatus, string> = {
   orcamento_solicitado: 'Orçamento solicitado',
   orcamento_pendente: 'Orçamento pendente',
@@ -94,7 +88,7 @@ const defaultStatusStyle = {
 };
 
 export default function PedidosScreen() {
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const {
     orders,
     loading,
@@ -107,6 +101,9 @@ export default function PedidosScreen() {
     refresh,
   } = useOrders();
   const { getEquipmentsByCenter } = useEquipment();
+  
+  // Obtém o nome do centro de custo selecionado
+  const selectedCenterName = costCenters.find(cc => cc.code === selectedCenter)?.name || selectedCenter;
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -417,7 +414,7 @@ export default function PedidosScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>Pedidos</Text>
             <Text style={styles.subtitle}>
-              Controle os pedidos do centro {centerLabels[selectedCenter]}
+              Controle os pedidos do centro {selectedCenterName}
             </Text>
           </View>
 
