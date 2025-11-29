@@ -91,6 +91,90 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+// Helper para calcular informações de recebimento fixo
+const getReceiptFixedInfo = (receipt: Receipt, allReceipts: Receipt[]): { isFixed: boolean; installment?: string } => {
+  // Busca o recebimento template (isFixed = true) com a mesma descrição e centro
+  const template = allReceipts.find(
+    (r) => r.isFixed && r.name === receipt.name && r.center === receipt.center
+  );
+
+  // Se não encontrou template, não é fixo
+  if (!template || !template.fixedDurationMonths) {
+    return { isFixed: false };
+  }
+
+  // Se este é o template, mostra como primeira parcela
+  if (receipt.isFixed && receipt.id === template.id) {
+    return {
+      isFixed: true,
+      installment: `1/${template.fixedDurationMonths}`,
+    };
+  }
+
+  // Se não é o template, calcula a parcela baseado na diferença de meses
+  const templateDate = dayjs(template.date, 'DD/MM/YYYY');
+  const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY');
+
+  if (!templateDate.isValid() || !receiptDate.isValid()) {
+    return { isFixed: false };
+  }
+
+  const monthsDiff = receiptDate.diff(templateDate, 'month');
+  const installment = monthsDiff + 1; // +1 porque a primeira parcela é 1, não 0
+
+  // Verifica se está dentro do range válido
+  if (installment < 1 || installment > template.fixedDurationMonths) {
+    return { isFixed: false };
+  }
+
+  return {
+    isFixed: true,
+    installment: `${installment}/${template.fixedDurationMonths}`,
+  };
+};
+
+// Helper para calcular informações de despesa fixa
+const getExpenseFixedInfo = (expense: Expense, allExpenses: Expense[]): { isFixed: boolean; installment?: string } => {
+  // Busca a despesa template (isFixed = true) com a mesma descrição e centro
+  const template = allExpenses.find(
+    (e) => e.isFixed && e.name === expense.name && e.center === expense.center
+  );
+
+  // Se não encontrou template, não é fixo
+  if (!template || !template.fixedDurationMonths) {
+    return { isFixed: false };
+  }
+
+  // Se esta é o template, mostra como primeira parcela
+  if (expense.isFixed && expense.id === template.id) {
+    return {
+      isFixed: true,
+      installment: `1/${template.fixedDurationMonths}`,
+    };
+  }
+
+  // Se não é o template, calcula a parcela baseado na diferença de meses
+  const templateDate = dayjs(template.date, 'DD/MM/YYYY');
+  const expenseDate = dayjs(expense.date, 'DD/MM/YYYY');
+
+  if (!templateDate.isValid() || !expenseDate.isValid()) {
+    return { isFixed: false };
+  }
+
+  const monthsDiff = expenseDate.diff(templateDate, 'month');
+  const installment = monthsDiff + 1; // +1 porque a primeira parcela é 1, não 0
+
+  // Verifica se está dentro do range válido
+  if (installment < 1 || installment > template.fixedDurationMonths) {
+    return { isFixed: false };
+  }
+
+  return {
+    isFixed: true,
+    installment: `${installment}/${template.fixedDurationMonths}`,
+  };
+};
+
 
 
 export const FinanceiroScreen = () => {
@@ -131,6 +215,10 @@ export const FinanceiroScreen = () => {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(dayjs());
   const [closureMode, setClosureMode] = useState<'mensal' | 'anual'>('mensal');
+  const [receiptMode, setReceiptMode] = useState<'mensal' | 'anual'>('mensal');
+  const [selectedReceiptPeriod, setSelectedReceiptPeriod] = useState(dayjs());
+  const [expenseMode, setExpenseMode] = useState<'mensal' | 'anual'>('mensal');
+  const [selectedExpensePeriod, setSelectedExpensePeriod] = useState(dayjs());
   const [expensePage, setExpensePage] = useState(1);
   const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
@@ -465,15 +553,19 @@ export const FinanceiroScreen = () => {
     }
   }, [params.tab, params.month, params.year]);
 
-  const allReceipts = useMemo(
+  const allReceiptsForCenter = useMemo(
     () => getReceiptsByCenter(selectedCenter),
     [getReceiptsByCenter, selectedCenter]
   );
 
-  const allExpenses = useMemo(
+  const allExpensesForCenter = useMemo(
     () => getExpensesByCenter(selectedCenter),
     [getExpensesByCenter, selectedCenter]
   );
+
+  // Para calcular parcelas, precisamos de todos os recebimentos/despesas, não apenas do centro
+  const allReceipts = getAllReceipts();
+  const allExpenses = getAllExpenses();
 
   const buildClosureReportData = useCallback((): ReportData => {
     const selectedMonth = selectedPeriod.month();
@@ -535,7 +627,36 @@ export const FinanceiroScreen = () => {
   }, [reportPreview, showSuccess, showError]);
 
   const filteredExpenses = useMemo(() => {
-    let filtered = [...allExpenses];
+    let filtered = [...allExpensesForCenter];
+
+    // Filtrar por período (Mensal/Anual)
+    const selectedMonth = selectedExpensePeriod.month();
+    const selectedYear = selectedExpensePeriod.year();
+
+    const filterByPeriod = (dateString: string) => {
+      const [day, month, year] = dateString.split('/').map(Number);
+      if (!day || !month || !year) {
+        const expenseDate = dayjs(dateString, 'DD/MM/YYYY', true);
+        if (!expenseDate.isValid()) {
+          return false;
+        }
+        if (expenseMode === 'anual') {
+          return expenseDate.year() === selectedYear;
+        }
+        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
+      }
+      if (expenseMode === 'anual') {
+        return year === selectedYear;
+      }
+      return month - 1 === selectedMonth && year === selectedYear;
+    };
+
+    filtered = filtered.filter((expense) => {
+      if (!filterByPeriod(expense.date)) {
+        return false;
+      }
+      return true;
+    });
 
     // Filtrar por categoria
     if (expenseFilters.category) {
@@ -552,7 +673,8 @@ export const FinanceiroScreen = () => {
       filtered = filtered.filter((expense) => expense.value === expenseFilters.value);
     }
 
-    // Filtrar por período
+    // Filtrar por período do filtro (se especificado, aplica filtro adicional dentro do período já selecionado)
+    // Nota: O filtro do modal é aplicado APÓS o filtro Mensal/Anual, então funciona como um refinamento
     if (expenseFilters.month !== null && expenseFilters.month !== undefined && expenseFilters.year) {
       filtered = filtered.filter((expense) => {
         const [day, month, year] = expense.date.split('/').map(Number);
@@ -576,7 +698,7 @@ export const FinanceiroScreen = () => {
         return dateB.valueOf() - dateA.valueOf();
       }
     );
-  }, [allExpenses, expenseFilters]);
+  }, [allExpensesForCenter, expenseFilters, expenseMode, selectedExpensePeriod]);
 
   useEffect(() => {
     setExpensePage(1);
@@ -706,7 +828,36 @@ export const FinanceiroScreen = () => {
   }, [allReceipts, allExpenses, selectedPeriod, closureMode]);
 
   const filteredReceipts = useMemo(() => {
-    let filtered = [...allReceipts];
+    let filtered = [...allReceiptsForCenter];
+
+    // Filtrar por período (Mensal/Anual)
+    const selectedMonth = selectedReceiptPeriod.month();
+    const selectedYear = selectedReceiptPeriod.year();
+
+    const filterByPeriod = (dateString: string) => {
+      const [day, month, year] = dateString.split('/').map(Number);
+      if (!day || !month || !year) {
+        const receiptDate = dayjs(dateString, 'DD/MM/YYYY', true);
+        if (!receiptDate.isValid()) {
+          return false;
+        }
+        if (receiptMode === 'anual') {
+          return receiptDate.year() === selectedYear;
+        }
+        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
+      }
+      if (receiptMode === 'anual') {
+        return year === selectedYear;
+      }
+      return month - 1 === selectedMonth && year === selectedYear;
+    };
+
+    filtered = filtered.filter((receipt) => {
+      if (!filterByPeriod(receipt.date)) {
+        return false;
+      }
+      return true;
+    });
 
     // Filtrar por nome
     if (receiptFilters.name) {
@@ -730,7 +881,7 @@ export const FinanceiroScreen = () => {
       );
     }
 
-    // Filtrar por período
+    // Filtrar por período do filtro (se especificado, sobrescreve o período padrão)
     if (receiptFilters.month !== null && receiptFilters.month !== undefined && receiptFilters.year) {
       filtered = filtered.filter((receipt) => {
         // Parse da data no formato DD/MM/YYYY
@@ -757,7 +908,7 @@ export const FinanceiroScreen = () => {
         return dateB.valueOf() - dateA.valueOf();
       }
     );
-  }, [allReceipts, receiptFilters]);
+  }, [allReceipts, receiptFilters, receiptMode, selectedReceiptPeriod]);
 
   const hasActiveFilters = useMemo(() => {
     return !!(
@@ -791,6 +942,107 @@ export const FinanceiroScreen = () => {
                 {filteredReceipts.length} recebimento(s) encontrado(s)
               </Text>
             )}
+            <View style={styles.modeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  receiptMode === 'mensal' && styles.modeButtonActive,
+                ]}
+                onPress={() => setReceiptMode('mensal')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    receiptMode === 'mensal' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Mensal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  receiptMode === 'anual' && styles.modeButtonActive,
+                ]}
+                onPress={() => setReceiptMode('anual')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    receiptMode === 'anual' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Anual
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.periodNavigatorContainer}>
+              {receiptMode === 'mensal' ? (
+                <>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Mês</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedReceiptPeriod((prev) => prev.subtract(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>
+                        {selectedReceiptPeriod.format('MMMM')}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedReceiptPeriod((prev) => prev.add(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedReceiptPeriod((prev) => prev.subtract(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>
+                        {selectedReceiptPeriod.format('YYYY')}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedReceiptPeriod((prev) => prev.add(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.periodNavigatorRow}>
+                  <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                  <View style={styles.periodNavigator}>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedReceiptPeriod((prev) => prev.subtract(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.periodNavValue}>
+                      {selectedReceiptPeriod.format('YYYY')}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedReceiptPeriod((prev) => prev.add(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={() => {
@@ -814,6 +1066,19 @@ export const FinanceiroScreen = () => {
                         {item.name}
                       </Text>
                       <Text style={styles.cardDate}>{item.date}</Text>
+                      {(() => {
+                        const fixedInfo = getReceiptFixedInfo(item, allReceipts);
+                        if (fixedInfo.isFixed) {
+                          return (
+                            <View style={styles.fixedBadge}>
+                              <Text style={styles.fixedText}>
+                                Recebimento fixo {fixedInfo.installment ? `- ${fixedInfo.installment}` : ''}
+                              </Text>
+                            </View>
+                          );
+                        }
+                        return null;
+                      })()}
                     </View>
                     <View style={styles.cardActions}>
                       <TouchableOpacity
@@ -906,6 +1171,107 @@ export const FinanceiroScreen = () => {
                 {filteredExpenses.length} despesa(s) encontrada(s)
               </Text>
             )}
+            <View style={styles.modeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  expenseMode === 'mensal' && styles.modeButtonActive,
+                ]}
+                onPress={() => setExpenseMode('mensal')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    expenseMode === 'mensal' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Mensal
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  expenseMode === 'anual' && styles.modeButtonActive,
+                ]}
+                onPress={() => setExpenseMode('anual')}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    expenseMode === 'anual' && styles.modeButtonTextActive,
+                  ]}
+                >
+                  Anual
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.periodNavigatorContainer}>
+              {expenseMode === 'mensal' ? (
+                <>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Mês</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedExpensePeriod((prev) => prev.subtract(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>
+                        {selectedExpensePeriod.format('MMMM')}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedExpensePeriod((prev) => prev.add(1, 'month'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.periodNavigatorRow}>
+                    <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                    <View style={styles.periodNavigator}>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedExpensePeriod((prev) => prev.subtract(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>←</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.periodNavValue}>
+                        {selectedExpensePeriod.format('YYYY')}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.periodNavButton}
+                        onPress={() => setSelectedExpensePeriod((prev) => prev.add(1, 'year'))}
+                      >
+                        <Text style={styles.periodNavButtonText}>→</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.periodNavigatorRow}>
+                  <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                  <View style={styles.periodNavigator}>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedExpensePeriod((prev) => prev.subtract(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.periodNavValue}>
+                      {selectedExpensePeriod.format('YYYY')}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.periodNavButton}
+                      onPress={() => setSelectedExpensePeriod((prev) => prev.add(1, 'year'))}
+                    >
+                      <Text style={styles.periodNavButtonText}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={() => {
@@ -1029,11 +1395,19 @@ export const FinanceiroScreen = () => {
                             </Text>
                           </View>
                         </View>
-                        {item.isFixed && (
-                          <View style={styles.fixedBadge}>
-                            <Text style={styles.fixedText}>Despesa fixa</Text>
-                          </View>
-                        )}
+                        {(() => {
+                          const fixedInfo = getExpenseFixedInfo(item, allExpenses);
+                          if (fixedInfo.isFixed) {
+                            return (
+                              <View style={styles.fixedBadge}>
+                                <Text style={styles.fixedText}>
+                                  Despesa fixa {fixedInfo.installment ? `- ${fixedInfo.installment}` : ''}
+                                </Text>
+                              </View>
+                            );
+                          }
+                          return null;
+                        })()}
                       </View>
                       <View style={styles.cardActions}>
                         <TouchableOpacity
@@ -1395,6 +1769,8 @@ export const FinanceiroScreen = () => {
               name: data.name,
               date: data.date,
               value: data.value,
+              isFixed: data.isFixed,
+              fixedDurationMonths: data.fixedDurationMonths,
             });
           } else {
             addReceipt({
@@ -1402,6 +1778,8 @@ export const FinanceiroScreen = () => {
               date: data.date,
               value: data.value,
               center: selectedCenter,
+              isFixed: data.isFixed,
+              fixedDurationMonths: data.fixedDurationMonths,
             });
           }
           setEditingReceipt(null);
@@ -1412,6 +1790,8 @@ export const FinanceiroScreen = () => {
                 name: editingReceipt.name,
                 date: editingReceipt.date,
                 value: editingReceipt.value,
+                isFixed: editingReceipt.isFixed,
+                fixedDurationMonths: editingReceipt.fixedDurationMonths,
                 id: editingReceipt.id,
               }
             : undefined

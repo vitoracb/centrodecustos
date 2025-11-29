@@ -18,6 +18,8 @@ interface ReceiptFormData {
   name: string;
   date: string;
   value: number;
+  isFixed?: boolean;
+  fixedDurationMonths?: number;
 }
 
 interface ReceiptFormModalProps {
@@ -37,6 +39,8 @@ export const ReceiptFormModal = ({
   const [date, setDate] = useState(new Date());
   const [value, setValue] = useState('');
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [isFixed, setIsFixed] = useState(false);
+  const [fixedDurationMonths, setFixedDurationMonths] = useState<string>('');
 
   const formatCurrency = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -106,6 +110,8 @@ export const ReceiptFormModal = ({
       name: name.trim(),
       date: formattedDate,
       value: parseCurrency(value),
+      isFixed,
+      fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
     });
     onClose();
   };
@@ -153,6 +159,43 @@ export const ReceiptFormModal = ({
               keyboardType="numeric"
             />
           </View>
+
+          <View style={styles.field}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setIsFixed(!isFixed)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, isFixed && styles.checkboxChecked]}>
+                {isFixed && <Text style={styles.checkboxCheckmark}>✓</Text>}
+              </View>
+              <View style={styles.checkboxLabelContainer}>
+                <Text style={styles.checkboxLabel}>Recebimento fixo</Text>
+                <Text style={styles.checkboxHint}>
+                  Este recebimento será gerado automaticamente todo mês
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {isFixed && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Duração (meses)</Text>
+              <Text style={styles.hint}>
+                Número de meses que o recebimento será gerado. Deixe em branco para duração indefinida.
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={fixedDurationMonths}
+                onChangeText={(text) => {
+                  const numbers = text.replace(/\D/g, '');
+                  setFixedDurationMonths(numbers);
+                }}
+                placeholder="Ex: 3 (para 3 meses)"
+                keyboardType="numeric"
+              />
+            </View>
+          )}
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
@@ -279,6 +322,51 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
+  },
+  checkboxCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  checkboxLabelContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  checkboxHint: {
+    fontSize: 12,
+    color: '#6C6C70',
+    lineHeight: 16,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#6C6C70',
+    marginTop: 4,
+    marginBottom: 8,
   },
 });
 

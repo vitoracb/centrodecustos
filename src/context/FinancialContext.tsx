@@ -30,6 +30,8 @@ export interface Receipt {
   status?: ReceiptStatus;
   method?: string;
   createdAt?: number; // timestamp
+  isFixed?: boolean; // Indica se é um recebimento fixo/recorrente
+  fixedDurationMonths?: number; // Número de meses de duração (null = indefinido)
 }
 
 export type ExpenseCategory =
@@ -260,6 +262,8 @@ function mapRowToReceipt(row: any): Receipt {
     createdAt: row.created_at
       ? new Date(row.created_at).getTime()
       : undefined,
+    isFixed: row.is_fixed ?? false,
+    fixedDurationMonths: row.fixed_duration_months ?? undefined,
   };
 }
 
@@ -334,6 +338,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description,
           payment_method,
           reference,
+          is_fixed,
+          fixed_duration_months,
           created_at,
           cost_centers ( code )
         `
@@ -396,6 +402,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: receipt.name,
           payment_method: receipt.method ?? null,
           reference: null,
+          is_fixed: receipt.isFixed ?? false,
+          fixed_duration_months: receipt.fixedDurationMonths ?? null,
         };
 
         const { data, error } = await supabase
@@ -482,6 +490,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: receipt.name,
           payment_method: receipt.method ?? null,
           status: statusValue,
+          is_fixed: receipt.isFixed ?? false,
+          fixed_duration_months: receipt.fixedDurationMonths ?? null,
         };
 
         const { data, error } = await supabase
@@ -500,6 +510,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             description,
             payment_method,
             reference,
+            is_fixed,
+            fixed_duration_months,
             created_at,
             cost_centers ( code )
           `
