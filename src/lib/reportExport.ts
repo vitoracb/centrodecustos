@@ -64,7 +64,7 @@ const formatDate = (date: string): string => {
   return date; // Já vem no formato DD/MM/YYYY
 };
 
-interface ReportData {
+export interface ReportData {
   expenses: Expense[];
   receipts: Receipt[];
   period: { month?: number; year: number };

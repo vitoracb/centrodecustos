@@ -56,6 +56,7 @@ interface ExpenseFormData {
   observations?: string;
   isFixed?: boolean;
   sector?: ExpenseSector;
+  fixedDurationMonths?: number;
 }
 
 interface ExpenseFormModalProps {
@@ -90,6 +91,7 @@ export const ExpenseFormModal = ({
   const [isFixed, setIsFixed] = useState(false);
   const [sector, setSector] = useState<ExpenseSector | ''>('');
   const [sectorDropdownVisible, setSectorDropdownVisible] = useState(false);
+  const [fixedDurationMonths, setFixedDurationMonths] = useState<string>('');
 
   const formatCurrency = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -131,6 +133,7 @@ export const ExpenseFormModal = ({
       setIsFixed(false);
       setSector('');
       setSectorDropdownVisible(false);
+      setFixedDurationMonths('');
     } else {
       // Sempre inicializa com initialData se fornecido, senão usa valores padrão
       if (initialData) {
@@ -154,6 +157,7 @@ export const ExpenseFormModal = ({
         setObservations(initialData.observations || '');
         setIsFixed(initialData.isFixed || false);
         setSector(initialData.sector || '');
+        setFixedDurationMonths(initialData.fixedDurationMonths ? String(initialData.fixedDurationMonths) : '');
       } else {
         // Valores padrão quando não há initialData
         setName('');
@@ -323,6 +327,7 @@ export const ExpenseFormModal = ({
       observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
       isFixed,
       sector: isFixed && sector ? sector : undefined,
+      fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
     });
     onClose();
   };
@@ -576,45 +581,64 @@ export const ExpenseFormModal = ({
 
             {/* Dropdown de Setor para Despesas Fixas */}
             {isFixed && (
-              <View style={styles.field}>
-                <Text style={styles.label}>Setor *</Text>
-                <TouchableOpacity
-                  style={styles.input}
-                  onPress={() => setSectorDropdownVisible(!sectorDropdownVisible)}
-                >
-                  <Text style={styles.inputText}>
-                    {sector ? SECTOR_LABELS[sector] : 'Selecione um setor'}
-                  </Text>
-                  <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
-                </TouchableOpacity>
-                {sectorDropdownVisible && (
-                  <View style={styles.dropdownList}>
-                    {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec, index, array) => (
-                      <TouchableOpacity
-                        key={sec}
-                        style={[
-                          styles.dropdownItem,
-                          sector === sec && styles.dropdownItemSelected,
-                          index === array.length - 1 && styles.dropdownItemLast,
-                        ]}
-                        onPress={() => {
-                          setSector(sec);
-                          setSectorDropdownVisible(false);
-                        }}
-                      >
-                        <Text
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Setor *</Text>
+                  <TouchableOpacity
+                    style={styles.input}
+                    onPress={() => setSectorDropdownVisible(!sectorDropdownVisible)}
+                  >
+                    <Text style={styles.inputText}>
+                      {sector ? SECTOR_LABELS[sector] : 'Selecione um setor'}
+                    </Text>
+                    <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+                  </TouchableOpacity>
+                  {sectorDropdownVisible && (
+                    <View style={styles.dropdownList}>
+                      {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec, index, array) => (
+                        <TouchableOpacity
+                          key={sec}
                           style={[
-                            styles.dropdownItemText,
-                            sector === sec && styles.dropdownItemTextSelected,
+                            styles.dropdownItem,
+                            sector === sec && styles.dropdownItemSelected,
+                            index === array.length - 1 && styles.dropdownItemLast,
                           ]}
+                          onPress={() => {
+                            setSector(sec);
+                            setSectorDropdownVisible(false);
+                          }}
                         >
-                          {SECTOR_LABELS[sec]}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
+                          <Text
+                            style={[
+                              styles.dropdownItemText,
+                              sector === sec && styles.dropdownItemTextSelected,
+                            ]}
+                          >
+                            {SECTOR_LABELS[sec]}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Duração (meses)</Text>
+                  <Text style={styles.hint}>
+                    Número de meses que a despesa será gerada. Deixe em branco para duração indefinida.
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={fixedDurationMonths}
+                    onChangeText={(text) => {
+                      const numbers = text.replace(/\D/g, '');
+                      setFixedDurationMonths(numbers);
+                    }}
+                    placeholder="Ex: 3 (para 3 meses)"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </>
             )}
 
             <View style={styles.field}>
@@ -965,6 +989,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#6C6C70',
+    marginTop: 4,
+    marginBottom: 8,
   },
   checkboxLabelContainer: {
     flex: 1,

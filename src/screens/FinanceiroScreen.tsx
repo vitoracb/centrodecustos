@@ -95,7 +95,7 @@ const formatCurrency = (value: number): string => {
 
 export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
   const [refreshing, setRefreshing] = useState(false);
   const [reportPreview, setReportPreview] = useState<{
@@ -257,7 +257,7 @@ export const FinanceiroScreen = () => {
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? undefined,
         allowedTypes,
         80
       );
@@ -389,7 +389,7 @@ export const FinanceiroScreen = () => {
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? undefined,
         allowedTypes,
         80
       );
@@ -1356,7 +1356,7 @@ export const FinanceiroScreen = () => {
           <View style={styles.header}>
             <Text style={styles.title}>Financeiro</Text>
             <Text style={styles.subtitle}>
-              Controle financeiro do centro {centerLabels[selectedCenter]}
+              Controle financeiro do centro {costCenters.find(cc => cc.code === selectedCenter)?.name || centerLabels[selectedCenter as keyof typeof centerLabels] || selectedCenter}
             </Text>
           </View>
 
@@ -1443,6 +1443,7 @@ export const FinanceiroScreen = () => {
               observations: data.observations,
               isFixed: data.isFixed,
               sector: data.sector,
+              fixedDurationMonths: data.fixedDurationMonths,
             });
           } else {
             addExpense({
@@ -1458,6 +1459,7 @@ export const FinanceiroScreen = () => {
               status: 'confirmar', // Status padrão para novas despesas
               isFixed: data.isFixed,
               sector: data.sector,
+              fixedDurationMonths: data.fixedDurationMonths,
             });
           }
           setEditingExpense(null);
@@ -1475,6 +1477,7 @@ export const FinanceiroScreen = () => {
                 observations: editingExpense.observations,
                 isFixed: editingExpense.isFixed,
                 sector: editingExpense.sector,
+                fixedDurationMonths: editingExpense.fixedDurationMonths,
                 id: editingExpense.id,
               }
             : undefined

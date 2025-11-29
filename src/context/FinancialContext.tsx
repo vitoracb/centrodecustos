@@ -82,6 +82,7 @@ export interface Expense {
   createdAt?: number;
   isFixed?: boolean; // Indica se é uma despesa fixa/recorrente
   sector?: ExpenseSector; // Setor da despesa fixa
+  fixedDurationMonths?: number; // Número de meses de duração (null = indefinido)
 }
 
 interface FinancialContextType {
@@ -217,6 +218,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
       : undefined,
     isFixed: row.is_fixed ?? false,
     sector: row.sector ? (row.sector.toLowerCase() as ExpenseSector) : undefined,
+    fixedDurationMonths: row.fixed_duration_months ?? undefined,
   };
 }
 
@@ -293,6 +295,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           equipment_id,
           is_fixed,
           sector,
+          fixed_duration_months,
           created_at,
           cost_centers ( code )
         `
@@ -428,7 +431,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     })();
   }, []);
 
-  const updateReceipt = useCallback(async (receipt: Receipt) => {
+  const updateReceipt = useCallback(async (receipt: Receipt): Promise<Receipt> => {
     try {
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
@@ -441,13 +444,13 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             "❌ Erro ao buscar centro de custo para update de receita:",
             ccError || "não encontrado"
           );
-          return;
+          throw new Error("Centro de custo não encontrado para atualização de receita");
         }
 
         const dbDate = toDbDate(receipt.date);
         if (!dbDate) {
           console.error("❌ Data de receita inválida:", receipt.date);
-          return;
+          throw new Error("Data de receita inválida");
         }
 
         // Mapeia ReceiptStatus para o formato do banco
@@ -523,7 +526,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         );
         
         console.log("✅ Receita atualizada com sucesso:", updated);
-        return updated;
+        return updated as Receipt;
     } catch (e) {
       console.error("❌ Erro inesperado ao atualizar receita:", e);
       throw e;
@@ -613,6 +616,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           reference: expense.observations ?? null,
           is_fixed: expense.isFixed ?? false,
           sector: expense.sector ?? null,
+          fixed_duration_months: expense.fixedDurationMonths ?? null,
         };
 
         const { data, error } = await supabase
@@ -629,18 +633,129 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             description,
             payment_method,
             reference,
-            equipment_id,
-            is_fixed,
-            sector,
-            created_at,
-            cost_centers ( code )
-          `
-          )
-          .single();
+          equipment_id,
+          is_fixed,
+          sector,
+          fixed_duration_months,
+          created_at,
+          cost_centers ( code )
+        `
+        )
+        .single();
 
         if (error || !data) {
           console.error("❌ Erro ao criar despesa:", error);
           return;
+        }
+
+        // Se for despesa fixa com duração, gera as parcelas imediatamente
+        if (expense.isFixed && expense.fixedDurationMonths && expense.fixedDurationMonths > 1) {
+          if (!expense.date || typeof expense.date !== 'string') {
+            console.error("❌ Data de despesa inválida para gerar parcelas:", expense.date);
+            return;
+          }
+          
+          const dateParts = expense.date.split("/");
+          if (dateParts.length !== 3) {
+            console.error("❌ Formato de data inválido:", expense.date);
+            return;
+          }
+          
+          const [day, month, year] = dateParts.map(Number);
+          if (isNaN(day) || isNaN(month) || isNaN(year)) {
+            console.error("❌ Data de despesa contém valores inválidos:", expense.date);
+            return;
+          }
+          
+          const expenseDate = new Date(year, month - 1, day);
+          if (isNaN(expenseDate.getTime())) {
+            console.error("❌ Data de despesa inválida:", expense.date);
+            return;
+          }
+          
+          const creationMonth = expenseDate.getMonth() + 1;
+          const creationYear = expenseDate.getFullYear();
+          const creationDay = expenseDate.getDate();
+
+          // Gera as parcelas restantes (a primeira já foi criada acima como template)
+          for (let offset = 1; offset < expense.fixedDurationMonths; offset++) {
+            const targetMonth = creationMonth + offset;
+            let targetYear = creationYear;
+            let actualMonth = targetMonth;
+
+            if (targetMonth > 12) {
+              const yearOffset = Math.floor((targetMonth - 1) / 12);
+              targetYear = creationYear + yearOffset;
+              actualMonth = ((targetMonth - 1) % 12) + 1;
+            }
+
+            const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+            const expenseDay = Math.min(creationDay, lastDayOfMonth);
+            const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+            const dbDate = toDbDate(newExpenseDate);
+
+            if (!dbDate) {
+              console.error("❌ Erro ao gerar data para parcela:", newExpenseDate);
+              continue;
+            }
+
+            const installmentPayload: any = {
+              type: "DESPESA",
+              status: "CONFIRMADO",
+              cost_center_id: ccData.id,
+              equipment_id: expense.equipmentId ?? null,
+              value: expense.value,
+              date: dbDate,
+              category: expense.category ?? "diversos",
+              description: expense.name,
+              payment_method: expense.method ?? null,
+              reference: expense.observations ?? null,
+              is_fixed: false,
+              sector: expense.sector ?? null,
+              fixed_duration_months: null,
+            };
+
+            const { error: installError } = await supabase
+              .from("financial_transactions")
+              .insert(installmentPayload);
+
+            if (installError) {
+              console.error(`❌ Erro ao gerar parcela ${offset + 1}/${expense.fixedDurationMonths}:`, installError);
+            }
+          }
+
+          // Recarrega todas as despesas para incluir as parcelas geradas
+          const { data: allExpensesData, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
+              id,
+              type,
+              status,
+              date,
+              value,
+              category,
+              description,
+              payment_method,
+              reference,
+              equipment_id,
+              is_fixed,
+              sector,
+              fixed_duration_months,
+              created_at,
+              cost_centers ( code )
+            `
+            )
+            .eq("type", "DESPESA")
+            .order("date", { ascending: false });
+
+          if (!reloadError && allExpensesData) {
+            const mapped: Expense[] = await Promise.all(
+              (allExpensesData ?? []).map((row: any) => mapRowToExpense(row))
+            );
+            setExpenses(mapped);
+            return; // Não adiciona ao estado novamente (já recarregou todas)
+          }
         }
 
         // DOCUMENTOS DA DESPESA
@@ -698,8 +813,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           }
         }
 
-        const newExpense = await mapRowToExpense(data);
-        setExpenses((prev) => [newExpense, ...prev]);
+        // Só adiciona ao estado se não gerou parcelas (para evitar duplicatas)
+        if (!expense.isFixed || !expense.fixedDurationMonths || expense.fixedDurationMonths <= 1) {
+          const newExpense = await mapRowToExpense(data);
+          setExpenses((prev) => [newExpense, ...prev]);
+        }
       } catch (e) {
         console.error("❌ Erro inesperado ao criar despesa:", e);
       }
@@ -764,6 +882,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           status: statusToDb(expense.status),
           is_fixed: expense.isFixed ?? false,
           sector: expense.sector ?? null,
+          fixed_duration_months: expense.fixedDurationMonths ?? null,
         };
 
         // Atualiza APENAS o registro específico (não afeta despesas geradas)
@@ -785,6 +904,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             equipment_id,
             is_fixed,
             sector,
+            fixed_duration_months,
             created_at,
             cost_centers ( code )
           `
@@ -1097,7 +1217,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           reference,
           equipment_id,
           is_fixed,
+          sector,
+          fixed_duration_months,
           cost_center_id,
+          created_at,
           cost_centers ( code )
         `
         )
@@ -1113,15 +1236,152 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         return; // Não há despesas fixas
       }
 
-      // Para cada despesa fixa, verifica se já foi gerada para o mês atual
+      // Para cada despesa fixa, verifica se precisa gerar parcelas
       for (const fixedExpense of fixedExpensesData) {
-        const centerCode = Array.isArray(fixedExpense.cost_centers)
-          ? fixedExpensesData[0]?.cost_centers?.[0]?.code
-          : fixedExpense.cost_centers?.code;
+        const rawCostCenter = Array.isArray(fixedExpense.cost_centers)
+          ? fixedExpense.cost_centers[0]
+          : fixedExpense.cost_centers;
+        const centerCode = (rawCostCenter as any)?.code;
 
         if (!centerCode) continue;
 
-        // Verifica se já existe uma despesa gerada para este mês/ano com a mesma descrição e centro
+        // Se tem duração definida, verifica quantas parcelas já foram geradas
+        const totalMonths = fixedExpense.fixed_duration_months ?? null;
+        if (totalMonths !== null) {
+          // Conta quantas parcelas já foram geradas (não fixas, mesma descrição e centro)
+          // Busca todas as parcelas para verificar quantas existem
+          const { data: existingInstallments, error: countError } = await supabase
+            .from("financial_transactions")
+            .select("id")
+            .eq("type", "DESPESA")
+            .eq("description", fixedExpense.description)
+            .eq("cost_center_id", fixedExpense.cost_center_id)
+            .eq("is_fixed", false);
+
+          if (countError) {
+            console.error("❌ Erro ao contar parcelas:", countError);
+            continue;
+          }
+
+          const existingCount = existingInstallments?.length ?? 0;
+          if (existingCount >= totalMonths) {
+            continue; // Todas as parcelas já foram geradas
+          }
+
+          // Gera as parcelas faltantes
+          const createdAt = fixedExpense.created_at
+            ? new Date(fixedExpense.created_at)
+            : new Date(fixedExpense.date);
+          const creationMonth = createdAt.getMonth() + 1;
+          const creationYear = createdAt.getFullYear();
+          const creationDay = createdAt.getDate();
+
+          for (let offset = existingCount; offset < totalMonths; offset++) {
+            const targetMonth = creationMonth + offset;
+            let targetYear = creationYear;
+            let actualMonth = targetMonth;
+
+            if (targetMonth > 12) {
+              const yearOffset = Math.floor((targetMonth - 1) / 12);
+              targetYear = creationYear + yearOffset;
+              actualMonth = ((targetMonth - 1) % 12) + 1;
+            }
+
+            // Verifica se já existe esta parcela
+            const monthStart = `${targetYear}-${String(actualMonth).padStart(2, "0")}-01`;
+            const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+            const monthEnd = `${targetYear}-${String(actualMonth).padStart(2, "0")}-${String(lastDayOfMonth).padStart(2, "0")}`;
+
+            const { data: existingParcel, error: checkParcelError } = await supabase
+              .from("financial_transactions")
+              .select("id")
+              .eq("type", "DESPESA")
+              .eq("description", fixedExpense.description)
+              .eq("cost_center_id", fixedExpense.cost_center_id)
+              .eq("is_fixed", false)
+              .gte("date", monthStart)
+              .lte("date", monthEnd)
+              .maybeSingle();
+
+            if (checkParcelError) {
+              console.error("❌ Erro ao verificar parcela:", checkParcelError);
+              continue;
+            }
+
+            if (existingParcel) {
+              continue; // Parcela já existe
+            }
+
+            // Gera a parcela
+            const expenseDay = Math.min(creationDay, lastDayOfMonth);
+            const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+            const dbDate = toDbDate(newExpenseDate);
+
+            if (!dbDate) {
+              console.error("❌ Erro ao gerar data para parcela:", newExpenseDate);
+              continue;
+            }
+
+            const installmentPayload: any = {
+              type: "DESPESA",
+              status: "CONFIRMADO",
+              cost_center_id: fixedExpense.cost_center_id,
+              equipment_id: fixedExpense.equipment_id ?? null,
+              value: fixedExpense.value,
+              date: dbDate,
+              category: fixedExpense.category ?? "diversos",
+              description: fixedExpense.description,
+              payment_method: fixedExpense.payment_method ?? null,
+              reference: fixedExpense.reference ?? null,
+              is_fixed: false,
+              sector: fixedExpense.sector ?? null,
+              fixed_duration_months: null,
+            };
+
+            const { error: installError } = await supabase
+              .from("financial_transactions")
+              .insert(installmentPayload);
+
+            if (installError) {
+              console.error(`❌ Erro ao gerar parcela ${offset + 1}/${totalMonths}:`, installError);
+            }
+          }
+
+          // Recarrega despesas após gerar parcelas
+          const { data: reloadedExpenses, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
+              id,
+              type,
+              status,
+              date,
+              value,
+              category,
+              description,
+              payment_method,
+              reference,
+              equipment_id,
+              is_fixed,
+              sector,
+              fixed_duration_months,
+              created_at,
+              cost_centers ( code )
+            `
+            )
+            .eq("type", "DESPESA")
+            .order("date", { ascending: false });
+
+          if (!reloadError && reloadedExpenses) {
+            const mapped: Expense[] = await Promise.all(
+              (reloadedExpenses ?? []).map((row: any) => mapRowToExpense(row))
+            );
+            setExpenses(mapped);
+          }
+          continue;
+        }
+
+        // Se não tem duração definida, gera apenas para o mês atual (comportamento antigo)
         const monthStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
         const monthEnd = `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
 
