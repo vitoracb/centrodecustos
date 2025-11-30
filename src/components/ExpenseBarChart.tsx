@@ -38,10 +38,34 @@ export const ExpenseBarChart = ({ expenses }: ExpenseBarChartProps) => {
     }
 
     expenses.forEach((expense) => {
-      const [day, month, year] = expense.date.split('/').map(Number);
-      if (month && month >= 1 && month <= 12 && year === selectedYear) {
-        const monthIndex = month - 1; // Converter para índice 0-11
-        totalsByMonth[monthIndex] += expense.value;
+      // Se for uma despesa fixa, expande para todos os meses da duração
+      if (expense.isFixed && expense.fixedDurationMonths) {
+        const dateParts = expense.date.split('/');
+        if (dateParts.length === 3) {
+          const [d, m, y] = dateParts.map(Number);
+          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+            const startDate = dayjs(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+            
+            for (let i = 0; i < expense.fixedDurationMonths; i++) {
+              const parcelDate = startDate.add(i, 'month');
+              const parcelYear = parcelDate.year();
+              const parcelMonth = parcelDate.month() + 1; // dayjs usa 0-11, precisamos 1-12
+              
+              // Só adiciona se for do ano selecionado
+              if (parcelYear === selectedYear && parcelMonth >= 1 && parcelMonth <= 12) {
+                const monthIndex = parcelMonth - 1;
+                totalsByMonth[monthIndex] += expense.value;
+              }
+            }
+          }
+        }
+      } else {
+        // Despesa normal: adiciona apenas no mês da data
+        const [day, month, year] = expense.date.split('/').map(Number);
+        if (month && month >= 1 && month <= 12 && year === selectedYear) {
+          const monthIndex = month - 1; // Converter para índice 0-11
+          totalsByMonth[monthIndex] += expense.value;
+        }
       }
     });
 

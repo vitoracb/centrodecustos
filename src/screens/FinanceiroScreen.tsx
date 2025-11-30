@@ -1289,7 +1289,7 @@ export const FinanceiroScreen = () => {
               <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
             </TouchableOpacity>
             <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
-            <ExpenseBarChart expenses={filteredExpenses} />
+            <ExpenseBarChart expenses={allExpensesForCenter} />
             <ExpenseSectorChart expenses={filteredExpenses} />
             
             {/* Despesas agrupadas por status */}
