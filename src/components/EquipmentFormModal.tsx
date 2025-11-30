@@ -28,7 +28,7 @@ interface EquipmentFormModalProps {
     brand: string;
     year: string;
     purchaseDate: string;
-    nextReview: string;
+    hoursUntilRevision: number;
     costCenter: CostCenter;
   }) => void;
   initialData?: {
@@ -36,7 +36,7 @@ interface EquipmentFormModalProps {
     brand: string;
     year: string;
     purchaseDate: string;
-    nextReview: string;
+    hoursUntilRevision?: number;
   };
 }
 
@@ -52,8 +52,7 @@ export const EquipmentFormModal = ({
   const [year, setYear] = useState('');
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState(new Date());
-  const [nextReviewDatePickerVisible, setNextReviewDatePickerVisible] = useState(false);
-  const [nextReviewDate, setNextReviewDate] = useState(new Date());
+  const [hoursUntilRevision, setHoursUntilRevision] = useState('250');
 
   // Atualiza os campos quando initialData muda ou quando o modal abre
   useEffect(() => {
@@ -64,25 +63,31 @@ export const EquipmentFormModal = ({
         setYear(initialData.year);
         const parsedPurchaseDate = dayjs(initialData.purchaseDate, 'DD/MM/YYYY');
         setPurchaseDate(parsedPurchaseDate.isValid() ? parsedPurchaseDate.toDate() : new Date());
-        const parsedNextReview = dayjs(initialData.nextReview, 'DD/MM/YYYY');
-        setNextReviewDate(parsedNextReview.isValid() ? parsedNextReview.toDate() : new Date());
+        setHoursUntilRevision(initialData.hoursUntilRevision?.toString() || '250');
       } else {
         setName('');
         setBrand('');
         setYear('');
         setPurchaseDate(new Date());
-        setNextReviewDate(new Date());
+        setHoursUntilRevision('250');
       }
     }
   }, [visible, initialData]);
 
   const handleSave = () => {
+    const hoursUntilRevisionValue = parseFloat(hoursUntilRevision.replace(',', '.'));
+    
+    if (isNaN(hoursUntilRevisionValue) || hoursUntilRevisionValue < 0) {
+      // Validação básica - você pode adicionar um alerta aqui se quiser
+      return;
+    }
+    
     onSubmit?.({
       name,
       brand,
       year,
       purchaseDate: dayjs(purchaseDate).format('DD/MM/YYYY'),
-      nextReview: dayjs(nextReviewDate).format('DD/MM/YYYY'),
+      hoursUntilRevision: hoursUntilRevisionValue,
       costCenter: selectedCenter,
     });
     onClose();
@@ -90,7 +95,7 @@ export const EquipmentFormModal = ({
     setBrand('');
     setYear('');
     setPurchaseDate(new Date());
-    setNextReviewDate(new Date());
+    setHoursUntilRevision('250');
   };
 
   return (
@@ -104,7 +109,6 @@ export const EquipmentFormModal = ({
           activeOpacity={1} 
           onPress={() => {
             setDatePickerVisible(false);
-            setNextReviewDatePickerVisible(false);
             onClose();
           }} 
         />
@@ -168,15 +172,21 @@ export const EquipmentFormModal = ({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Data da próxima revisão</Text>
-              <TouchableOpacity
+              <Text style={styles.label}>Horas até próxima revisão</Text>
+              <TextInput
+                value={hoursUntilRevision}
+                onChangeText={(text) => {
+                  // Permite apenas números, vírgula e ponto
+                  const cleaned = text.replace(/[^0-9,.]/g, '');
+                  setHoursUntilRevision(cleaned);
+                }}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 250"
                 style={styles.input}
-                onPress={() => setNextReviewDatePickerVisible(true)}
-              >
-                <Text style={{ color: '#1C1C1E' }}>
-                  {dayjs(nextReviewDate).format('DD/MM/YYYY')}
-                </Text>
-              </TouchableOpacity>
+              />
+              <Text style={styles.hintText}>
+                Quantas horas faltam para a próxima revisão
+              </Text>
             </View>
 
             <View style={styles.summary}>
@@ -211,29 +221,6 @@ export const EquipmentFormModal = ({
           </View>
         )}
 
-        {nextReviewDatePickerVisible && (
-          <View style={styles.datePickerOverlay}>
-            <View style={styles.datePickerWrapper}>
-              <DateTimePicker
-                value={nextReviewDate}
-                mode="date"
-                display="spinner"
-                onChange={(_, date) => {
-                  if (date) {
-                    setNextReviewDate(date);
-                    setNextReviewDatePickerVisible(false);
-                  }
-                }}
-              />
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => setNextReviewDatePickerVisible(false)}
-              >
-                <Text style={styles.datePickerButtonText}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -327,6 +314,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  hintText: {
+    fontSize: 12,
+    color: '#6C6C70',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   datePickerOverlay: {
     ...StyleSheet.absoluteFillObject,

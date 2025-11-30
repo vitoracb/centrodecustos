@@ -25,6 +25,7 @@ import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter, CostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useFinancial } from '../context/FinancialContext';
+import { UpdateHoursModal } from '../components/UpdateHoursModal';
 
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
@@ -130,7 +131,7 @@ export const EquipmentDetailScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentById, updateEquipment } = useEquipment();
+  const { getEquipmentById, updateEquipment, updateEquipmentHours } = useEquipment();
   const { addExpense, updateExpense, deleteExpense, deleteExpenseDocument, getAllExpenses } = useFinancial();
 
   const [activeTab, setActiveTab] = useState<TabKey>('despesas');
@@ -170,6 +171,7 @@ export const EquipmentDetailScreen = () => {
     ExpenseDocument[]
   >([]);
   const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<ExpenseItem | null>(null);
+  const [isUpdateHoursModalVisible, setUpdateHoursModalVisible] = useState(false);
 
   // Carrega o equipamento (do contexto ou dos params)
   const equipment = useMemo(() => {
@@ -190,6 +192,9 @@ export const EquipmentDetailScreen = () => {
       center: (params.center as CostCenter | undefined) ?? selectedCenter,
       status: 'ativo' as const,
       nextReview: params.nextReview ?? '',
+      // ✅ Campos de horas com valores padrão
+      currentHours: 0,
+      hoursUntilRevision: 250,
     };
   }, [params, selectedCenter, getEquipmentById]);
 
@@ -579,10 +584,65 @@ export const EquipmentDetailScreen = () => {
                 </Text>
               </View>
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Próxima revisão</Text>
-                <Text style={styles.infoValue}>{equipment.nextReview}</Text>
+                <Text style={styles.infoLabel}>Horas Atuais</Text>
+                <Text style={styles.infoValue}>
+                  {equipment.currentHours.toLocaleString('pt-BR')}h
+                </Text>
               </View>
             </View>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Próxima Revisão</Text>
+                <Text style={styles.infoValue}>
+                  {(equipment.currentHours + equipment.hoursUntilRevision).toLocaleString('pt-BR')}h
+                </Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Faltam</Text>
+                <Text style={[
+                  styles.infoValue,
+                  (() => {
+                    const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
+                    const isPastRevision = equipment.hoursUntilRevision <= 0;
+                    if (isPastRevision) return styles.infoValueError;
+                    if (isNearRevision) return styles.infoValueWarning;
+                    return null;
+                  })(),
+                ]}>
+                  {equipment.hoursUntilRevision <= 0
+                    ? 'REVISÃO URGENTE!'
+                    : `${equipment.hoursUntilRevision.toFixed(0)}h`
+                  }
+                </Text>
+              </View>
+            </View>
+
+            {/* Alerta de Revisão */}
+            {(() => {
+              const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
+              const isPastRevision = equipment.hoursUntilRevision <= 0;
+              
+              if (isNearRevision || isPastRevision) {
+                return (
+                  <View style={[
+                    styles.revisionAlert,
+                    isPastRevision && styles.revisionAlertError,
+                  ]}>
+                    <Text style={[
+                      styles.revisionAlertText,
+                      isPastRevision && styles.revisionAlertTextError,
+                    ]}>
+                      {isPastRevision 
+                        ? `⚠️ REVISÃO ATRASADA! Agende urgente!` 
+                        : `🔔 Revisão próxima! Faltam ${equipment.hoursUntilRevision.toFixed(0)}h`
+                      }
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
           </View>
 
           <View style={styles.tabContainer}>
@@ -608,6 +668,16 @@ export const EquipmentDetailScreen = () => {
               );
             })}
           </View>
+
+          {/* Botão de Atualizar Horas - apenas na aba Revisões, abaixo das subabas e acima dos cards */}
+          {activeTab === 'revisoes' && (
+            <TouchableOpacity
+              style={styles.updateHoursButton}
+              onPress={() => setUpdateHoursModalVisible(true)}
+            >
+              <Text style={styles.updateHoursButtonText}>Atualizar Horas</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1283,6 +1353,15 @@ export const EquipmentDetailScreen = () => {
               }
             }}
           />
+
+          <UpdateHoursModal
+            visible={isUpdateHoursModalVisible}
+            equipment={equipment}
+            onClose={() => setUpdateHoursModalVisible(false)}
+            onUpdate={async (equipmentId, newHours) => {
+              await updateEquipmentHours(equipmentId, newHours);
+            }}
+          />
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -1358,6 +1437,49 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  infoValueWarning: {
+    color: '#FF9500',
+  },
+  infoValueError: {
+    color: '#FF3B30',
+  },
+  updateHoursButton: {
+    marginBottom: 20,
+    backgroundColor: '#0A84FF',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  updateHoursButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  revisionAlert: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FFF4E5',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9500',
+  },
+  revisionAlertError: {
+    backgroundColor: '#FFEBEE',
+    borderLeftColor: '#FF3B30',
+  },
+  revisionAlertText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  revisionAlertTextError: {
+    color: '#FF3B30',
   },
   statusButton: {
     borderRadius: 12,

@@ -307,14 +307,48 @@ export const EquipamentosScreen = () => {
               </View>
               <View style={styles.cardMeta}>
                 <View>
-                  <Text style={styles.metaLabel}>Data da compra</Text>
-                  <Text style={styles.metaValue}>{equipment.purchaseDate}</Text>
+                  <Text style={styles.metaLabel}>Horas Atuais</Text>
+                  <Text style={styles.metaValue}>
+                    {equipment.currentHours.toLocaleString('pt-BR')}h
+                  </Text>
                 </View>
                 <View>
-                  <Text style={styles.metaLabel}>Próxima revisão</Text>
-                  <Text style={styles.metaValue}>{equipment.nextReview}</Text>
+                  <Text style={styles.metaLabel}>Horas p/ Revisão</Text>
+                  <Text style={styles.metaValue}>
+                    {equipment.hoursUntilRevision.toLocaleString('pt-BR')}h
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.metaLabel}>Hora da Revisão</Text>
+                  <Text style={styles.metaValue}>
+                    {(equipment.currentHours + equipment.hoursUntilRevision).toLocaleString('pt-BR')}h
+                  </Text>
                 </View>
               </View>
+              {(() => {
+                const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
+                const isPastRevision = equipment.hoursUntilRevision <= 0;
+                
+                if (isNearRevision || isPastRevision) {
+                  return (
+                    <View style={[
+                      styles.revisionAlert,
+                      isPastRevision && styles.revisionAlertError,
+                    ]}>
+                      <Text style={[
+                        styles.revisionAlertText,
+                        isPastRevision && styles.revisionAlertTextError,
+                      ]}>
+                      {isPastRevision 
+                        ? `⚠️ REVISÃO URGENTE!` 
+                        : `🔔 Faltam ${equipment.hoursUntilRevision.toFixed(0)}h para revisão`
+                      }
+                      </Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </TouchableOpacity>
             ))
           )}
@@ -342,7 +376,7 @@ export const EquipamentosScreen = () => {
               brand: data.brand,
               year: Number(data.year) || new Date().getFullYear(),
               purchaseDate: data.purchaseDate,
-              nextReview: data.nextReview,
+              hoursUntilRevision: data.hoursUntilRevision,
             });
           } else {
             addEquipment({
@@ -350,9 +384,10 @@ export const EquipamentosScreen = () => {
               brand: data.brand,
               year: Number(data.year) || new Date().getFullYear(),
               purchaseDate: data.purchaseDate,
-              nextReview: data.nextReview,
               center: selectedCenter,
               status: 'ativo',
+              currentHours: 0,
+              hoursUntilRevision: data.hoursUntilRevision,
             });
           }
           setIsFormVisible(false);
@@ -363,8 +398,8 @@ export const EquipamentosScreen = () => {
           brand: editingEquipment.brand,
           year: String(editingEquipment.year),
           purchaseDate: editingEquipment.purchaseDate,
-          nextReview: editingEquipment.nextReview,
-          } : undefined}
+          hoursUntilRevision: editingEquipment.hoursUntilRevision,
+        } : undefined}
       />
       <EquipmentFilterModal
         visible={isFilterModalVisible}
@@ -571,5 +606,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
     marginTop: 2,
+  },
+  revisionAlert: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: '#FFF4E5',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9500',
+  },
+  revisionAlertError: {
+    backgroundColor: '#FFEBEE',
+    borderLeftColor: '#FF3B30',
+  },
+  revisionAlertText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  revisionAlertTextError: {
+    color: '#FF3B30',
   },
 });

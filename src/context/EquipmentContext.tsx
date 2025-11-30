@@ -10,6 +10,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 import { logger } from '@/src/lib/logger';
 import { showSuccess, showError, showInfo } from '@/src/lib/toast';
 import { CostCenter } from './CostCenterContext';
+import { scheduleRevisionNotification } from '@/src/lib/revisionNotifications';
 
 /**
  * Status do equipamento
@@ -26,12 +27,19 @@ export interface Equipment {
   brand: string;
   year: number;
   purchaseDate: string; // 'DD/MM/YYYY'
-  nextReview: string; // 'DD/MM/YYYY' ou ''
+  nextReview: string; // 'DD/MM/YYYY' ou '' (DEPRECADO - manter para compatibilidade)
   center: CostCenter; // 'valenca' | 'cna' | 'cabralia'
   status: EquipmentStatus;
   createdAt?: number;
   statusChangedAt?: number;
   deletedAt?: number; // Timestamp quando foi deletado (soft delete)
+  
+  // ✅ NOVOS CAMPOS: Sistema de revisão por horas (campo personalizável)
+  currentHours: number;              // Horas trabalhadas atuais
+  hoursUntilRevision: number;        // Quantas horas faltam para revisão (campo personalizável)
+  
+  // Campo calculado (não salvo no banco):
+  // nextRevisionHours = currentHours + hoursUntilRevision
 }
 
 interface EquipmentContextType {
@@ -43,6 +51,7 @@ interface EquipmentContextType {
   addEquipment: (equipment: Omit<Equipment, 'id'>) => Promise<void>;
   updateEquipment: (id: string, updates: Partial<Equipment>) => Promise<void>;
   deleteEquipment: (id: string) => Promise<void>;
+  updateEquipmentHours: (equipmentId: string, newCurrentHours: number, newHoursUntilRevision?: number) => Promise<void>; // ✅ NOVO
 
   getEquipmentsByCenter: (center: CostCenter) => Equipment[];
   getEquipmentById: (id: string) => Equipment | undefined;
@@ -117,6 +126,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           created_at,
           deleted_at,
           cost_center_id,
+          current_hours,
+          hours_until_revision,
           cost_centers (
             code
           )
@@ -170,6 +181,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
       );
 
       const mapped: Equipment[] = equipmentsWithCenters.map((row: any) => {
+        const currentHours = row.current_hours ?? 0;
+        const hoursUntilRevision = row.hours_until_revision ?? 250;
+        
         const equipment = {
           id: row.id,
           name: row.name,
@@ -185,6 +199,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           deletedAt: row.deleted_at
             ? new Date(row.deleted_at).getTime()
             : undefined,
+          // ✅ NOVOS CAMPOS
+          currentHours,
+          hoursUntilRevision,
         };
         
         console.log(`📦 Equipamento mapeado:`, {
@@ -253,6 +270,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           next_review_date: brToIso(equipment.nextReview),
           active: equipment.status === 'ativo',
           cost_center_id: ccData.id,
+          // ✅ NOVOS CAMPOS
+          current_hours: equipment.currentHours ?? 0,
+          hours_until_revision: equipment.hoursUntilRevision ?? 250,
         };
 
         const { data, error } = await supabase
@@ -268,6 +288,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             next_review_date,
             active,
             created_at,
+            current_hours,
+            hours_until_revision,
             cost_centers ( code )
           `,
           )
@@ -290,6 +312,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           ? data.cost_centers[0]
           : data.cost_centers;
 
+        const currentHours = data.current_hours ?? 0;
+        const hoursUntilRevision = data.hours_until_revision ?? 250;
+        
         const newEquipment: Equipment = {
           id: data.id,
           name: data.name,
@@ -302,6 +327,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           createdAt: data.created_at
             ? new Date(data.created_at).getTime()
             : Date.now(),
+          // ✅ NOVOS CAMPOS
+          currentHours,
+          hoursUntilRevision,
         };
 
         setEquipments(prev => [newEquipment, ...prev]);
@@ -355,6 +383,9 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         if (updates.status !== undefined)
           payload.active = updates.status === 'ativo';
         if (costCenterId) payload.cost_center_id = costCenterId;
+        // ✅ NOVOS CAMPOS
+        if (updates.currentHours !== undefined) payload.current_hours = updates.currentHours;
+        if (updates.hoursUntilRevision !== undefined) payload.hours_until_revision = updates.hoursUntilRevision;
 
         if (Object.keys(payload).length === 0) {
           return;
@@ -455,6 +486,156 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
 
   const getAllEquipments = useCallback(() => equipments, [equipments]);
 
+  /**
+   * Atualiza as horas trabalhadas de um equipamento
+   * Se newHoursUntilRevision não for fornecido, calcula automaticamente descontando as horas trabalhadas
+   */
+  const updateEquipmentHours = useCallback(
+    async (equipmentId: string, newCurrentHours: number, newHoursUntilRevision?: number) => {
+      try {
+        const equipment = equipments.find(e => e.id === equipmentId);
+        if (!equipment) {
+          logger.error('Equipamento não encontrado');
+          showError('Erro', 'Equipamento não encontrado');
+          return;
+        }
+
+        // Validação: horas não podem diminuir
+        if (newCurrentHours < equipment.currentHours) {
+          showError('Erro', 'As horas não podem diminuir');
+          return;
+        }
+
+        let finalHoursUntilRevision: number;
+        
+        // Se newHoursUntilRevision foi fornecido, usa esse valor
+        // Caso contrário, calcula automaticamente descontando as horas trabalhadas
+        if (newHoursUntilRevision !== undefined) {
+          finalHoursUntilRevision = newHoursUntilRevision;
+          logger.info(`🔧 ${equipment.name}:`);
+          logger.info(`   Horas atuais: ${newCurrentHours}h`);
+          logger.info(`   Horas até revisão (definido manualmente): ${finalHoursUntilRevision}h`);
+        } else {
+          // Calcula quantas horas foram trabalhadas
+          const hoursWorked = newCurrentHours - equipment.currentHours;
+          
+          // Desconta das horas até revisão
+          finalHoursUntilRevision = Math.max(0, equipment.hoursUntilRevision - hoursWorked);
+          
+          logger.info(`🔧 ${equipment.name}:`);
+          logger.info(`   Horas trabalhadas: +${hoursWorked}h`);
+          logger.info(`   Faltam para revisão (calculado): ${finalHoursUntilRevision}h`);
+        }
+        
+        let updateData: any = {
+          current_hours: newCurrentHours,
+          hours_until_revision: finalHoursUntilRevision,
+        };
+
+        const { data, error } = await supabase
+          .from('equipments')
+          .update(updateData)
+          .eq('id', equipmentId)
+          .select(
+            `
+            id, name, brand, year, purchase_date, next_review_date, active, created_at, deleted_at,
+            current_hours, hours_until_revision,
+            cost_center_id,
+            cost_centers ( code )
+          `
+          )
+          .single();
+
+        if (error || !data) {
+          logger.error('Erro ao atualizar horas:', error);
+          showError('Erro ao atualizar horas', 'Tente novamente');
+          return;
+        }
+
+        // Busca o código do centro de custo
+        let costCenterCode: string | undefined;
+        if (data.cost_centers) {
+          if (Array.isArray(data.cost_centers)) {
+            costCenterCode = data.cost_centers[0]?.code;
+          } else {
+            costCenterCode = data.cost_centers.code;
+          }
+        }
+
+        if (!costCenterCode && data.cost_center_id) {
+          try {
+            const { data: ccData } = await supabase
+              .from('cost_centers')
+              .select('code')
+              .eq('id', data.cost_center_id)
+              .maybeSingle();
+            
+            if (ccData) {
+              costCenterCode = ccData.code;
+            }
+          } catch (err) {
+            logger.error('Erro ao buscar centro de custo:', err);
+          }
+        }
+
+        const currentHours = data.current_hours ?? 0;
+        const hoursUntilRevision = data.hours_until_revision ?? 250;
+
+        const updated: Equipment = {
+          id: data.id,
+          name: data.name,
+          brand: data.brand ?? '',
+          year: data.year ?? new Date().getFullYear(),
+          purchaseDate: isoToBr(data.purchase_date),
+          nextReview: isoToBr(data.next_review_date),
+          center: (costCenterCode ?? 'valenca') as CostCenter,
+          status: data.active ? 'ativo' : 'inativo',
+          createdAt: data.created_at
+            ? new Date(data.created_at).getTime()
+            : undefined,
+          deletedAt: data.deleted_at
+            ? new Date(data.deleted_at).getTime()
+            : undefined,
+          currentHours,
+          hoursUntilRevision,
+        };
+
+        setEquipments(prev => prev.map(e => e.id === equipmentId ? updated : e));
+        
+        logger.info(`✅ Horas atualizadas: ${equipment.name} - ${newCurrentHours}h`);
+        showSuccess('Horas atualizadas', `${equipment.name}: ${newCurrentHours.toLocaleString()}h`);
+        
+        // Verifica se precisa notificar
+        checkRevisionNotification(updated);
+        
+      } catch (e: any) {
+        logger.error('Erro ao atualizar horas:', e);
+        showError('Erro ao atualizar horas', e.message || 'Tente novamente');
+      }
+    },
+    [equipments],
+  );
+
+  /**
+   * Verifica se o equipamento precisa de notificação de revisão
+   */
+  const checkRevisionNotification = useCallback(async (equipment: Equipment) => {
+    // Agenda notificação push
+    await scheduleRevisionNotification(equipment);
+    
+    // Mostra toast se faltar 50h ou menos
+    if (equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0) {
+      logger.info(`🔔 NOTIFICAÇÃO: ${equipment.name} precisa de revisão em ${equipment.hoursUntilRevision}h`);
+      showInfo('Revisão Próxima', `${equipment.name} precisa de revisão em ${equipment.hoursUntilRevision}h`);
+    }
+    
+    // Mostra toast se já passou da revisão
+    if (equipment.hoursUntilRevision <= 0) {
+      logger.warn(`⚠️ ALERTA: ${equipment.name} PRECISA DE REVISÃO URGENTE!`);
+      showError('Revisão Atrasada', `${equipment.name} precisa de revisão urgente!`);
+    }
+  }, []);
+
   const value: EquipmentContextType = {
     equipments,
     loading,
@@ -463,6 +644,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     addEquipment,
     updateEquipment,
     deleteEquipment,
+    updateEquipmentHours, // ✅ NOVO
     getEquipmentsByCenter,
     getEquipmentById,
     getAllEquipments,
