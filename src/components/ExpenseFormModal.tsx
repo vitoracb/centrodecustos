@@ -316,6 +316,21 @@ export const ExpenseFormModal = ({
       return;
     }
 
+    // Validação: se for despesa fixa, duração é obrigatória
+    if (isFixed && !fixedDurationMonths) {
+      Alert.alert('Campo obrigatório', 'Por favor, informe a duração em meses para a despesa fixa.');
+      return;
+    }
+
+    // Validação: duração deve ser um número válido maior que 0
+    if (isFixed && fixedDurationMonths) {
+      const duration = parseInt(fixedDurationMonths, 10);
+      if (isNaN(duration) || duration <= 0) {
+        Alert.alert('Valor inválido', 'A duração deve ser um número maior que zero.');
+        return;
+      }
+    }
+
     onSubmit({
       name: name.trim(),
       category,
@@ -623,9 +638,9 @@ export const ExpenseFormModal = ({
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>Duração (meses)</Text>
+                  <Text style={styles.label}>Duração (meses) *</Text>
                   <Text style={styles.hint}>
-                    Número de meses que a despesa será gerada. Deixe em branco para duração indefinida.
+                    Número de meses que a despesa será gerada (obrigatório para despesas fixas).
                   </Text>
                   <TextInput
                     style={styles.input}
@@ -634,7 +649,7 @@ export const ExpenseFormModal = ({
                       const numbers = text.replace(/\D/g, '');
                       setFixedDurationMonths(numbers);
                     }}
-                    placeholder="Ex: 3 (para 3 meses)"
+                    placeholder="Ex: 3, 6, 12, 24..."
                     keyboardType="numeric"
                   />
                 </View>
@@ -744,7 +759,8 @@ export const ExpenseFormModal = ({
                 parseCurrency(value) <= 0 ||
                 ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
                 (category === 'gestao' && !gestaoSubcategory) ||
-                (isFixed && !sector)
+                (isFixed && !sector) ||
+                (isFixed && !fixedDurationMonths)
               }
               onPress={handleSave}
             >
