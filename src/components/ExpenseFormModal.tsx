@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  ActionSheetIOS,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
@@ -223,10 +224,96 @@ export const ExpenseFormModal = ({
     }
   };
 
-  const handlePickPhoto = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const handleAddDocument = () => {
+    // Mostra menu para selecionar tipo de documento
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            handlePickDocument('nota_fiscal');
+          } else if (buttonIndex === 2) {
+            handlePickDocument('recibo');
+          } else if (buttonIndex === 3) {
+            handlePickDocument('comprovante_pagamento');
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Tipo de documento',
+        'Selecione o tipo de documento',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Nota Fiscal', onPress: () => handlePickDocument('nota_fiscal') },
+          { text: 'Recibo', onPress: () => handlePickDocument('recibo') },
+          { text: 'Comprovante', onPress: () => handlePickDocument('comprovante_pagamento') },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
+
+  const handlePickPhotoFromCamera = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: false,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
+      setDocuments((prev) => [
+        ...prev,
+        {
+          type,
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+        },
+      ]);
+    }
+  };
+
+  const handlePickPhotoFromLibrary = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permissão necessária', 'Por favor, conceda acesso à galeria de fotos para selecionar uma imagem.');
+      Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -267,6 +354,69 @@ export const ExpenseFormModal = ({
           mimeType: asset.mimeType ?? 'image/jpeg',
         },
       ]);
+    }
+  };
+
+  const handleSelectPhotoType = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+    // Depois de selecionar o tipo, pergunta se é câmera ou álbum
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tirar foto', 'Escolher do álbum'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            handlePickPhotoFromCamera(type);
+          } else if (buttonIndex === 2) {
+            handlePickPhotoFromLibrary(type);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Selecionar foto',
+        'Escolha uma opção',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Tirar foto', onPress: () => handlePickPhotoFromCamera(type) },
+          { text: 'Escolher do álbum', onPress: () => handlePickPhotoFromLibrary(type) },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
+
+  const handleAddPhoto = () => {
+    // Primeiro pergunta o tipo de documento
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            handleSelectPhotoType('nota_fiscal');
+          } else if (buttonIndex === 2) {
+            handleSelectPhotoType('recibo');
+          } else if (buttonIndex === 3) {
+            handleSelectPhotoType('comprovante_pagamento');
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Tipo de documento',
+        'Selecione o tipo de documento',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Nota Fiscal', onPress: () => handleSelectPhotoType('nota_fiscal') },
+          { text: 'Recibo', onPress: () => handleSelectPhotoType('recibo') },
+          { text: 'Comprovante', onPress: () => handleSelectPhotoType('comprovante_pagamento') },
+        ],
+        { cancelable: true }
+      );
     }
   };
 
@@ -658,56 +808,21 @@ export const ExpenseFormModal = ({
 
             <View style={styles.field}>
               <Text style={styles.label}>Documentos</Text>
-              <View style={styles.documentButtonsGrid}>
-                {/* Coluna Esquerda - Documentos */}
-                <View style={styles.documentButtonsColumn}>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickDocument('nota_fiscal')}
-                  >
-                    <FileText size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Nota Fiscal</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickDocument('recibo')}
-                  >
-                    <FileText size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Recibo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickDocument('comprovante_pagamento')}
-                  >
-                    <FileText size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Comprovante</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Coluna Direita - Fotos */}
-                <View style={styles.documentButtonsColumn}>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickPhoto('nota_fiscal')}
-                  >
-                    <Camera size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Nota Fiscal</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickPhoto('recibo')}
-                  >
-                    <Camera size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Recibo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => handlePickPhoto('comprovante_pagamento')}
-                  >
-                    <Camera size={18} color="#0A84FF" />
-                    <Text style={styles.documentButtonText}>Comprovante</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.uploadRow}>
+                <TouchableOpacity
+                  style={styles.uploadButton}
+                  onPress={handleAddDocument}
+                >
+                  <FileText size={18} color="#0A84FF" />
+                  <Text style={styles.uploadText}>Adicionar documento</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.uploadButton}
+                  onPress={handleAddPhoto}
+                >
+                  <Camera size={18} color="#0A84FF" />
+                  <Text style={styles.uploadText}>Adicionar foto</Text>
+                </TouchableOpacity>
               </View>
               {documents.length > 0 && (
                 <View style={styles.documentsList}>
@@ -880,26 +995,23 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  documentButtonsGrid: {
+  uploadRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
   },
-  documentButtonsColumn: {
+  uploadButton: {
     flex: 1,
-    gap: 10,
-  },
-  documentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#0A84FF',
     paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  documentButtonText: {
+  uploadText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#0A84FF',
