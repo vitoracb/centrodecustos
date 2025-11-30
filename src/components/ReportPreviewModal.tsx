@@ -8,13 +8,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { X, Download } from 'lucide-react-native';
+import { X, Download, Share } from 'lucide-react-native';
 
 interface ReportPreviewModalProps {
   visible: boolean;
   html?: string | null;
   onClose: () => void;
   onDownload: () => void;
+  onShare?: () => void;
   downloadLabel: string;
   title?: string;
 }
@@ -24,6 +25,7 @@ export const ReportPreviewModal = ({
   html,
   onClose,
   onDownload,
+  onShare,
   downloadLabel,
   title = 'Prévia do Relatório',
 }: ReportPreviewModalProps) => {
@@ -55,12 +57,18 @@ export const ReportPreviewModal = ({
           </View>
 
           <View style={styles.footer}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.8}>
+              <Text style={styles.closeButtonText}>Fechar</Text>
+            </TouchableOpacity>
+            {onShare && (
+              <TouchableOpacity style={styles.shareButton} onPress={onShare} activeOpacity={0.8}>
+                <Share size={18} color="#FFFFFF" />
+                <Text style={styles.shareText}>Compartilhar</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.downloadButton} onPress={onDownload} activeOpacity={0.8}>
               <Download size={18} color="#FFFFFF" />
               <Text style={styles.downloadText}>{downloadLabel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.8}>
-              <Text style={styles.closeButtonText}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -114,11 +122,42 @@ const styles = StyleSheet.create({
     color: '#6C6C70',
   },
   footer: {
+    flexDirection: 'row',
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 12,
   },
+  closeButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  shareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#34C759',
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  shareText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   downloadButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -129,20 +168,8 @@ const styles = StyleSheet.create({
   },
   downloadText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  closeButton: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    alignItems: 'center',
-  },
-  closeButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1C1C1E',
   },
 });
 

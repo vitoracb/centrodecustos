@@ -41,6 +41,7 @@ import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
+import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
 import { ReceiptStatus } from '../context/FinancialContext';
 import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
@@ -619,18 +620,49 @@ export const FinanceiroScreen = () => {
   const handleDownloadClosureReport = useCallback(async () => {
     if (!reportPreview) return;
     try {
+      let fileUri: string;
+      
       if (reportPreview.type === 'pdf') {
-        await exportToPDF(reportPreview.data);
+        fileUri = await exportToPDF(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
       } else {
-        await exportToExcel(reportPreview.data);
+        fileUri = await exportToExcel(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
       }
-      setReportPreview(null);
+      
+      // Compartilha automaticamente após gerar
+      const fileName = reportPreview.type === 'pdf' 
+        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
+        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
+      
+      await shareFile(fileUri, fileName);
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
     }
   }, [reportPreview, showSuccess, showError]);
+
+  const handleShareClosureReport = useCallback(async () => {
+    if (!reportPreview) return;
+    
+    try {
+      // Gera o arquivo
+      let fileUri: string;
+      if (reportPreview.type === 'pdf') {
+        fileUri = await exportToPDF(reportPreview.data);
+      } else {
+        fileUri = await exportToExcel(reportPreview.data);
+      }
+      
+      // Compartilha imediatamente
+      const fileName = reportPreview.type === 'pdf' 
+        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
+        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
+      
+      await shareFile(fileUri, fileName);
+    } catch (error: any) {
+      showError('Erro ao compartilhar', error.message || 'Tente novamente');
+    }
+  }, [reportPreview, showError]);
 
   const filteredExpenses = useMemo(() => {
     let filtered = [...allExpensesForCenter];
@@ -1289,7 +1321,7 @@ export const FinanceiroScreen = () => {
               <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
             </TouchableOpacity>
             <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
-            <ExpenseBarChart expenses={allExpensesForCenter} />
+            <ExpenseBarChart expenses={filteredExpenses} />
             <ExpenseSectorChart expenses={filteredExpenses} />
             
             {/* Despesas agrupadas por status */}
@@ -1968,6 +2000,7 @@ export const FinanceiroScreen = () => {
         html={reportPreview?.html}
         onClose={() => setReportPreview(null)}
         onDownload={handleDownloadClosureReport}
+        onShare={handleShareClosureReport}
         downloadLabel={reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'}
         title="Prévia do Relatório de Fechamento"
       />

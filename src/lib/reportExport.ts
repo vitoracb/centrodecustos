@@ -570,22 +570,20 @@ export const buildReportHTML = (data: ReportData): string => {
   `;
 };
 
-export const exportToPDF = async (data: ReportData): Promise<void> => {
+export const exportToPDF = async (data: ReportData): Promise<string> => {
   try {
     const html = buildReportHTML(data);
+    const timestamp = Date.now();
+    const periodLabel = data.period.month !== undefined
+      ? `${dayjs().month(data.period.month).format('MMMM')}_${data.period.year}`
+      : `Ano_${data.period.year}`;
+    const centerLabel = data.center ? getCenterLabel(data.center).replace(/\s+/g, '_') : 'Todos_Centros';
+    
     // Salvar HTML temporariamente
-    const fileUri = `${FileSystem.cacheDirectory}relatorio_${Date.now()}.html`;
+    const fileUri = `${FileSystem.documentDirectory}relatorio_${periodLabel}_${centerLabel}_${timestamp}.html`;
     await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
 
-    // Compartilhar o arquivo (o usuário pode escolher como abrir, incluindo como PDF)
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/html',
-        dialogTitle: 'Exportar Relatório',
-      });
-    } else {
-      throw new Error('Compartilhamento não disponível neste dispositivo');
-    }
+    return fileUri;
   } catch (error: any) {
     console.error('Erro ao exportar PDF:', error);
     throw new Error(`Erro ao exportar PDF: ${error.message}`);
@@ -769,18 +767,11 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     }
 
     // Salvar CSV
-    const fileUri = `${FileSystem.cacheDirectory}relatorio_${periodLabel}_${centerLabel}_${Date.now()}.csv`;
+    const timestamp = Date.now();
+    const fileUri = `${FileSystem.documentDirectory}relatorio_${periodLabel}_${centerLabel}_${timestamp}.csv`;
     await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
 
-    // Compartilhar o arquivo
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Exportar Relatório Excel',
-      });
-    } else {
-      throw new Error('Compartilhamento não disponível neste dispositivo');
-    }
+    return fileUri;
   } catch (error: any) {
     console.error('Erro ao exportar Excel:', error);
     throw new Error(`Erro ao exportar Excel: ${error.message}`);

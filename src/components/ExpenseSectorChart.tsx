@@ -26,8 +26,34 @@ interface ExpenseSectorChartProps {
 export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
   const chartData = useMemo(() => {
     // Filtra apenas despesas fixas com setor
+    // Prioriza parcelas geradas (isFixed: false com installmentNumber)
+    // Exclui o template (isFixed: true) quando há parcelas geradas para evitar duplicação
     const fixedExpensesWithSector = expenses.filter(
-      exp => exp.isFixed && exp.sector
+      exp => {
+        if (!exp.sector) return false;
+        
+        // Se tem installmentNumber, é uma parcela gerada - sempre inclui
+        if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
+          return true;
+        }
+        
+        // Se é o template (isFixed: true), verifica se há parcelas geradas no array
+        // Se houver, exclui o template para evitar duplicação
+        if (exp.isFixed) {
+          const hasGeneratedInstallments = expenses.some(
+            other => 
+              other.id !== exp.id && // Não é a mesma despesa
+              other.description === exp.description &&
+              other.costCenterId === exp.costCenterId &&
+              other.installmentNumber !== undefined &&
+              other.installmentNumber !== null
+          );
+          // Só inclui o template se NÃO houver parcelas geradas
+          return !hasGeneratedInstallments;
+        }
+        
+        return false;
+      }
     );
 
     // Agrupa por setor
