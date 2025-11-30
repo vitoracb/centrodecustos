@@ -1299,6 +1299,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               actualMonth = ((targetMonth - 1) % 12) + 1;
             }
 
+            // Não gera parcelas para meses futuros além do mês atual
+            if (targetYear > currentYear || (targetYear === currentYear && actualMonth > currentMonth)) {
+              break; // Para de gerar parcelas futuras
+            }
+
             // Verifica se já existe esta parcela
             const monthStart = `${targetYear}-${String(actualMonth).padStart(2, "0")}-01`;
             const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();

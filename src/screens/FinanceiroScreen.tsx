@@ -161,7 +161,13 @@ const getExpenseFixedInfo = (expense: Expense, allExpenses: Expense[]): { isFixe
     return { isFixed: false };
   }
 
-  const monthsDiff = expenseDate.diff(templateDate, 'month');
+  // Calcula a diferença de meses de forma mais precisa
+  const templateYear = templateDate.year();
+  const templateMonth = templateDate.month();
+  const expenseYear = expenseDate.year();
+  const expenseMonth = expenseDate.month();
+  
+  const monthsDiff = (expenseYear - templateYear) * 12 + (expenseMonth - templateMonth);
   const installment = monthsDiff + 1; // +1 porque a primeira parcela é 1, não 0
 
   // Verifica se está dentro do range válido
@@ -1282,7 +1288,7 @@ export const FinanceiroScreen = () => {
               <Plus size={18} color="#0A84FF" />
               <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
             </TouchableOpacity>
-            <ExpensePieChart expenses={filteredExpenses} />
+            <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
             <ExpenseBarChart expenses={filteredExpenses} />
             <ExpenseSectorChart expenses={filteredExpenses} />
             

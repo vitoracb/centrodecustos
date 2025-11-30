@@ -25,11 +25,17 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 
 interface ExpensePieChartProps {
   expenses: Expense[];
+  mode?: 'mensal' | 'anual';
+  selectedPeriod?: dayjs.Dayjs;
 }
 
-export const ExpensePieChart = ({ expenses }: ExpensePieChartProps) => {
-  const [mode, setMode] = useState<'mensal' | 'anual'>('mensal');
-  const [selectedPeriod, setSelectedPeriod] = useState(dayjs());
+export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: externalPeriod }: ExpensePieChartProps) => {
+  const [internalMode, setInternalMode] = useState<'mensal' | 'anual'>('mensal');
+  const [internalPeriod, setInternalPeriod] = useState(dayjs());
+  
+  // Usa props externas se fornecidas, senão usa estado interno
+  const mode = externalMode ?? internalMode;
+  const selectedPeriod = externalPeriod ?? internalPeriod;
 
   const chartData = useMemo(() => {
     const totalsByCategory: Record<ExpenseCategory, number> = {
@@ -40,34 +46,10 @@ export const ExpensePieChart = ({ expenses }: ExpensePieChartProps) => {
       diversos: 0,
     };
 
-    const selectedMonth = selectedPeriod.month();
-    const selectedYear = selectedPeriod.year();
-
+    // Se as props externas foram fornecidas, usa as despesas já filtradas diretamente
+    // (não precisa filtrar novamente por período)
     expenses.forEach((expense) => {
-      const [day, month, year] = expense.date.split('/').map(Number);
-      if (!day || !month || !year) {
-        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
-        if (!expenseDate.isValid()) return;
-        if (mode === 'anual') {
-          if (expenseDate.year() === selectedYear) {
-            totalsByCategory[expense.category] += expense.value;
-          }
-        } else {
-          if (expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear) {
-            totalsByCategory[expense.category] += expense.value;
-          }
-        }
-      } else {
-        if (mode === 'anual') {
-          if (year === selectedYear) {
-            totalsByCategory[expense.category] += expense.value;
-          }
-        } else {
-          if (month - 1 === selectedMonth && year === selectedYear) {
-            totalsByCategory[expense.category] += expense.value;
-          }
-        }
-      }
+      totalsByCategory[expense.category] += expense.value;
     });
 
     const total = Object.values(totalsByCategory).reduce((sum, val) => sum + val, 0);
@@ -147,86 +129,90 @@ export const ExpensePieChart = ({ expenses }: ExpensePieChartProps) => {
       <View style={styles.header}>
         <Text style={styles.title}>Distribuição por Categoria</Text>
       </View>
-      <View style={styles.modeSelector}>
-        <TouchableOpacity
-          style={[styles.modeButton, mode === 'mensal' && styles.modeButtonActive]}
-          onPress={() => setMode('mensal')}
-        >
-          <Text style={[styles.modeButtonText, mode === 'mensal' && styles.modeButtonTextActive]}>
-            Mensal
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeButton, mode === 'anual' && styles.modeButtonActive]}
-          onPress={() => setMode('anual')}
-        >
-          <Text style={[styles.modeButtonText, mode === 'anual' && styles.modeButtonTextActive]}>
-            Anual
-          </Text>
-        </TouchableOpacity>
-      </View>
-      {mode === 'mensal' ? (
-        <View style={styles.periodNavigatorContainer}>
-          <View style={styles.periodNavigatorRow}>
-            <Text style={styles.periodNavigatorLabel}>Mês</Text>
-            <View style={styles.periodNavigator}>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'month'))}
-              >
-                <Text style={styles.periodNavButtonText}>←</Text>
-              </TouchableOpacity>
-              <Text style={styles.periodNavValue}>
-                {selectedPeriod.format('MMMM')}
+      {!externalMode && (
+        <>
+          <View style={styles.modeSelector}>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'mensal' && styles.modeButtonActive]}
+              onPress={() => setInternalMode('mensal')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'mensal' && styles.modeButtonTextActive]}>
+                Mensal
               </Text>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.add(1, 'month'))}
-              >
-                <Text style={styles.periodNavButtonText}>→</Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'anual' && styles.modeButtonActive]}
+              onPress={() => setInternalMode('anual')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'anual' && styles.modeButtonTextActive]}>
+                Anual
+              </Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.periodNavigatorRow}>
-            <Text style={styles.periodNavigatorLabel}>Ano</Text>
-            <View style={styles.periodNavigator}>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'year'))}
-              >
-                <Text style={styles.periodNavButtonText}>←</Text>
-              </TouchableOpacity>
-              <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.add(1, 'year'))}
-              >
-                <Text style={styles.periodNavButtonText}>→</Text>
-              </TouchableOpacity>
+          {mode === 'mensal' ? (
+            <View style={styles.periodNavigatorContainer}>
+              <View style={styles.periodNavigatorRow}>
+                <Text style={styles.periodNavigatorLabel}>Mês</Text>
+                <View style={styles.periodNavigator}>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.subtract(1, 'month'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.periodNavValue}>
+                    {selectedPeriod.format('MMMM')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.add(1, 'month'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.periodNavigatorRow}>
+                <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                <View style={styles.periodNavigator}>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.subtract(1, 'year'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.add(1, 'year'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.periodNavigatorContainer}>
-          <View style={[styles.periodNavigatorRow, { flex: 1 }]}>
-            <Text style={styles.periodNavigatorLabel}>Ano</Text>
-            <View style={styles.periodNavigator}>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.subtract(1, 'year'))}
-              >
-                <Text style={styles.periodNavButtonText}>←</Text>
-              </TouchableOpacity>
-              <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
-              <TouchableOpacity
-                style={styles.periodNavButton}
-                onPress={() => setSelectedPeriod((prev) => prev.add(1, 'year'))}
-              >
-                <Text style={styles.periodNavButtonText}>→</Text>
-              </TouchableOpacity>
+          ) : (
+            <View style={styles.periodNavigatorContainer}>
+              <View style={[styles.periodNavigatorRow, { flex: 1 }]}>
+                <Text style={styles.periodNavigatorLabel}>Ano</Text>
+                <View style={styles.periodNavigator}>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.subtract(1, 'year'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>←</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.periodNavValue}>{selectedPeriod.format('YYYY')}</Text>
+                  <TouchableOpacity
+                    style={styles.periodNavButton}
+                    onPress={() => setInternalPeriod((prev) => prev.add(1, 'year'))}
+                  >
+                    <Text style={styles.periodNavButtonText}>→</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          )}
+        </>
       )}
       {!chartData || chartData.data.length === 0 ? (
         <View style={styles.emptyState}>
