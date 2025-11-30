@@ -887,12 +887,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const updateExpense = useCallback((expense: Expense) => {
     (async () => {
       try {
-        // IMPORTANTE: Esta função atualiza APENAS o registro específico (pelo ID).
-        // Se for uma despesa fixa (is_fixed = true), apenas a template é atualizada.
-        // As despesas já geradas (is_fixed = false) são registros separados e NÃO são afetadas.
-        // Quando o valor de uma despesa fixa mudar, apenas as novas despesas geradas
-        // a partir do mês da alteração terão o novo valor.
-
+        // Se for uma despesa fixa, atualiza todas as parcelas (template + geradas)
+        const isFixedExpense = expense.isFixed;
+        
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
           .select("id, code")
@@ -930,6 +927,328 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           }
         };
 
+        if (isFixedExpense) {
+          // Busca a despesa template atual no banco
+          const { data: currentTemplate, error: templateError } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("id", expense.id)
+            .eq("is_fixed", true)
+            .single();
+
+          if (templateError || !currentTemplate) {
+            console.error("❌ Erro ao buscar template da despesa fixa:", templateError);
+            return;
+          }
+
+          const oldDuration = currentTemplate.fixed_duration_months;
+          const newDuration = expense.fixedDurationMonths;
+
+          // Busca todas as parcelas relacionadas (template + geradas)
+          const { data: allInstallments, error: installmentsError } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("type", "DESPESA")
+            .eq("description", expense.name)
+            .eq("cost_center_id", ccData.id)
+            .order("date", { ascending: true });
+
+          if (installmentsError) {
+            console.error("❌ Erro ao buscar parcelas da despesa fixa:", installmentsError);
+            return;
+          }
+
+          // Atualiza o template
+          const templatePayload: any = {
+            cost_center_id: ccData.id,
+            equipment_id: expense.equipmentId ?? null,
+            value: expense.value,
+            date: dbDate,
+            category: expense.category ?? "diversos",
+            description: expense.name,
+            payment_method: expense.method ?? null,
+            reference: expense.observations ?? null,
+            status: statusToDb(expense.status),
+            is_fixed: true,
+            sector: expense.sector ?? null,
+            fixed_duration_months: expense.fixedDurationMonths ?? null,
+            installment_number: 1,
+          };
+
+          const { error: templateUpdateError } = await supabase
+            .from("financial_transactions")
+            .update(templatePayload)
+            .eq("id", expense.id);
+
+          if (templateUpdateError) {
+            console.error("❌ Erro ao atualizar template:", templateUpdateError);
+            return;
+          }
+
+          // Atualiza todas as parcelas geradas existentes
+          const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
+          
+          for (const installment of generatedInstallments) {
+            const installmentPayload: any = {
+              value: expense.value,
+              category: expense.category ?? "diversos",
+              description: expense.name,
+              payment_method: expense.method ?? null,
+              reference: expense.observations ?? null,
+              sector: expense.sector ?? null,
+            };
+
+            await supabase
+              .from("financial_transactions")
+              .update(installmentPayload)
+              .eq("id", installment.id);
+          }
+
+          // Se a duração mudou, ajusta as parcelas
+          if (oldDuration !== newDuration && newDuration) {
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1;
+            const currentYear = currentDate.getFullYear();
+
+            // Parse da data do template
+            const dateParts = expense.date.split("/");
+            if (dateParts.length === 3) {
+              const [day, month, year] = dateParts.map(Number);
+              const creationMonth = month;
+              const creationYear = year;
+              const creationDay = day;
+
+              if (newDuration > oldDuration) {
+                // Aumentou a duração: cria novas parcelas
+                const existingCount = generatedInstallments.length;
+                for (let offset = existingCount; offset < newDuration; offset++) {
+                  const targetMonth = creationMonth + offset;
+                  let targetYear = creationYear;
+                  let actualMonth = targetMonth;
+
+                  if (targetMonth > 12) {
+                    const yearOffset = Math.floor((targetMonth - 1) / 12);
+                    targetYear = creationYear + yearOffset;
+                    actualMonth = ((targetMonth - 1) % 12) + 1;
+                  }
+
+                  const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+                  const expenseDay = Math.min(creationDay, lastDayOfMonth);
+                  const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+                  const installmentDbDate = toDbDate(newExpenseDate);
+
+                  if (installmentDbDate) {
+                    // Verifica se já existe
+                    const { data: existing } = await supabase
+                      .from("financial_transactions")
+                      .select("id")
+                      .eq("type", "DESPESA")
+                      .eq("description", expense.name)
+                      .eq("cost_center_id", ccData.id)
+                      .eq("is_fixed", false)
+                      .eq("date", installmentDbDate)
+                      .maybeSingle();
+
+                    if (!existing) {
+                      const installmentPayload: any = {
+                        type: "DESPESA",
+                        status: "CONFIRMADO",
+                        cost_center_id: ccData.id,
+                        equipment_id: expense.equipmentId ?? null,
+                        value: expense.value,
+                        date: installmentDbDate,
+                        category: expense.category ?? "diversos",
+                        description: expense.name,
+                        payment_method: expense.method ?? null,
+                        reference: expense.observations ?? null,
+                        is_fixed: false,
+                        sector: expense.sector ?? null,
+                        fixed_duration_months: null,
+                        installment_number: offset + 1,
+                      };
+
+                      await supabase
+                        .from("financial_transactions")
+                        .insert(installmentPayload);
+                    }
+                  }
+                }
+              } else if (newDuration < oldDuration) {
+                // Diminuiu a duração: remove parcelas excedentes
+                const installmentsToDelete = generatedInstallments.filter(
+                  (inst) => (inst.installment_number ?? 0) > newDuration
+                );
+
+                for (const instToDelete of installmentsToDelete) {
+                  await supabase
+                    .from("financial_transactions")
+                    .delete()
+                    .eq("id", instToDelete.id);
+                }
+              }
+            }
+          }
+
+          // Sincroniza documentos do template (apenas para despesas fixas)
+          if (Array.isArray(expense.documents)) {
+            try {
+              const desiredDocs = (expense.documents ?? []).filter(
+                (doc) => !!doc.fileUri
+              );
+
+              const { data: existingDocs, error: existingDocsError } =
+                await supabase
+                  .from("expense_documents")
+                  .select("id, file_url, file_name, mime_type, type")
+                  .eq("transaction_id", expense.id);
+
+              if (existingDocsError) {
+                if (
+                  existingDocsError.code === "PGRST205" ||
+                  existingDocsError.message?.includes("Could not find the table")
+                ) {
+                  console.warn(
+                    "⚠️ Tabela expense_documents não existe. Execute o script correspondente para criar a tabela."
+                  );
+                } else {
+                  console.error(
+                    "❌ Erro ao carregar documentos da despesa:",
+                    existingDocsError
+                  );
+                }
+              } else if (existingDocs) {
+                const docsToDelete = existingDocs.filter(
+                  (doc) =>
+                    !desiredDocs.some(
+                      (desired) => desired.fileUri === doc.file_url
+                    )
+                );
+
+                if (docsToDelete.length > 0) {
+                  const { error: deleteError } = await supabase
+                    .from("expense_documents")
+                    .delete()
+                    .eq("transaction_id", expense.id)
+                    .in(
+                      "file_url",
+                      docsToDelete
+                        .map((doc) => doc.file_url)
+                        .filter((uri): uri is string => !!uri)
+                    );
+
+                  if (deleteError) {
+                    console.error(
+                      "❌ Erro ao remover documentos da despesa:",
+                      deleteError
+                    );
+                  }
+                }
+
+                const docsToAdd = desiredDocs.filter(
+                  (doc) =>
+                    !existingDocs.some(
+                      (existing) => existing.file_url === doc.fileUri
+                    )
+                );
+
+                for (const doc of docsToAdd) {
+                  let fileUrl = doc.fileUri;
+
+                  const isRemote =
+                    fileUrl.startsWith("http://") ||
+                    fileUrl.startsWith("https://");
+
+                  if (!isRemote) {
+                    const uploadedUrl = await uploadFileToStorage(
+                      doc.fileUri,
+                      doc.fileName,
+                      doc.mimeType,
+                      "documentos",
+                      "expenses"
+                    );
+
+                    if (!uploadedUrl) {
+                      console.warn(
+                        "⚠️ Não foi possível fazer upload do documento ao editar a despesa."
+                      );
+                      continue;
+                    }
+
+                    fileUrl = uploadedUrl;
+                  }
+
+                  const { error: insertError } = await supabase
+                    .from("expense_documents")
+                    .insert({
+                      transaction_id: expense.id,
+                      type: doc.type ?? "recibo",
+                      file_name: doc.fileName,
+                      file_url: fileUrl,
+                      mime_type: doc.mimeType ?? null,
+                    });
+
+                  if (insertError) {
+                    if (
+                      insertError.code === "PGRST205" ||
+                      insertError.message?.includes("Could not find the table")
+                    ) {
+                      console.warn(
+                        "⚠️ Tabela expense_documents não existe. Execute o script correspondente para criar a tabela."
+                      );
+                      break;
+                    }
+                    console.error(
+                      "❌ Erro ao adicionar documento à despesa:",
+                      insertError
+                    );
+                  }
+                }
+              }
+            } catch (docsError) {
+              console.error(
+                "❌ Erro ao sincronizar documentos da despesa:",
+                docsError
+              );
+            }
+          }
+
+          // Recarrega todas as despesas
+          const { data: reloadedExpenses, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
+              id,
+              type,
+              status,
+              date,
+              value,
+              category,
+              description,
+              payment_method,
+              reference,
+              equipment_id,
+              is_fixed,
+              sector,
+              fixed_duration_months,
+              installment_number,
+              created_at,
+              cost_centers ( code )
+            `
+            )
+            .eq("type", "DESPESA")
+            .order("date", { ascending: false });
+
+          if (!reloadError && reloadedExpenses) {
+            const mapped: Expense[] = await Promise.all(
+              (reloadedExpenses ?? []).map((row: any) => mapRowToExpense(row))
+            );
+            setExpenses(mapped);
+          }
+
+          return;
+        }
+
+        // Se não for fixa, atualiza apenas o registro específico
         const payload: any = {
           cost_center_id: ccData.id,
           equipment_id: expense.equipmentId ?? null,
@@ -940,12 +1259,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           payment_method: expense.method ?? null,
           reference: expense.observations ?? null,
           status: statusToDb(expense.status),
-          is_fixed: expense.isFixed ?? false,
+          is_fixed: false,
           sector: expense.sector ?? null,
-          fixed_duration_months: expense.fixedDurationMonths ?? null,
+          fixed_duration_months: null,
         };
 
-        // Atualiza APENAS o registro específico (não afeta despesas geradas)
         const { data, error } = await supabase
           .from("financial_transactions")
           .update(payload)
