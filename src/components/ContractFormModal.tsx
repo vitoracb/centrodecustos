@@ -8,11 +8,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { FileText, Camera } from 'lucide-react-native';
 import { ContractCategory } from '../context/ContractContext';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import { Alert } from 'react-native';
@@ -161,9 +163,65 @@ export const ContractFormModal = ({
     }
   };
 
-  const handlePickFromAlbum = async () => {
+  const handlePickPhotoFromCamera = async () => {
+    // Solicita permissão da câmera
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: false,
+    });
+
+    // Se o usuário cancelou, não faz nada
+    if (result.canceled) {
+      return;
+    }
+
+    // Se tirou a foto, processa
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
+      setDocuments((prev) => [
+        ...prev,
+        {
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+        },
+      ]);
+    }
+  };
+
+  const handlePickPhotoFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -203,6 +261,40 @@ export const ContractFormModal = ({
           mimeType: asset.mimeType ?? 'image/jpeg',
         },
       ]);
+    }
+  };
+
+  const handlePickPhoto = () => {
+    // Mostra um menu com as opções antes de abrir a câmera
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tirar foto', 'Escolher do álbum'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // Tirar foto (câmera) - primeira opção
+            handlePickPhotoFromCamera();
+          } else if (buttonIndex === 2) {
+            // Escolher do álbum - segunda opção
+            handlePickPhotoFromLibrary();
+          }
+        }
+      );
+    } else {
+      // Android: mostra um Alert com as opções
+      Alert.alert(
+        'Selecionar foto',
+        'Escolha uma opção',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Tirar foto', onPress: handlePickPhotoFromCamera },
+          { text: 'Escolher do álbum', onPress: handlePickPhotoFromLibrary },
+        ],
+        { cancelable: true }
+      );
     }
   };
 
@@ -274,12 +366,14 @@ export const ContractFormModal = ({
             <Text style={styles.label}>Documentos do contrato</Text>
             <View style={styles.uploadRow}>
               <TouchableOpacity style={styles.uploadButton} onPress={handlePickDocument}>
+                <FileText size={18} color="#0A84FF" />
                 <Text style={styles.uploadText}>Adicionar arquivo</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.uploadButton}
-                onPress={handlePickFromAlbum}
+                onPress={handlePickPhoto}
               >
+                <Camera size={18} color="#0A84FF" />
                 <Text style={styles.uploadText}>Adicionar foto</Text>
               </TouchableOpacity>
             </View>
@@ -444,7 +538,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#0A84FF',
     paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   secondaryUploadButton: {
     borderColor: '#E5E5EA',

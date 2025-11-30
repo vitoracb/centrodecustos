@@ -8,6 +8,8 @@ import {
   Modal,
   Alert,
   RefreshControl,
+  Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
@@ -47,7 +49,7 @@ const formatCurrency = (value?: number): string => {
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, loading, refresh } = useContracts();
+  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -133,6 +135,7 @@ export const ContratosScreen = () => {
     const contract = contracts.find((c) => c.id === contractId);
     if (contract) {
       setSelectedContractDocuments(contract.documents ?? []);
+      setActiveContractId(contractId);
       setDocumentsModalVisible(true);
     }
   };
@@ -140,6 +143,7 @@ export const ContratosScreen = () => {
   const closeDocumentsList = () => {
     setDocumentsModalVisible(false);
     setSelectedContractDocuments([]);
+    setActiveContractId(null);
   };
 
   const openDocumentPreview = (document: ContractDocument) => {
@@ -200,11 +204,71 @@ export const ContratosScreen = () => {
     }
   };
 
-  const handleContractPhotoUpload = async () => {
-    if (!activeContractId) return;
+  const handleContractPhotoFromCamera = async () => {
+    if (!activeContractId) {
+      // Se não há contrato ativo, reabre o modal
+      setAttachmentModalVisible(true);
+      return;
+    }
+    
+    // Solicita permissão da câmera
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
+      // Reabre o modal se a permissão foi negada
+      setAttachmentModalVisible(true);
+      return;
+    }
+
+    try {
+      setIsPickingFile(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        allowsEditing: false,
+      });
+
+      // Se o usuário cancelou, reabre o modal
+      if (result.canceled) {
+        setIsPickingFile(false);
+        setAttachmentModalVisible(true);
+        return;
+      }
+
+      // Se tirou a foto, processa
+      if (result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        await addDocumentToContract(activeContractId, {
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+        });
+        closeAttachmentOptions();
+      } else {
+        // Se não conseguiu tirar a foto, reabre o modal
+        setAttachmentModalVisible(true);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível tirar a foto.');
+      // Reabre o modal em caso de erro
+      setAttachmentModalVisible(true);
+    } finally {
+      setIsPickingFile(false);
+    }
+  };
+
+  const handleContractPhotoFromLibrary = async () => {
+    if (!activeContractId) {
+      // Se não há contrato ativo, reabre o modal
+      setAttachmentModalVisible(true);
+      return;
+    }
+    
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
+      // Reabre o modal se a permissão foi negada
+      setAttachmentModalVisible(true);
       return;
     }
     try {
@@ -212,6 +276,7 @@ export const ContratosScreen = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.85,
+        allowsEditing: false,
       });
       if (!result.canceled && result.assets.length) {
         const asset = result.assets[0];
@@ -221,11 +286,50 @@ export const ContratosScreen = () => {
           mimeType: asset.mimeType ?? 'image/jpeg',
         });
         closeAttachmentOptions();
+      } else {
+        // Se cancelou, reabre o modal
+        setAttachmentModalVisible(true);
       }
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível selecionar a foto.');
+      // Reabre o modal em caso de erro
+      setAttachmentModalVisible(true);
     } finally {
       setIsPickingFile(false);
+    }
+  };
+
+  const handleContractPhotoUpload = () => {
+    // Mostra um menu com as opções antes de abrir a câmera
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tirar foto', 'Escolher do álbum'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // Tirar foto (câmera) - primeira opção
+            handleContractPhotoFromCamera();
+          } else if (buttonIndex === 2) {
+            // Escolher do álbum - segunda opção
+            handleContractPhotoFromLibrary();
+          }
+        }
+      );
+    } else {
+      // Android: mostra um Alert com as opções
+      Alert.alert(
+        'Selecionar foto',
+        'Escolha uma opção',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Tirar foto', onPress: handleContractPhotoFromCamera },
+          { text: 'Escolher do álbum', onPress: handleContractPhotoFromLibrary },
+        ],
+        { cancelable: true }
+      );
     }
   };
 
@@ -427,21 +531,53 @@ export const ContratosScreen = () => {
             <ScrollView style={styles.documentsList}>
               {selectedContractDocuments.length > 0 ? (
                 selectedContractDocuments.map((doc, index) => (
-                  <TouchableOpacity
+                  <View
                     key={`${doc.fileUri}-${index}`}
                     style={styles.documentItem}
-                    onPress={() => openDocumentPreview(doc)}
                   >
-                    <View style={styles.documentItemContent}>
+                    <TouchableOpacity
+                      style={styles.documentItemContent}
+                      onPress={() => openDocumentPreview(doc)}
+                    >
                       <FileText size={20} color="#0A84FF" />
                       <View style={styles.documentItemText}>
                         <Text style={styles.documentItemName} numberOfLines={1}>
                           {doc.fileName}
                         </Text>
                       </View>
-                    </View>
-                    <ChevronRight size={18} color="#C7C7CC" />
-                  </TouchableOpacity>
+                      <ChevronRight size={18} color="#C7C7CC" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteDocumentButton}
+                      onPress={() => {
+                        Alert.alert(
+                          'Excluir documento',
+                          `Tem certeza que deseja excluir "${doc.fileName}"?`,
+                          [
+                            { text: 'Cancelar', style: 'cancel' },
+                            {
+                              text: 'Excluir',
+                              style: 'destructive',
+                              onPress: async () => {
+                                if (!activeContractId || !doc.id) return;
+                                try {
+                                  await deleteDocumentFromContract(activeContractId, doc.id);
+                                  // Atualiza a lista local de documentos
+                                  setSelectedContractDocuments((prev) =>
+                                    prev.filter((d) => d.id !== doc.id)
+                                  );
+                                } catch (error) {
+                                  Alert.alert('Erro', 'Não foi possível excluir o documento.');
+                                }
+                              },
+                            },
+                          ]
+                        );
+                      }}
+                    >
+                      <Trash2 size={18} color="#FF3B30" />
+                    </TouchableOpacity>
+                  </View>
                 ))
               ) : (
                 <View style={styles.emptyDocuments}>
@@ -746,5 +882,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6C6C70',
     textAlign: 'center',
+  },
+  deleteDocumentButton: {
+    padding: 8,
+    marginLeft: 8,
   },
 });

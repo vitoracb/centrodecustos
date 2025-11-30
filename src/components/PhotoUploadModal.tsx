@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
@@ -70,9 +71,62 @@ export const PhotoUploadModal = ({
 
   const isEditing = !!initialData;
 
-  const handlePickPhoto = async () => {
+  const handlePickPhotoFromCamera = async () => {
+    // Solicita permissão da câmera
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+    });
+
+    // Se o usuário cancelou, não faz nada
+    if (result.canceled) {
+      return;
+    }
+
+    // Se tirou a foto, processa
+    if (result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      
+      // Valida tamanho do arquivo (80MB)
+      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+      if (!isValidSize) {
+        return;
+      }
+
+      // Valida tipo do arquivo (imagens)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+      const fileValidation = await validateFile(
+        asset.uri,
+        asset.mimeType ?? 'image/jpeg',
+        asset.fileName,
+        allowedTypes,
+        80
+      );
+
+      if (!fileValidation.isValid) {
+        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+        return;
+      }
+
+      setPhoto({
+        uri: asset.uri,
+        fileName: asset.fileName ?? 'Foto',
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+    }
+  };
+
+  const handlePickPhotoFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
+      Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -109,6 +163,40 @@ export const PhotoUploadModal = ({
         fileName: asset.fileName ?? 'Foto',
         mimeType: asset.mimeType ?? 'image/jpeg',
       });
+    }
+  };
+
+  const handlePickPhoto = () => {
+    // Mostra um menu com as opções antes de abrir a câmera
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancelar', 'Tirar foto', 'Escolher do álbum'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // Tirar foto (câmera) - primeira opção
+            handlePickPhotoFromCamera();
+          } else if (buttonIndex === 2) {
+            // Escolher do álbum - segunda opção
+            handlePickPhotoFromLibrary();
+          }
+        }
+      );
+    } else {
+      // Android: mostra um Alert com as opções
+      Alert.alert(
+        'Selecionar foto',
+        'Escolha uma opção',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Tirar foto', onPress: handlePickPhotoFromCamera },
+          { text: 'Escolher do álbum', onPress: handlePickPhotoFromLibrary },
+        ],
+        { cancelable: true }
+      );
     }
   };
 

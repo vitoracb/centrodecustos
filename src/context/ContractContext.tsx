@@ -41,6 +41,7 @@ interface ContractContextType {
   deleteContract: (id: string) => Promise<void>;
   getContractsByCenter: (center: CostCenter) => Contract[];
   addDocumentToContract: (contractId: string, document: Omit<ContractDocument, 'id'>) => Promise<void>;
+  deleteDocumentFromContract: (contractId: string, documentId: string) => Promise<void>;
   getAllContracts: () => Contract[];
   refresh: () => Promise<void>;
 }
@@ -128,6 +129,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       const { data: documentsData, error: documentsError } = await supabase
         .from('contract_documents')
         .select('id, contract_id, file_name, file_url, mime_type')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (documentsError) {
@@ -338,6 +340,54 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     [],
   );
 
+  const deleteDocumentFromContract = useCallback(
+    async (contractId: string, documentId: string) => {
+      try {
+        // Soft delete: marca como deletado ao invés de remover
+        const deletedAt = new Date().toISOString();
+        const { error } = await supabase
+          .from('contract_documents')
+          .update({ deleted_at: deletedAt })
+          .eq('id', documentId)
+          .eq('contract_id', contractId);
+
+        if (error) {
+          // Verifica se o erro é relacionado à coluna deleted_at não existir
+          if (error.message?.includes('deleted_at') || error.code === '42703') {
+            Alert.alert(
+              'Erro',
+              'A coluna deleted_at não existe na tabela contract_documents. Execute o script SQL: supabase_contract_documents_add_deleted_at.sql'
+            );
+          }
+          throw error;
+        }
+
+        // Atualiza o estado removendo o documento
+        setContracts((prev) =>
+          prev.map((contract) => {
+            if (contract.id !== contractId) return contract;
+            const updatedDocuments = (contract.documents ?? []).filter(
+              (doc) => doc.id !== documentId
+            );
+            return {
+              ...contract,
+              documents: updatedDocuments,
+              docs: updatedDocuments.length,
+            };
+          })
+        );
+      } catch (err: any) {
+        console.error('❌ Erro em deleteDocumentFromContract:', err);
+        // Não mostra alert duplicado se já foi mostrado acima
+        if (!err.message?.includes('deleted_at') && err.code !== '42703') {
+          Alert.alert('Erro', 'Não foi possível excluir o documento.');
+        }
+        throw err;
+      }
+    },
+    []
+  );
+
   const deleteContract = useCallback(
     async (id: string) => {
       try {
@@ -407,6 +457,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         deleteContract,
         getContractsByCenter,
         addDocumentToContract,
+        deleteDocumentFromContract,
         getAllContracts,
         refresh: loadContracts,
       }}
