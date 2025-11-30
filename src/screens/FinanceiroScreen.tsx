@@ -1770,10 +1770,23 @@ export const FinanceiroScreen = () => {
         }}
         onSubmit={(data) => {
           if (editingReceipt) {
+            // Se for fixo, busca o template para atualizar todas as parcelas
+            let templateReceipt = editingReceipt;
+            if (editingReceipt.isFixed) {
+              const allReceipts = getAllReceipts();
+              const template = allReceipts.find(
+                (r) => r.isFixed && r.name === editingReceipt.name && r.center === editingReceipt.center
+              );
+              if (template) {
+                templateReceipt = template;
+              }
+            }
+            
+            // Atualiza usando o template (que atualizará todas as parcelas)
             updateReceipt({
-              ...editingReceipt,
+              ...templateReceipt,
               name: data.name,
-              date: data.date,
+              date: templateReceipt.date, // Mantém a data original do template
               value: data.value,
               isFixed: data.isFixed,
               fixedDurationMonths: data.fixedDurationMonths,
@@ -1796,7 +1809,7 @@ export const FinanceiroScreen = () => {
                 name: editingReceipt.name,
                 date: editingReceipt.date,
                 value: editingReceipt.value,
-                isFixed: editingReceipt.isFixed,
+                isFixed: editingReceipt.isFixed ?? false,
                 fixedDurationMonths: editingReceipt.fixedDurationMonths,
                 id: editingReceipt.id,
               }
@@ -1817,13 +1830,10 @@ export const FinanceiroScreen = () => {
         }}
         onSubmit={(data) => {
           if (editingExpense) {
-            // Verifica se é uma despesa fixa
-            const allExpenses = getAllExpenses();
-            const fixedInfo = getExpenseFixedInfo(editingExpense, allExpenses);
-            
-            // Se for fixa, busca o template
+            // Se for fixa, busca o template para atualizar todas as parcelas
             let templateExpense = editingExpense;
-            if (fixedInfo.isFixed) {
+            if (editingExpense.isFixed) {
+              const allExpenses = getAllExpenses();
               const template = allExpenses.find(
                 (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
               );
@@ -1868,37 +1878,20 @@ export const FinanceiroScreen = () => {
         }}
         initialData={
           editingExpense
-            ? (() => {
-                // Verifica se é uma despesa fixa (template ou parcela)
-                const allExpenses = getAllExpenses();
-                const fixedInfo = getExpenseFixedInfo(editingExpense, allExpenses);
-                
-                // Se for fixa, busca o template para obter os dados corretos
-                let templateExpense = editingExpense;
-                if (fixedInfo.isFixed) {
-                  const template = allExpenses.find(
-                    (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
-                  );
-                  if (template) {
-                    templateExpense = template;
-                  }
-                }
-                
-                return {
-                  name: templateExpense.name,
-                  category: templateExpense.category,
-                  date: editingExpense.date, // Mantém a data da parcela sendo editada
-                  value: templateExpense.value,
-                  documents: editingExpense.documents || [],
-                  equipmentId: templateExpense.equipmentId,
-                  gestaoSubcategory: templateExpense.gestaoSubcategory,
-                  observations: templateExpense.observations,
-                  isFixed: fixedInfo.isFixed, // Usa a informação correta se é fixa
-                  sector: templateExpense.sector,
-                  fixedDurationMonths: templateExpense.fixedDurationMonths,
-                  id: templateExpense.id, // ID do template para atualizar todas as parcelas
-                };
-              })()
+            ? {
+                name: editingExpense.name,
+                category: editingExpense.category,
+                date: editingExpense.date,
+                value: editingExpense.value,
+                documents: editingExpense.documents || [],
+                equipmentId: editingExpense.equipmentId,
+                gestaoSubcategory: editingExpense.gestaoSubcategory,
+                observations: editingExpense.observations,
+                isFixed: editingExpense.isFixed ?? false,
+                sector: editingExpense.sector,
+                fixedDurationMonths: editingExpense.fixedDurationMonths,
+                id: editingExpense.id,
+              }
             : undefined
         }
       />

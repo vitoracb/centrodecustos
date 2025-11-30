@@ -71,6 +71,8 @@ export const ReceiptFormModal = ({
       setDate(new Date());
       setValue('');
       setPickerVisible(false);
+      setIsFixed(false);
+      setFixedDurationMonths('');
     } else if (initialData) {
       setName(initialData.name);
       const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
@@ -81,6 +83,15 @@ export const ReceiptFormModal = ({
         minimumFractionDigits: 2,
       }).format(initialData.value);
       setValue(formattedValue);
+      setIsFixed(initialData.isFixed ?? false);
+      setFixedDurationMonths(initialData.fixedDurationMonths ? String(initialData.fixedDurationMonths) : '');
+    } else {
+      // Valores padrão quando não há initialData
+      setName('');
+      setDate(new Date());
+      setValue('');
+      setIsFixed(false);
+      setFixedDurationMonths('');
     }
   }, [visible, initialData]);
 

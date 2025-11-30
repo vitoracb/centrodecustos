@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
+import dayjs from "dayjs";
 import { CostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
@@ -464,6 +465,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
   const updateReceipt = useCallback(async (receipt: Receipt): Promise<Receipt> => {
     try {
+        // Se for um recebimento fixo, atualiza todas as parcelas (template + geradas)
+        const isFixedReceipt = receipt.isFixed;
+        
         const { data: ccData, error: ccError } = await supabase
           .from("cost_centers")
           .select("id, code")
@@ -505,6 +509,214 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           }
         }
 
+        if (isFixedReceipt) {
+          // Busca o recebimento template atual no banco
+          const { data: currentTemplate, error: templateError } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("id", receipt.id)
+            .eq("is_fixed", true)
+            .eq("type", "RECEITA")
+            .single();
+
+          if (templateError || !currentTemplate) {
+            console.error("❌ Erro ao buscar template do recebimento fixo:", templateError);
+            throw new Error("Erro ao buscar template do recebimento fixo");
+          }
+
+          const oldDuration = currentTemplate.fixed_duration_months;
+          const newDuration = receipt.fixedDurationMonths;
+
+          // Busca todas as parcelas relacionadas (template + geradas)
+          const { data: allInstallments, error: installmentsError } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("type", "RECEITA")
+            .eq("description", receipt.name)
+            .eq("cost_center_id", ccData.id)
+            .order("date", { ascending: true });
+
+          if (installmentsError) {
+            console.error("❌ Erro ao buscar parcelas do recebimento fixo:", installmentsError);
+            throw new Error("Erro ao buscar parcelas do recebimento fixo");
+          }
+
+          // Atualiza o template
+          const templatePayload: any = {
+            cost_center_id: ccData.id,
+            value: receipt.value,
+            date: dbDate,
+            category: receipt.category ?? null,
+            description: receipt.name,
+            payment_method: receipt.method ?? null,
+            status: statusValue,
+            is_fixed: true,
+            fixed_duration_months: receipt.fixedDurationMonths ?? null,
+          };
+
+          const { error: templateUpdateError } = await supabase
+            .from("financial_transactions")
+            .update(templatePayload)
+            .eq("id", receipt.id)
+            .eq("type", "RECEITA");
+
+          if (templateUpdateError) {
+            console.error("❌ Erro ao atualizar template:", templateUpdateError);
+            throw new Error("Erro ao atualizar template");
+          }
+
+          // Atualiza todas as parcelas geradas existentes
+          const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
+          
+          for (const installment of generatedInstallments) {
+            const installmentPayload: any = {
+              value: receipt.value,
+              category: receipt.category ?? null,
+              description: receipt.name,
+              payment_method: receipt.method ?? null,
+            };
+
+            await supabase
+              .from("financial_transactions")
+              .update(installmentPayload)
+              .eq("id", installment.id)
+              .eq("type", "RECEITA");
+          }
+
+          // Se a duração mudou, ajusta as parcelas
+          if (oldDuration !== newDuration && newDuration) {
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1;
+            const currentYear = currentDate.getFullYear();
+
+            // Parse da data do template
+            const dateParts = receipt.date.split("/");
+            if (dateParts.length === 3) {
+              const [day, month, year] = dateParts.map(Number);
+              const creationMonth = month;
+              const creationYear = year;
+              const creationDay = day;
+
+              if (newDuration > oldDuration) {
+                // Aumentou a duração: cria novas parcelas
+                const existingCount = generatedInstallments.length;
+                for (let offset = existingCount; offset < newDuration; offset++) {
+                  const targetMonth = creationMonth + offset;
+                  let targetYear = creationYear;
+                  let actualMonth = targetMonth;
+
+                  if (targetMonth > 12) {
+                    const yearOffset = Math.floor((targetMonth - 1) / 12);
+                    targetYear = creationYear + yearOffset;
+                    actualMonth = ((targetMonth - 1) % 12) + 1;
+                  }
+
+                  const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+                  const receiptDay = Math.min(creationDay, lastDayOfMonth);
+                  const newReceiptDate = `${String(receiptDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+                  const installmentDbDate = toDbDate(newReceiptDate);
+
+                  if (installmentDbDate) {
+                    // Verifica se já existe
+                    const { data: existing } = await supabase
+                      .from("financial_transactions")
+                      .select("id")
+                      .eq("type", "RECEITA")
+                      .eq("description", receipt.name)
+                      .eq("cost_center_id", ccData.id)
+                      .eq("is_fixed", false)
+                      .eq("date", installmentDbDate)
+                      .maybeSingle();
+
+                    if (!existing) {
+                      const installmentPayload: any = {
+                        type: "RECEITA",
+                        status: statusValue,
+                        cost_center_id: ccData.id,
+                        value: receipt.value,
+                        date: installmentDbDate,
+                        category: receipt.category ?? null,
+                        description: receipt.name,
+                        payment_method: receipt.method ?? null,
+                        is_fixed: false,
+                        fixed_duration_months: null,
+                      };
+
+                      await supabase
+                        .from("financial_transactions")
+                        .insert(installmentPayload);
+                    }
+                  }
+                }
+              } else if (newDuration < oldDuration) {
+                // Diminuiu a duração: remove parcelas excedentes
+                // Parse da data do template para calcular corretamente
+                const templateDateParts = receipt.date.split("/");
+                if (templateDateParts.length === 3) {
+                  const [templateDay, templateMonth, templateYear] = templateDateParts.map(Number);
+                  const templateDate = dayjs(`${templateYear}-${String(templateMonth).padStart(2, "0")}-${String(templateDay).padStart(2, "0")}`);
+                  
+                  const installmentsToDelete = generatedInstallments.filter(
+                    (inst) => {
+                      // inst.date vem do banco no formato YYYY-MM-DD
+                      const instDate = dayjs(inst.date);
+                      const monthsDiff = instDate.diff(templateDate, 'month');
+                      return monthsDiff + 1 > newDuration;
+                    }
+                  );
+
+                  for (const instToDelete of installmentsToDelete) {
+                    await supabase
+                      .from("financial_transactions")
+                      .delete()
+                      .eq("id", instToDelete.id)
+                      .eq("type", "RECEITA");
+                  }
+                }
+              }
+            }
+          }
+
+          // Recarrega todas as receitas
+          const { data: reloadedReceipts, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
+              id,
+              type,
+              status,
+              date,
+              value,
+              category,
+              description,
+              payment_method,
+              reference,
+              is_fixed,
+              fixed_duration_months,
+              created_at,
+              cost_centers ( code )
+            `
+            )
+            .eq("type", "RECEITA")
+            .order("date", { ascending: false });
+
+          if (!reloadError && reloadedReceipts) {
+            const mapped: Receipt[] = await Promise.all(
+              (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
+            );
+            setReceipts(mapped);
+            
+            // Retorna o template atualizado
+            const updatedTemplate = mapped.find((r) => r.id === receipt.id);
+            if (updatedTemplate) {
+              return updatedTemplate;
+            }
+          }
+
+          throw new Error("Erro ao recarregar receitas após atualização");
+        }
+
+        // Se não for fixo, atualiza apenas o registro específico
         const payload: any = {
           cost_center_id: ccData.id,
           value: receipt.value,
@@ -513,8 +725,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: receipt.name,
           payment_method: receipt.method ?? null,
           status: statusValue,
-          is_fixed: receipt.isFixed ?? false,
-          fixed_duration_months: receipt.fixedDurationMonths ?? null,
+          is_fixed: false,
+          fixed_duration_months: null,
         };
 
         const { data, error } = await supabase
