@@ -127,10 +127,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           deleted_at,
           cost_center_id,
           current_hours,
-          hours_until_revision,
-          cost_centers (
-            code
-          )
+          hours_until_revision
         `,
         )
         .is('deleted_at', null) // Filtra apenas equipamentos não deletados
@@ -143,44 +140,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         return;
       }
 
-      // Se algum equipamento não tiver o relacionamento cost_centers, busca diretamente
-      const equipmentsWithCenters = await Promise.all(
-        (data ?? []).map(async (row: any) => {
-          // Trata o relacionamento cost_centers (pode ser objeto ou array)
-          let costCenterCode: string | undefined;
-          if (row.cost_centers) {
-            if (Array.isArray(row.cost_centers)) {
-              costCenterCode = row.cost_centers[0]?.code;
-            } else {
-              costCenterCode = row.cost_centers.code;
-            }
-          }
-
-          // Se não encontrou o código do centro de custo pelo relacionamento, busca diretamente
-          if (!costCenterCode && row.cost_center_id) {
-            try {
-              const { data: ccData } = await supabase
-                .from('cost_centers')
-                .select('code')
-                .eq('id', row.cost_center_id)
-                .maybeSingle();
-              
-              if (ccData) {
-                costCenterCode = ccData.code;
-              }
-            } catch (err) {
-              logger.error('Erro ao buscar centro de custo:', err);
-            }
-          }
-
-          return {
-            ...row,
-            costCenterCode: costCenterCode ?? 'valenca',
-          };
-        })
-      );
-
-      const mapped: Equipment[] = equipmentsWithCenters.map((row: any) => {
+      const mapped: Equipment[] = (data ?? []).map((row: any) => {
         const currentHours = row.current_hours ?? 0;
         const hoursUntilRevision = row.hours_until_revision ?? 250;
         
@@ -191,7 +151,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           year: row.year ?? new Date().getFullYear(),
           purchaseDate: isoToBr(row.purchase_date),
           nextReview: isoToBr(row.next_review_date),
-          center: row.costCenterCode as CostCenter,
+          center: (row.cost_center_id ?? 'valenca') as CostCenter,
           status: (row.active ? 'ativo' : 'inativo') as 'ativo' | 'inativo',
           createdAt: row.created_at
             ? new Date(row.created_at).getTime()
@@ -224,7 +184,6 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         cna: mapped.filter(eq => eq.center === 'cna' && !eq.deletedAt).length,
         cabralia: mapped.filter(eq => eq.center === 'cabralia' && !eq.deletedAt).length,
         deletados: mapped.filter(eq => eq.deletedAt).length,
-        sem_centro: mapped.filter(eq => !eq.deletedAt && eq.center === 'valenca' && !equipmentsWithCenters.find((r: any) => r.id === eq.id && r.cost_centers)).length
       });
 
       setEquipments(mapped);
@@ -249,19 +208,6 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         const costCenterCode = equipment.center;
 
         // Busca o cost_center.id pelo code
-        const { data: ccData, error: ccError } = await supabase
-          .from('cost_centers')
-          .select('id, code')
-          .eq('code', costCenterCode)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          logger.error('Erro ao buscar cost_center:', ccError);
-          throw new Error(
-            'Não foi possível encontrar o centro de custo selecionado',
-          );
-        }
-
         const insertPayload = {
           name: equipment.name,
           brand: equipment.brand,
@@ -269,7 +215,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           purchase_date: brToIso(equipment.purchaseDate),
           next_review_date: brToIso(equipment.nextReview),
           active: equipment.status === 'ativo',
-          cost_center_id: ccData.id,
+          cost_center_id: costCenterCode,
           // ✅ NOVOS CAMPOS
           current_hours: equipment.currentHours ?? 0,
           hours_until_revision: equipment.hoursUntilRevision ?? 250,
@@ -290,7 +236,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             created_at,
             current_hours,
             hours_until_revision,
-            cost_centers ( code )
+            cost_center_id
           `,
           )
           .maybeSingle();
@@ -308,10 +254,6 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           throw new Error(errMsg);
         }
 
-        const costCenter = Array.isArray(data.cost_centers)
-          ? data.cost_centers[0]
-          : data.cost_centers;
-
         const currentHours = data.current_hours ?? 0;
         const hoursUntilRevision = data.hours_until_revision ?? 250;
         
@@ -322,7 +264,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           year: data.year ?? new Date().getFullYear(),
           purchaseDate: isoToBr(data.purchase_date),
           nextReview: isoToBr(data.next_review_date),
-          center: (costCenter?.code ?? costCenterCode) as CostCenter,
+          center: (data.cost_center_id ?? costCenterCode) as CostCenter,
           status: data.active ? 'ativo' : 'inativo',
           createdAt: data.created_at
             ? new Date(data.created_at).getTime()
@@ -353,24 +295,6 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           throw new Error('Equipamento não encontrado para atualização');
         }
 
-        let costCenterId: string | undefined;
-
-        if (updates.center) {
-          const { data: ccData, error: ccError } = await supabase
-            .from('cost_centers')
-            .select('id, code')
-            .eq('code', updates.center)
-            .maybeSingle();
-
-          if (ccError || !ccData) {
-            console.log('❌ Erro ao buscar cost_center para update:', ccError);
-            throw new Error(
-              'Não foi possível encontrar o centro de custo selecionado',
-            );
-          }
-          costCenterId = ccData.id;
-        }
-
         const payload: any = {};
 
         if (updates.name !== undefined) payload.name = updates.name;
@@ -382,7 +306,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           payload.next_review_date = brToIso(updates.nextReview);
         if (updates.status !== undefined)
           payload.active = updates.status === 'ativo';
-        if (costCenterId) payload.cost_center_id = costCenterId;
+        if (updates.center !== undefined) payload.cost_center_id = updates.center;
         // ✅ NOVOS CAMPOS
         if (updates.currentHours !== undefined) payload.current_hours = updates.currentHours;
         if (updates.hoursUntilRevision !== undefined) payload.hours_until_revision = updates.hoursUntilRevision;
@@ -540,8 +464,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             `
             id, name, brand, year, purchase_date, next_review_date, active, created_at, deleted_at,
             current_hours, hours_until_revision,
-            cost_center_id,
-            cost_centers ( code )
+            cost_center_id
           `
           )
           .single();
@@ -552,32 +475,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           return;
         }
 
-        // Busca o código do centro de custo
-        let costCenterCode: string | undefined;
-        if (data.cost_centers) {
-          if (Array.isArray(data.cost_centers)) {
-            costCenterCode = data.cost_centers[0]?.code;
-          } else {
-            costCenterCode = data.cost_centers.code;
-          }
-        }
-
-        if (!costCenterCode && data.cost_center_id) {
-          try {
-            const { data: ccData } = await supabase
-              .from('cost_centers')
-              .select('code')
-              .eq('id', data.cost_center_id)
-              .maybeSingle();
-            
-            if (ccData) {
-              costCenterCode = ccData.code;
-            }
-          } catch (err) {
-            logger.error('Erro ao buscar centro de custo:', err);
-          }
-        }
-
+        const costCenterCode = data.cost_center_id ?? 'valenca';
         const currentHours = data.current_hours ?? 0;
         const hoursUntilRevision = data.hours_until_revision ?? 250;
 

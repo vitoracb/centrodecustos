@@ -90,7 +90,7 @@ const mapRowToDocument = (row: any): EmployeeDocument => ({
   fileUri: row.file_url ?? '',
   mimeType: row.mime_type ?? null,
   equipmentId: row.equipment_id,
-  center: normalizeCenter(row.cost_centers?.code),
+  center: normalizeCenter(row.cost_center_id),
   createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
   deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : undefined,
 });
@@ -171,7 +171,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
           equipment_id,
           created_at,
           deleted_at,
-          cost_centers ( code )
+          cost_center_id
         `)
         .order('created_at', { ascending: false });
 
@@ -199,25 +199,10 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
     loadDocuments();
   }, [loadDocuments]);
 
-  const getCostCenterId = useCallback(async (center: CostCenter) => {
-    const { data, error } = await supabase
-      .from('cost_centers')
-      .select('id')
-      .eq('code', center)
-      .maybeSingle();
-
-    if (error || !data) {
-      throw new Error('Não foi possível encontrar o centro de custo informado.');
-    }
-
-    return data.id as string;
-  }, []);
-
   const addEmployeeDocument = useCallback(
     (document: Omit<EmployeeDocument, 'id'>) => {
       (async () => {
         try {
-          const costCenterId = await getCostCenterId(document.center);
 
           const fileUrl = await uploadFileToStorage(
             document.fileUri,
@@ -239,7 +224,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
             file_url: fileUrl,
             mime_type: document.mimeType ?? null,
             equipment_id: document.equipmentId,
-            cost_center_id: costCenterId,
+            cost_center_id: document.center,
           };
 
           const { data, error } = await supabase
@@ -255,7 +240,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
               mime_type,
               equipment_id,
               created_at,
-              cost_centers ( code )
+              cost_center_id
             `)
             .maybeSingle();
 
@@ -271,7 +256,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         }
       })();
     },
-    [getCostCenterId],
+    [],
   );
 
   const updateEmployeeDocument = useCallback(
@@ -306,11 +291,6 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
 
           const nextCenter = updates.center ?? document.center;
           const nextEquipmentId = updates.equipmentId ?? document.equipmentId;
-          let costCenterId: string | undefined;
-
-          if (nextCenter !== document.center) {
-            costCenterId = await getCostCenterId(nextCenter);
-          }
 
           const payload: any = {
             employee_name: updates.employee ?? document.employee,
@@ -322,8 +302,8 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
             equipment_id: nextEquipmentId,
           };
 
-          if (costCenterId) {
-            payload.cost_center_id = costCenterId;
+          if (nextCenter !== document.center) {
+            payload.cost_center_id = nextCenter;
           }
 
           const { data, error } = await supabase
@@ -340,7 +320,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
               mime_type,
               equipment_id,
               created_at,
-              cost_centers ( code )
+              cost_center_id
             `)
             .maybeSingle();
 
@@ -358,7 +338,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         }
       })();
     },
-    [documentsByCenter, getCostCenterId],
+    [documentsByCenter],
   );
 
   const deleteEmployeeDocument = useCallback((id: string) => {

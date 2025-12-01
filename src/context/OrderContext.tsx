@@ -163,7 +163,7 @@ const mapRowToOrder = (row: any): Order => {
     orderDate,
     date: orderDate,
     status: normalizedStatus,
-    costCenter: (row.cost_centers?.code ?? "valenca") as CostCenter,
+    costCenter: (row.cost_center_id ?? "valenca") as CostCenter,
     equipmentId: row.equipment_id ?? undefined,
     equipmentName: equipmentSource?.name ?? undefined,
     documents: documents.length ? documents : undefined,
@@ -237,23 +237,12 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
       try {
         console.log("📦 Salvando pedido:", order);
 
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id")
-          .eq("code", order.costCenter)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.log("❌ Erro ao buscar centro de custo:", ccError);
-          throw new Error("Centro de custo inválido.");
-        }
-
         const payload = {
           name: order.name,
           description: order.description,
           order_date: brToIso(order.orderDate),
           status: order.status,
-          cost_center_id: ccData.id,
+          cost_center_id: order.costCenter,
           equipment_id: order.equipmentId ?? null,
         };
 
@@ -269,7 +258,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             status,
             equipment_id,
             created_at,
-            cost_centers ( code ),
+            cost_center_id,
             equipments ( id, name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
@@ -283,7 +272,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
         const newOrder: Order = mapRowToOrder({
           ...data,
-          cost_centers: data.cost_centers ?? { code: order.costCenter },
+          cost_center_id: data.cost_center_id ?? order.costCenter,
         });
 
         setOrders((prev) => [newOrder, ...prev]);
@@ -303,24 +292,13 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
       try {
         const existing = orders.find((o) => o.id === order.id);
 
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", order.costCenter)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.log("❌ Erro ao buscar centro de custo:", ccError);
-          throw new Error("Centro de custo inválido.");
-        }
-
         // 1) Atualiza os campos básicos do pedido
         const payload: any = {
           name: order.name,
           description: order.description,
           order_date: brToIso(order.orderDate || order.date),
           status: order.status,
-          cost_center_id: ccData.id,
+          cost_center_id: order.costCenter,
           equipment_id: order.equipmentId ?? null,
         };
 
@@ -386,7 +364,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             status,
             equipment_id,
             created_at,
-            cost_centers ( code ),
+            cost_center_id,
             equipments ( id, name ),
             order_documents ( id, type, file_url, file_name, mime_type, created_at )
           `
@@ -474,7 +452,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             status,
             equipment_id,
             created_at,
-            cost_centers ( code ),
+            cost_center_id,
             equipments ( id, name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `

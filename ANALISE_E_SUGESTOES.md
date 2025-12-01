@@ -160,6 +160,8 @@
 - Erros de rede: Toast/notificação
 - Erros silenciosos: apenas log
 
+**Nota**: Erros críticos no FinancialContext foram corrigidos (uso incorreto de `receipt.center` em funções de despesas).
+
 ---
 
 ## 🟡 Melhorias Sugeridas (Pendentes)
@@ -196,18 +198,35 @@
 - ✅ Resultados agrupados por tipo com cores distintas
 - ✅ Navegação direta para telas/abas correspondentes
 
-#### b) **Exportação de Dados** ❌ PENDENTE
-- Exportar relatórios em PDF/Excel
-- Exportar dados do dashboard
+#### b) **Exportação de Dados** ✅ RESOLVIDO
+- ✅ Exportar relatórios em PDF/Excel (Dashboard e Fechamento)
+- ✅ Prévia do relatório antes de baixar
+- ✅ Compartilhamento de relatórios
+- ✅ Relatórios incluem gráficos de pizza (categorias, status, setores) e gráfico de barras (despesas mensais)
+- ✅ Detalhamento completo de despesas e recebimentos
+- ✅ Detalhamento de despesas fixas por setor
 
-#### c) **Gráficos e Relatórios** ⚠️ PARCIAL
+#### c) **Gráficos e Relatórios** ✅ COMPLETO
 - ✅ Gráficos básicos de despesas (PieChart, BarChart) - **COMPLETO**
   - PieChart com distribuição por categoria (modo mensal/anual)
+  - PieChart com distribuição por status (modo mensal/anual)
+  - PieChart com distribuição por setor (despesas fixas) - **modo mensal e anual**
   - BarChart com despesas por mês (navegação de ano)
   - Ambos com navegação de período e legendas
+- ✅ Relatório mensal/anual automático (PDF/Excel) - **COMPLETO**
+  - Relatórios gerados no Dashboard (mês atual)
+  - Relatórios gerados no Fechamento (mensal/anual)
+  - Prévia antes de baixar
+  - Compartilhamento de relatórios
+- ✅ Comparativo entre centros de custo - **COMPLETO**
+  - Gráfico comparativo de despesas, recebimentos e saldo
+  - Cores específicas por centro (Valença: azul, CNA: verde, Cabrália: amarelo)
+  - Botões igualmente espaçados
+- ✅ Detalhamento de despesas fixas por setor - **COMPLETO**
+  - Gráfico de pizza por setor
+  - Detalhamento completo de cada setor
+  - Inclui templates e parcelas geradas
 - 💡 **Pendente**: Gráfico de evolução de despesas ao longo do tempo (linha temporal)
-- 💡 **Pendente**: Relatório mensal/anual automático (PDF/Excel)
-- 💡 **Pendente**: Comparativo entre centros de custo
 
 #### d) **Backup e Restore** ❌ PENDENTE
 - Exportar/importar dados do app
@@ -218,9 +237,13 @@
 - Permissões por usuário/role
 - Histórico de alterações (quem fez o quê)
 
-#### f) **Integração com Câmera** ⚠️ PARCIAL
+#### f) **Integração com Câmera** ✅ COMPLETO
 - ✅ Captura de fotos implementada (ImagePicker)
-- 💡 **Pendente**: OCR para extrair dados de documentos
+- ✅ OCR para extrair dados de documentos - **IMPLEMENTADO**
+  - Extração automática de valor, data, CNPJ e CPF
+  - Preenchimento automático de campos no formulário
+  - Modal de progresso durante processamento
+  - Suporte a notas fiscais, recibos e comprovantes
 
 #### g) **Assinatura Digital** ❌ PENDENTE
 - Assinar documentos diretamente no app
@@ -316,8 +339,9 @@
 ### Prioridade Média
 5. ✅ ~~**Pull to refresh**~~ (UX) ✅ CONCLUÍDO
 6. ✅ ~~**Busca global**~~ (Funcionalidade) ✅ CONCLUÍDO
-7. **Exportação de dados** (Funcionalidade)
-8. **Gráficos avançados** (Análise)
+7. ✅ ~~**Exportação de dados**~~ (Funcionalidade) ✅ CONCLUÍDO
+8. ✅ ~~**Gráficos comparativos**~~ (Análise) ✅ CONCLUÍDO
+9. **Gráfico de linha temporal** (Análise)
 
 ### Prioridade Baixa
 9. **Modo escuro** (UX)
@@ -349,6 +373,10 @@ O app está **muito bem estruturado** e **funcional**. Os principais problemas d
 6. ✅ **Pull to Refresh**: Atualização de dados em todas as telas
 7. ✅ **Navegação entre Documentos**: Navegação fluida entre arquivos relacionados
 8. ✅ **Filtros Avançados**: Filtros completos em todas as telas principais
+9. ✅ **Exportação de Relatórios**: Relatórios em PDF/Excel com gráficos e detalhamentos
+10. ✅ **Gráficos Comparativos**: Comparativo entre centros de custo
+11. ✅ **Despesas Fixas por Setor**: Gráficos e detalhamento no relatório mensal e anual
+12. ✅ **Correções de Bugs**: Erros críticos no FinancialContext corrigidos
 
 **Status**: ✅ **Pronto para produção** (após revisar políticas RLS)
 
@@ -369,19 +397,25 @@ As sugestões restantes são **opcionais** e podem ser implementadas conforme a 
 - [x] Pull to refresh em todas as telas principais
 - [x] Navegação entre documentos de funcionários e contratos
 - [x] Skeleton loaders nas telas críticas (Dashboard, Equipamentos, Pedidos)
+- [x] Exportação de relatórios em PDF/Excel (Dashboard e Fechamento)
+- [x] Gráficos comparativos entre centros de custo
+- [x] Gráfico de despesas fixas por setor (mensal e anual)
+- [x] Detalhamento de despesas fixas por setor
+- [x] Correção de erros no FinancialContext (receipt.center → expense.center)
+- [x] OCR para extração de dados de documentos (valor, data, CNPJ, CPF)
 
 ### ⚠️ Parcial
 - [x] Gráficos básicos (PieChart, BarChart) - **COMPLETO**
+- [x] Gráficos comparativos - **COMPLETO**
+- [x] Gráficos de despesas fixas por setor - **COMPLETO**
 - [x] Filtros básicos
 - [x] Integração com câmera (ImagePicker)
 - [x] Documentação parcial
 
 ### ❌ Pendente
-- [ ] Exportação de dados
-- [ ] Gráficos avançados (linha temporal, comparativos)
+- [ ] Gráficos avançados (linha temporal)
 - [ ] Backup e restore
 - [ ] Multi-usuário
-- [ ] OCR
 - [ ] Assinatura digital
 - [ ] Gestos (swipe, long press)
 - [ ] Modo escuro

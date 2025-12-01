@@ -89,7 +89,7 @@ const mapRowToContract = (row: any, documents: ContractDocument[] = []): Contrac
   date: isoToBr(row.contract_date),
   docs: documents.length,
   value: row.value ? Number(row.value) : undefined,
-  center: normalizeCenter(row.cost_centers?.code),
+  center: normalizeCenter(row.cost_center_id),
   documents,
   createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
   deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : undefined,
@@ -115,7 +115,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           value,
           created_at,
           deleted_at,
-          cost_centers ( code )
+          cost_center_id
         `)
         .order('created_at', { ascending: false });
 
@@ -166,24 +166,9 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     loadContracts();
   }, [loadContracts]);
 
-  const getCostCenterId = useCallback(async (center: CostCenter) => {
-    const { data, error } = await supabase
-      .from('cost_centers')
-      .select('id')
-      .eq('code', center)
-      .maybeSingle();
-
-    if (error || !data) {
-      throw new Error('Não foi possível encontrar o centro de custo informado.');
-    }
-
-    return data.id as string;
-  }, []);
-
   const addContract = useCallback(
     async (contract: Omit<Contract, 'id' | 'docs'>) => {
       try {
-        const costCenterId = await getCostCenterId(contract.center);
 
         // Garante que a categoria está em minúsculas e é um valor válido
         const normalizedCategory = contract.category.toLowerCase() as ContractCategory;
@@ -195,7 +180,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           name: contract.name,
           category: normalizedCategory,
           contract_date: brToIso(contract.date),
-          cost_center_id: costCenterId,
+          cost_center_id: contract.center,
         };
 
         if (contract.value !== undefined && contract.value !== null) {
@@ -212,7 +197,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
             contract_date,
             value,
             created_at,
-            cost_centers ( code )
+            cost_center_id
           `)
           .maybeSingle();
 
@@ -280,7 +265,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         throw err;
       }
     },
-    [getCostCenterId],
+    [],
   );
 
   const addDocumentToContract = useCallback(

@@ -298,15 +298,14 @@ export const ExpenseFormModal = ({
         return;
       }
 
-      setDocuments((prev) => [
-        ...prev,
-        {
-          type,
-          fileName: asset.fileName ?? 'Foto',
-          fileUri: asset.uri,
-          mimeType: asset.mimeType ?? 'image/jpeg',
-        },
-      ]);
+      const newDocument = {
+        type,
+        fileName: asset.fileName ?? 'Foto',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      };
+
+      setDocuments((prev) => [...prev, newDocument]);
     }
   };
 
@@ -345,15 +344,14 @@ export const ExpenseFormModal = ({
         return;
       }
 
-      setDocuments((prev) => [
-        ...prev,
-        {
-          type,
-          fileName: asset.fileName ?? 'Foto',
-          fileUri: asset.uri,
-          mimeType: asset.mimeType ?? 'image/jpeg',
-        },
-      ]);
+      const newDocument = {
+        type,
+        fileName: asset.fileName ?? 'Foto',
+        fileUri: asset.uri,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      };
+
+      setDocuments((prev) => [...prev, newDocument]);
     }
   };
 
@@ -902,6 +900,7 @@ export const ExpenseFormModal = ({
           </View>
         </View>
       )}
+
     </Modal>
   );
 };

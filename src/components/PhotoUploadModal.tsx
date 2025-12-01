@@ -312,6 +312,7 @@ export const PhotoUploadModal = ({
           </View>
         </View>
       )}
+
     </Modal>
   );
 };

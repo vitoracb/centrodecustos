@@ -1,241 +1,321 @@
-import { Alert } from 'react-native';
+/**
+ * Sistema centralizado de tratamento de erros
+ * 
+ * Padroniza como erros são exibidos ao usuário e logados.
+ * 
+ * Uso:
+ * - Modo explícito: handleError(error, ErrorType.CRITICAL, { title: '...', message: '...' })
+ * - Modo automático: handleError(error, 'salvar despesa') // Detecta tipo automaticamente
+ */
+
+import { Alert, Linking } from 'react-native';
+import { showError } from './toast';
 import { logger } from './logger';
-import { showError, showInfo } from './toast';
 
-/**
- * Tipos de erros para tratamento diferenciado
- */
+// ========================
+// TIPOS
+// ========================
+
 export enum ErrorType {
-  /** Erros críticos que impedem a operação - mostram Alert */
-  CRITICAL = 'CRITICAL',
-  /** Erros de rede/API - mostram Toast */
-  NETWORK = 'NETWORK',
-  /** Erros de validação - mostram Toast */
-  VALIDATION = 'VALIDATION',
-  /** Erros silenciosos - apenas log */
-  SILENT = 'SILENT',
+  CRITICAL = 'critical',      // Alert.alert - Salvar, deletar
+  NETWORK = 'network',        // Toast - Carregar dados
+  VALIDATION = 'validation',  // Alert.alert - Formulário
+  SILENT = 'silent'           // Logger apenas - Badge, secundário
 }
 
-/**
- * Interface para configuração de tratamento de erro
- */
-interface ErrorHandlerOptions {
-  /** Tipo do erro */
-  type?: ErrorType;
-  /** Título personalizado (para Alert ou Toast) */
+export interface ErrorOptions {
   title?: string;
-  /** Mensagem personalizada */
   message?: string;
-  /** Se deve logar o erro */
-  log?: boolean;
-  /** Callback customizado para tratamento */
-  onError?: (error: any) => void;
+  context?: string; // Para mensagens automáticas
+  onRetry?: () => void | Promise<void>;
+  openSettings?: boolean; // Para erros de permissão
 }
 
-/**
- * Detecta o tipo de erro baseado na mensagem ou código
- */
-function detectErrorType(error: any): ErrorType {
-  const errorMessage = error?.message || String(error || '');
-  const errorCode = error?.code || '';
+// ========================
+// DETECÇÃO DE ERROS
+// ========================
 
-  // Erros de rede
-  if (
-    errorCode === 'PGRST116' || // Not found
-    errorCode === 'PGRST301' || // Multiple rows
-    errorMessage.includes('network') ||
-    errorMessage.includes('Network') ||
-    errorMessage.includes('fetch') ||
-    errorMessage.includes('timeout') ||
-    errorCode?.startsWith('PGRST')
-  ) {
+/**
+ * Detecta se um erro é de rede
+ */
+const isNetworkError = (error: any): boolean => {
+  return (
+    error?.message?.includes('network') ||
+    error?.message?.includes('fetch') ||
+    error?.message?.includes('timeout') ||
+    error?.message?.includes('connection') ||
+    error?.code === 'ECONNREFUSED' ||
+    error?.code === 'ERR_NETWORK' ||
+    error?.code === 'NETWORK_ERROR'
+  );
+};
+
+/**
+ * Detecta automaticamente o tipo de erro baseado no contexto
+ */
+const detectErrorType = (error: any, context: string): ErrorType => {
+  // Erro de rede detectado
+  if (isNetworkError(error)) {
     return ErrorType.NETWORK;
   }
-
-  // Erros de validação
-  if (
-    errorMessage.includes('invalid') ||
-    errorMessage.includes('Invalid') ||
-    errorMessage.includes('validation') ||
-    errorMessage.includes('required') ||
-    errorCode === '23514' // Check constraint violation
-  ) {
-    return ErrorType.VALIDATION;
+  
+  // Contextos críticos (salvar, deletar, aprovar, etc)
+  const criticalKeywords = ['salvar', 'deletar', 'aprovar', 'rejeitar', 'excluir', 'remover'];
+  if (criticalKeywords.some(k => context.toLowerCase().includes(k))) {
+    return ErrorType.CRITICAL;
   }
-
-  // Erros críticos (padrão)
+  
+  // Contextos de rede (carregar, buscar, sincronizar, etc)
+  const networkKeywords = ['carregar', 'buscar', 'sincronizar', 'atualizar', 'listar'];
+  if (networkKeywords.some(k => context.toLowerCase().includes(k))) {
+    return ErrorType.NETWORK;
+  }
+  
+  // Padrão: crítico (mais seguro)
   return ErrorType.CRITICAL;
-}
+};
+
+// ========================
+// FUNÇÃO PRINCIPAL
+// ========================
 
 /**
- * Extrai mensagem amigável do erro
- */
-function getErrorMessage(error: any, defaultMessage?: string): string {
-  if (error?.message) {
-    // Mensagens de erro do Supabase
-    if (error.message.includes('Could not find')) {
-      return 'Recurso não encontrado';
-    }
-    if (error.message.includes('duplicate key')) {
-      return 'Este item já existe';
-    }
-    if (error.message.includes('violates check constraint')) {
-      return 'Dados inválidos';
-    }
-    if (error.message.includes('foreign key constraint')) {
-      return 'Não é possível excluir este item pois está em uso';
-    }
-    return error.message;
-  }
-  return defaultMessage || 'Ocorreu um erro inesperado';
-}
-
-/**
- * Handler padronizado de erros
+ * Trata erros de forma padronizada
  * 
- * @param error - O erro a ser tratado
- * @param options - Opções de tratamento
+ * @param error - O erro ocorrido
+ * @param typeOrContext - Tipo de erro (ErrorType) OU contexto como string (detecção automática)
+ * @param options - Opções adicionais (título, mensagem, retry, etc)
  * 
  * @example
- * ```ts
- * try {
- *   await someOperation();
- * } catch (error) {
- *   handleError(error, {
- *     type: ErrorType.NETWORK,
- *     title: 'Erro ao salvar',
- *     message: 'Não foi possível salvar os dados. Verifique sua conexão.',
- *   });
- * }
- * ```
- */
-export function handleError(
-  error: any,
-  options: ErrorHandlerOptions = {}
-): void {
-  const {
-    type,
-    title,
-    message,
-    log = true,
-    onError,
-  } = options;
-
-  // Executa callback customizado se fornecido
-  if (onError) {
-    onError(error);
-    return;
-  }
-
-  // Detecta tipo de erro se não fornecido
-  const errorType = type || detectErrorType(error);
-  const errorMessage = message || getErrorMessage(error);
-  const errorTitle = title || 'Erro';
-
-  // Log do erro (sempre, exceto se explicitamente desabilitado)
-  if (log) {
-    logger.error(`[${errorType}] ${errorTitle}:`, error);
-  }
-
-  // Tratamento baseado no tipo
-  switch (errorType) {
-    case ErrorType.CRITICAL:
-      // Erros críticos: Alert (bloqueia a ação)
-      Alert.alert(errorTitle, errorMessage);
-      break;
-
-    case ErrorType.NETWORK:
-    case ErrorType.VALIDATION:
-      // Erros de rede/validação: Toast (não bloqueia)
-      showError(errorTitle, errorMessage);
-      break;
-
-    case ErrorType.SILENT:
-      // Erros silenciosos: apenas log (já foi logado acima)
-      break;
-
-    default:
-      // Fallback: Toast
-      showError(errorTitle, errorMessage);
-  }
-}
-
-/**
- * Wrapper para operações assíncronas com tratamento de erro automático
- * 
- * @example
- * ```ts
- * const result = await safeAsync(async () => {
- *   return await someOperation();
- * }, {
- *   type: ErrorType.NETWORK,
- *   title: 'Erro ao carregar',
+ * // Modo explícito
+ * handleError(error, ErrorType.CRITICAL, {
+ *   title: 'Erro ao salvar',
+ *   message: 'Não foi possível salvar a despesa',
+ *   onRetry: () => saveExpense()
  * });
- * ```
+ * 
+ * @example
+ * // Modo automático
+ * handleError(error, 'carregar equipamentos');
+ * // Detecta automaticamente que é NETWORK e gera mensagem
  */
-export async function safeAsync<T>(
-  operation: () => Promise<T>,
-  errorOptions: ErrorHandlerOptions = {}
-): Promise<T | null> {
-  try {
-    return await operation();
-  } catch (error) {
-    handleError(error, errorOptions);
-    return null;
+export const handleError = (
+  error: any,
+  typeOrContext: ErrorType | string,
+  options?: ErrorOptions
+): void => {
+  let type: ErrorType;
+  let context: string;
+  
+  // Determina tipo e contexto
+  if (typeof typeOrContext === 'string') {
+    // ✅ MODO AUTOMÁTICO: Detecta tipo baseado no contexto
+    context = typeOrContext;
+    type = detectErrorType(error, context);
+  } else {
+    // ✅ MODO EXPLÍCITO: Usa o tipo passado
+    type = typeOrContext;
+    context = options?.context || 'operação';
   }
-}
+  
+  // Mensagens
+  const title = options?.title || getDefaultTitle(type);
+  const message = options?.message || getDefaultMessage(type, context, error);
+  
+  // Log usando logger existente
+  logger.error(`[${type.toUpperCase()}] ${title}:`, error);
+  
+  // Exibição para o usuário
+  switch (type) {
+    case ErrorType.CRITICAL:
+      showCriticalError(title, message, options);
+      break;
+      
+    case ErrorType.NETWORK:
+      showNetworkError(title, message, options);
+      break;
+      
+    case ErrorType.VALIDATION:
+      showValidationError(title, message, options);
+      break;
+      
+    case ErrorType.SILENT:
+      // Apenas loga, não mostra nada ao usuário
+      break;
+  }
+  
+  // Analytics preparado (descomentar quando necessário)
+  // if (type === ErrorType.CRITICAL || type === ErrorType.NETWORK) {
+  //   analytics.logError({ type, context, error });
+  // }
+};
+
+// ========================
+// EXIBIÇÃO DE ERROS
+// ========================
 
 /**
- * Handler específico para erros de Supabase
+ * Exibe erro crítico com opção de retry
  */
-export function handleSupabaseError(
-  error: any,
-  defaultMessage: string = 'Erro ao realizar operação',
-  options: Omit<ErrorHandlerOptions, 'type'> = {}
-): void {
-  const errorCode = error?.code || '';
-  const errorMessage = error?.message || '';
-
-  // Mapeia códigos de erro do Supabase para tipos
-  let errorType = ErrorType.NETWORK;
-  let friendlyMessage = defaultMessage;
-
-  switch (errorCode) {
-    case 'PGRST116': // Not found
-      errorType = ErrorType.VALIDATION;
-      friendlyMessage = 'Item não encontrado';
-      break;
-    case 'PGRST301': // Multiple rows
-      errorType = ErrorType.CRITICAL;
-      friendlyMessage = 'Múltiplos itens encontrados';
-      break;
-    case '23514': // Check constraint
-      errorType = ErrorType.VALIDATION;
-      friendlyMessage = 'Dados inválidos. Verifique os campos preenchidos.';
-      break;
-    case '23503': // Foreign key violation
-      errorType = ErrorType.CRITICAL;
-      friendlyMessage = 'Não é possível excluir este item pois está em uso';
-      break;
-    case '23505': // Unique violation
-      errorType = ErrorType.VALIDATION;
-      friendlyMessage = 'Este item já existe';
-      break;
-    case 'PGRST204': // Column not found
-      errorType = ErrorType.CRITICAL;
-      friendlyMessage = 'Erro de configuração do banco de dados';
-      break;
-    default:
-      if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-        errorType = ErrorType.NETWORK;
-        friendlyMessage = 'Erro de conexão. Verifique sua internet.';
-      }
+const showCriticalError = (title: string, message: string, options?: ErrorOptions) => {
+  const buttons: any[] = [];
+  
+  if (options?.onRetry) {
+    buttons.push({
+      text: 'Tentar Novamente',
+      onPress: async () => {
+        try {
+          await options.onRetry!();
+        } catch (retryError) {
+          // Se retry falhar, mostra erro novamente
+          handleError(retryError, ErrorType.CRITICAL, options);
+        }
+      },
+    });
   }
+  
+  buttons.push({ text: 'OK' });
+  Alert.alert(title, message, buttons);
+};
 
-  handleError(error, {
-    ...options,
-    type: errorType,
-    message: options.message || friendlyMessage,
-  });
-}
+/**
+ * Exibe erro de rede com opção de retry ou toast
+ */
+const showNetworkError = (title: string, message: string, options?: ErrorOptions) => {
+  if (options?.onRetry) {
+    // Se tem retry, usa Alert com botão
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: 'Tentar Novamente',
+          onPress: async () => {
+            try {
+              await options.onRetry!();
+            } catch (retryError) {
+              handleError(retryError, ErrorType.NETWORK, options);
+            }
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  } else {
+    // Senão, usa Toast (menos intrusivo)
+    showError(title, message);
+  }
+};
 
+/**
+ * Exibe erro de validação com opção de abrir configurações
+ */
+const showValidationError = (title: string, message: string, options?: ErrorOptions) => {
+  const buttons: any[] = [];
+  
+  if (options?.openSettings) {
+    // Para erros de permissão, mostra botão de configurações
+    buttons.push({
+      text: 'Abrir Configurações',
+      onPress: () => Linking.openSettings(),
+    });
+    buttons.push({ text: 'Cancelar', style: 'cancel' });
+  } else {
+    // Erro de validação normal
+    buttons.push({ text: 'OK' });
+  }
+  
+  Alert.alert(title, message, buttons);
+};
+
+// ========================
+// MENSAGENS PADRÃO
+// ========================
+
+/**
+ * Retorna título padrão baseado no tipo de erro
+ */
+const getDefaultTitle = (type: ErrorType): string => {
+  switch (type) {
+    case ErrorType.CRITICAL:
+      return 'Erro Crítico';
+    case ErrorType.NETWORK:
+      return 'Erro de Conexão';
+    case ErrorType.VALIDATION:
+      return 'Dados Inválidos';
+    default:
+      return 'Erro';
+  }
+};
+
+/**
+ * Retorna mensagem padrão baseada no tipo e contexto
+ */
+const getDefaultMessage = (type: ErrorType, context: string, error: any): string => {
+  const errorMessage = error?.message || 'Ocorreu um erro inesperado';
+  
+  switch (type) {
+    case ErrorType.CRITICAL:
+      return `Não foi possível ${context}. ${errorMessage}`;
+    case ErrorType.NETWORK:
+      return `Erro ao ${context}. Verifique sua conexão e tente novamente.`;
+    case ErrorType.VALIDATION:
+      return errorMessage; // Mensagem específica já vem no error
+    default:
+      return errorMessage;
+  }
+};
+
+// ========================
+// RETRY AUTOMÁTICO (SÓ PARA LEITURA)
+// ========================
+
+/**
+ * Executa uma função com retry automático em caso de erro de rede
+ * 
+ * ⚠️ IMPORTANTE: Use APENAS para operações de LEITURA (idempotentes)
+ * NÃO use para salvar/deletar (pode duplicar dados)
+ * 
+ * @param fn - Função a ser executada
+ * @param maxRetries - Número máximo de tentativas (padrão: 3)
+ * @param delayMs - Delay entre tentativas em ms (padrão: 1000)
+ * 
+ * @example
+ * // ✅ CORRETO: Operação de leitura
+ * const data = await withRetry(() => loadEquipments());
+ * 
+ * @example
+ * // ❌ ERRADO: Operação de escrita
+ * await withRetry(() => saveExpense()); // Pode salvar múltiplas vezes!
+ */
+export const withRetry = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> => {
+  let lastError: any;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Se não for erro de rede, não tenta novamente
+      if (!isNetworkError(error)) {
+        throw error;
+      }
+      
+      // Se for a última tentativa, joga o erro
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Espera antes de tentar novamente (backoff exponencial)
+      const delay = delayMs * attempt;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+};

@@ -14,7 +14,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { FileText, Image as ImageIcon } from 'lucide-react-native';
+import { FileText, Image as ImageIcon, Sparkles } from 'lucide-react-native';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import { Alert } from 'react-native';
 
@@ -355,6 +355,7 @@ export const DocumentUploadModal = ({
           </View>
         </View>
       )}
+
     </Modal>
   );
 };

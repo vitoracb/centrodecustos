@@ -462,6 +462,28 @@ export default function PedidosScreen() {
                 }
                 
                 const hasBudget = orcamentos.length > 0;
+                
+                // Encontra o último orçamento enviado (mais recente)
+                // Considera todos os orçamentos enviados (não apenas aprovados)
+                const todosOrcamentosEnviados = order.documents?.filter(doc => 
+                  doc.type === "orcamento" && 
+                  doc.fileUri && 
+                  doc.fileUri.trim() !== '' &&
+                  doc.createdAt // Garante que tem data
+                ) || [];
+                
+                const ultimoOrcamento = todosOrcamentosEnviados.length > 0
+                  ? todosOrcamentosEnviados.reduce((latest, current) => {
+                      const latestDate = latest.createdAt || 0;
+                      const currentDate = current.createdAt || 0;
+                      return currentDate > latestDate ? current : latest;
+                    })
+                  : null;
+                
+                // Formata a data do último orçamento
+                const dataUltimoOrcamento = ultimoOrcamento?.createdAt
+                  ? dayjs(ultimoOrcamento.createdAt).format('DD/MM/YYYY')
+                  : null;
 
                 return (
                   <TouchableOpacity
@@ -488,30 +510,7 @@ export default function PedidosScreen() {
                       </View>
                     )}
 
-                    <View
-                      style={[
-                        styles.statusPill,
-                        (() => {
-                          const currentStyle =
-                            statusStyles[order.status] ?? defaultStatusStyle;
-                          return { backgroundColor: currentStyle.backgroundColor };
-                        })(),
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          (() => {
-                            const currentStyle =
-                              statusStyles[order.status] ?? defaultStatusStyle;
-                            return { color: currentStyle.color };
-                          })(),
-                        ]}
-                      >
-                        {statusLabels[order.status] ?? order.status}
-                      </Text>
-                    </View>
-
+                    {/* Informações de orçamento antes dos botões */}
                     {hasBudget && (
                       <View style={styles.cardMeta}>
                         <Text style={styles.metaLabel}>
@@ -520,6 +519,12 @@ export default function PedidosScreen() {
                         <Text style={styles.metaValue}>
                           {orcamentos.length} {orcamentos.length === 1 ? 'orçamento' : 'orçamentos'}
                         </Text>
+                      </View>
+                    )}
+                    {dataUltimoOrcamento && (
+                      <View style={styles.cardMeta}>
+                        <Text style={styles.metaLabel}>Data do último orçamento</Text>
+                        <Text style={styles.metaValue}>{dataUltimoOrcamento}</Text>
                       </View>
                     )}
 
@@ -586,18 +591,71 @@ export default function PedidosScreen() {
                       </TouchableOpacity>
 
                       {(order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
-                        <TouchableOpacity
-                          style={styles.actionPill}
-                          onPress={() => {
-                            setSelectedOrderForBudget(order);
-                            setBudgetModalVisible(true);
-                          }}
+                        <View style={styles.actionWithStatusContainer}>
+                          <TouchableOpacity
+                            style={styles.actionPill}
+                            onPress={() => {
+                              setSelectedOrderForBudget(order);
+                              setBudgetModalVisible(true);
+                            }}
+                          >
+                            <UploadCloud size={16} color="#0A84FF" />
+                            <Text style={styles.actionText}>
+                              {order.status === 'orcamento_enviado' ? 'Enviar novo orçamento' : 'Enviar orçamento'}
+                            </Text>
+                          </TouchableOpacity>
+                          <View
+                            style={[
+                              styles.statusPill,
+                              styles.statusPillInline,
+                              (() => {
+                                const currentStyle =
+                                  statusStyles[order.status] ?? defaultStatusStyle;
+                                return { backgroundColor: currentStyle.backgroundColor };
+                              })(),
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.statusText,
+                                (() => {
+                                  const currentStyle =
+                                    statusStyles[order.status] ?? defaultStatusStyle;
+                                  return { color: currentStyle.color };
+                                })(),
+                              ]}
+                            >
+                              {statusLabels[order.status] ?? order.status}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                      
+                      {/* Status para outros casos (quando não tem botão de enviar) */}
+                      {order.status !== 'orcamento_pendente' && order.status !== 'orcamento_enviado' && (
+                        <View
+                          style={[
+                            styles.statusPill,
+                            (() => {
+                              const currentStyle =
+                                statusStyles[order.status] ?? defaultStatusStyle;
+                              return { backgroundColor: currentStyle.backgroundColor };
+                            })(),
+                          ]}
                         >
-                          <UploadCloud size={16} color="#0A84FF" />
-                          <Text style={styles.actionText}>
-                            {order.status === 'orcamento_enviado' ? 'Enviar novo orçamento' : 'Enviar orçamento'}
+                          <Text
+                            style={[
+                              styles.statusText,
+                              (() => {
+                                const currentStyle =
+                                  statusStyles[order.status] ?? defaultStatusStyle;
+                                return { color: currentStyle.color };
+                              })(),
+                            ]}
+                          >
+                            {statusLabels[order.status] ?? order.status}
                           </Text>
-                        </TouchableOpacity>
+                        </View>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -891,9 +949,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
+  statusPillInline: {
+    alignSelf: 'center',
+  },
   statusText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  actionWithStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -933,6 +1000,29 @@ const styles = StyleSheet.create({
   },
   dropdownChevronOpen: {
     transform: [{ rotate: '180deg' }],
+  },
+  budgetInfoContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    gap: 8,
+  },
+  budgetInfoItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  budgetInfoLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  budgetInfoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1C1E',
   },
   budgetDropdown: {
     position: 'absolute',
