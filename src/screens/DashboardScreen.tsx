@@ -38,6 +38,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/pt-br';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
+import { shareFile } from '../lib/shareUtils';
 
 dayjs.extend(relativeTime);
 dayjs.locale('pt-br');
@@ -643,72 +644,91 @@ export const DashboardScreen = () => {
     },
   ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount, router]);
 
-  const expensesByCenter = useMemo(
-    () => getAllExpenses().filter(exp => exp.center === selectedCenter),
-    [getAllExpenses, selectedCenter],
-  );
+  const buildReportData = useCallback((): ReportData => {
+    const currentMonth = dayjs().month();
+    const currentYear = dayjs().year();
 
-  const receiptsByCenter = useMemo(
-    () => getAllReceipts().filter(rec => rec.center === selectedCenter),
-    [getAllReceipts, selectedCenter],
-  );
+    const allExpenses = getAllExpenses();
+    const allReceipts = getAllReceipts();
 
-  const currentMonth = dayjs().month();
-  const currentYear = dayjs().year();
+    const filterByPeriod = (dateString: string) => {
+      const [day, month, year] = dateString.split('/').map(Number);
+      if (!day || !month || !year) {
+        const parsed = dayjs(dateString, 'DD/MM/YYYY', true);
+        if (!parsed.isValid()) return false;
+        return parsed.month() === currentMonth && parsed.year() === currentYear;
+      }
+      return month - 1 === currentMonth && year === currentYear;
+    };
 
-  const expensesForCurrentPeriod = useMemo(
-    () =>
-      expensesByCenter.filter(expense => {
-        const date = dayjs(expense.date, 'DD/MM/YYYY', true);
-        if (!date.isValid()) return false;
-        return date.month() === currentMonth && date.year() === currentYear;
-      }),
-    [expensesByCenter, currentMonth, currentYear],
-  );
+    // Usa exatamente a mesma lógica do Fechamento: filtra apenas por período, não por centro
+    const expensesInPeriod = allExpenses.filter(expense => filterByPeriod(expense.date));
+    const receiptsInPeriod = allReceipts.filter(receipt => filterByPeriod(receipt.date));
 
-  const receiptsForCurrentPeriod = useMemo(
-    () =>
-      receiptsByCenter.filter(receipt => {
-        const date = dayjs(receipt.date, 'DD/MM/YYYY', true);
-        if (!date.isValid()) return false;
-        return date.month() === currentMonth && date.year() === currentYear;
-      }),
-    [receiptsByCenter, currentMonth, currentYear],
-  );
-
-  const reportData = useMemo<ReportData>(
-    () => ({
-      expenses: expensesForCurrentPeriod,
-      receipts: receiptsForCurrentPeriod,
+    return {
+      expenses: expensesInPeriod,
+      receipts: receiptsInPeriod,
       period: { month: currentMonth, year: currentYear },
       center: selectedCenter,
-    }),
-    [expensesForCurrentPeriod, receiptsForCurrentPeriod, currentMonth, currentYear, selectedCenter],
-  );
+    };
+  }, [getAllExpenses, getAllReceipts, selectedCenter]);
 
   const handleOpenReportPreview = useCallback(
     (type: 'pdf' | 'excel') => {
-      const html = buildReportHTML(reportData);
-      setReportPreview({ type, html, data: reportData });
+      const data = buildReportData();
+      const html = buildReportHTML(data);
+      setReportPreview({ type, html, data });
     },
-    [reportData],
+    [buildReportData],
   );
 
   const handleDownloadReport = useCallback(async () => {
     if (!reportPreview) return;
     try {
+      let fileUri: string;
+      
       if (reportPreview.type === 'pdf') {
-        await exportToPDF(reportPreview.data);
+        fileUri = await exportToPDF(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
       } else {
-        await exportToExcel(reportPreview.data);
+        fileUri = await exportToExcel(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
       }
+      
+      // Compartilha automaticamente após gerar
+      const fileName = reportPreview.type === 'pdf' 
+        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
+        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
+      
+      await shareFile(fileUri, fileName);
       setReportPreview(null);
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
     }
   }, [reportPreview, showSuccess, showError]);
+
+  const handleShareReport = useCallback(async () => {
+    if (!reportPreview) return;
+    
+    try {
+      // Gera o arquivo
+      let fileUri: string;
+      if (reportPreview.type === 'pdf') {
+        fileUri = await exportToPDF(reportPreview.data);
+      } else {
+        fileUri = await exportToExcel(reportPreview.data);
+      }
+      
+      // Compartilha imediatamente
+      const fileName = reportPreview.type === 'pdf' 
+        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
+        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
+      
+      await shareFile(fileUri, fileName);
+    } catch (error: any) {
+      showError('Erro ao compartilhar', error.message || 'Tente novamente');
+    }
+  }, [reportPreview, showError]);
 
   const quickActions = [
     { 
@@ -855,9 +875,11 @@ export const DashboardScreen = () => {
         html={reportPreview?.html}
         onClose={() => setReportPreview(null)}
         onDownload={handleDownloadReport}
+        onShare={handleShareReport}
         downloadLabel={
           reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'
         }
+        title="Prévia do Relatório"
       />
 
       {/* Modal de Novo Equipamento */}

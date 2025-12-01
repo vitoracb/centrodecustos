@@ -152,11 +152,7 @@ const fromDbDate = (value: string | null): string => {
 // ========================
 
 async function mapRowToExpense(row: any): Promise<Expense> {
-  const rawCostCenter = Array.isArray(row.cost_centers)
-    ? row.cost_centers[0]
-    : row.cost_centers;
-
-  const centerCode = (rawCostCenter?.code ?? "valenca") as CostCenter;
+  const centerCode = (row.cost_center_id ?? "valenca") as CostCenter;
 
   // Carrega documentos da despesa
   let documents: ExpenseDocument[] = [];
@@ -232,11 +228,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
 // ========================
 
 function mapRowToReceipt(row: any): Receipt {
-  const rawCostCenter = Array.isArray(row.cost_centers)
-    ? row.cost_centers[0]
-    : row.cost_centers;
-
-  const centerCode = (rawCostCenter?.code ?? "valenca") as CostCenter;
+  const centerCode = (row.cost_center_id ?? "valenca") as CostCenter;
 
   // Mapeia o status do banco para o tipo ReceiptStatus
   let receiptStatus: ReceiptStatus = "a_confirmar";
@@ -305,7 +297,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           fixed_duration_months,
           installment_number,
           created_at,
-          cost_centers ( code )
+          cost_center_id
         `
         )
         .eq("type", "DESPESA")
@@ -365,7 +357,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           is_fixed,
           fixed_duration_months,
           created_at,
-          cost_centers ( code )
+          cost_center_id
         `
         )
         .eq("type", "RECEITA")
@@ -392,20 +384,6 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const addReceipt = useCallback((receipt: Omit<Receipt, "id">) => {
     (async () => {
       try {
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", receipt.center)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.error(
-            "❌ Erro ao buscar centro de custo para receita:",
-            ccError || "não encontrado"
-          );
-          return;
-        }
-
         const dbDate = toDbDate(receipt.date);
         if (!dbDate) {
           console.error("❌ Data de receita inválida:", receipt.date);
@@ -419,7 +397,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             receipt.status.toLowerCase().startsWith("prev")
               ? "PREVISTO"
               : "CONFIRMADO",
-          cost_center_id: ccData.id,
+          cost_center_id: receipt.center,
           value: receipt.value,
           date: dbDate,
           category: receipt.category ?? null,
@@ -445,7 +423,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             payment_method,
             reference,
             created_at,
-            cost_centers ( code )
+            cost_center_id
           `
           )
           .single();
@@ -468,20 +446,6 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         // Se for um recebimento fixo, atualiza todas as parcelas (template + geradas)
         const isFixedReceipt = receipt.isFixed;
         
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", receipt.center)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.error(
-            "❌ Erro ao buscar centro de custo para update de receita:",
-            ccError || "não encontrado"
-          );
-          throw new Error("Centro de custo não encontrado para atualização de receita");
-        }
-
         const dbDate = toDbDate(receipt.date);
         if (!dbDate) {
           console.error("❌ Data de receita inválida:", receipt.date);
@@ -533,7 +497,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .select("*")
             .eq("type", "RECEITA")
             .eq("description", receipt.name)
-            .eq("cost_center_id", ccData.id)
+            .eq("cost_center_id", receipt.center)
             .order("date", { ascending: true });
 
           if (installmentsError) {
@@ -543,7 +507,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
           // Atualiza o template
           const templatePayload: any = {
-            cost_center_id: ccData.id,
+            cost_center_id: receipt.center,
             value: receipt.value,
             date: dbDate,
             category: receipt.category ?? null,
@@ -623,7 +587,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                       .select("id")
                       .eq("type", "RECEITA")
                       .eq("description", receipt.name)
-                      .eq("cost_center_id", ccData.id)
+                      .eq("cost_center_id", receipt.center)
                       .eq("is_fixed", false)
                       .eq("date", installmentDbDate)
                       .maybeSingle();
@@ -632,7 +596,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                       const installmentPayload: any = {
                         type: "RECEITA",
                         status: statusValue,
-                        cost_center_id: ccData.id,
+                        cost_center_id: receipt.center,
                         value: receipt.value,
                         date: installmentDbDate,
                         category: receipt.category ?? null,
@@ -694,7 +658,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               is_fixed,
               fixed_duration_months,
               created_at,
-              cost_centers ( code )
+              cost_center_id
             `
             )
             .eq("type", "RECEITA")
@@ -718,7 +682,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Se não for fixo, atualiza apenas o registro específico
         const payload: any = {
-          cost_center_id: ccData.id,
+          cost_center_id: receipt.center,
           value: receipt.value,
           date: dbDate,
           category: receipt.category ?? null,
@@ -748,7 +712,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             is_fixed,
             fixed_duration_months,
             created_at,
-            cost_centers ( code )
+            cost_center_id
           `
           )
           .single();
@@ -807,19 +771,6 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
     (async () => {
       try {
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", expense.center)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.error(
-            "❌ Erro ao buscar centro de custo para despesa:",
-            ccError || "não encontrado"
-          );
-          return;
-        }
 
         const dbDate = toDbDate(expense.date);
         if (!dbDate) {
@@ -853,7 +804,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const payload: any = {
           type: "DESPESA",
           status: finalStatus,
-          cost_center_id: ccData.id,
+          cost_center_id: expense.center,
           equipment_id: expense.equipmentId ?? null,
           value: expense.value,
           date: dbDate,
@@ -887,7 +838,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           fixed_duration_months,
           installment_number,
           created_at,
-          cost_centers ( code )
+          cost_center_id
         `
           )
           .single();
@@ -969,7 +920,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             const installmentPayload: any = {
               type: "DESPESA",
               status: "CONFIRMADO",
-              cost_center_id: ccData.id,
+              cost_center_id: expense.center,
               equipment_id: expense.equipmentId ?? null,
               value: expense.value,
               date: dbDate,
@@ -1012,7 +963,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               fixed_duration_months,
               installment_number,
               created_at,
-              cost_centers ( code )
+              cost_center_id
             `
             )
             .eq("type", "DESPESA")
@@ -1102,19 +1053,6 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         // Se for uma despesa fixa, atualiza todas as parcelas (template + geradas)
         const isFixedExpense = expense.isFixed;
         
-        const { data: ccData, error: ccError } = await supabase
-          .from("cost_centers")
-          .select("id, code")
-          .eq("code", expense.center)
-          .maybeSingle();
-
-        if (ccError || !ccData) {
-          console.error(
-            "❌ Erro ao buscar centro de custo para update de despesa:",
-            ccError || "não encontrado"
-          );
-          return;
-        }
 
         const dbDate = toDbDate(expense.date);
         if (!dbDate) {
@@ -1162,7 +1100,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .select("*")
             .eq("type", "DESPESA")
             .eq("description", expense.name)
-            .eq("cost_center_id", ccData.id)
+            .eq("cost_center_id", expense.center)
             .order("date", { ascending: true });
 
           if (installmentsError) {
@@ -1172,7 +1110,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
           // Atualiza o template
           const templatePayload: any = {
-            cost_center_id: ccData.id,
+            cost_center_id: expense.center,
             equipment_id: expense.equipmentId ?? null,
             value: expense.value,
             date: dbDate,
@@ -1256,7 +1194,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                       .select("id")
                       .eq("type", "DESPESA")
                       .eq("description", expense.name)
-                      .eq("cost_center_id", ccData.id)
+                      .eq("cost_center_id", expense.center)
                       .eq("is_fixed", false)
                       .eq("date", installmentDbDate)
                       .maybeSingle();
@@ -1265,7 +1203,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                       const installmentPayload: any = {
                         type: "DESPESA",
                         status: "CONFIRMADO",
-                        cost_center_id: ccData.id,
+                        cost_center_id: expense.center,
                         equipment_id: expense.equipmentId ?? null,
                         value: expense.value,
                         date: installmentDbDate,
@@ -1444,7 +1382,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               fixed_duration_months,
               installment_number,
               created_at,
-              cost_centers ( code )
+              cost_center_id
             `
             )
             .eq("type", "DESPESA")
@@ -1462,7 +1400,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Se não for fixa, atualiza apenas o registro específico
         const payload: any = {
-          cost_center_id: ccData.id,
+          cost_center_id: expense.center,
           equipment_id: expense.equipmentId ?? null,
           value: expense.value,
           date: dbDate,
@@ -1497,7 +1435,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             fixed_duration_months,
             installment_number,
             created_at,
-            cost_centers ( code )
+            cost_center_id
           `
           )
           .single();
@@ -1812,7 +1750,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           fixed_duration_months,
           cost_center_id,
           created_at,
-          cost_centers ( code )
+          cost_center_id
         `
         )
         .eq("type", "DESPESA")
@@ -1969,7 +1907,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           fixed_duration_months,
           installment_number,
           created_at,
-          cost_centers ( code )
+          cost_center_id
         `
         )
         .eq("type", "DESPESA")
