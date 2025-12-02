@@ -13,6 +13,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   gestao: '#FF9500',
   terceirizados: '#FF3B30',
   diversos: '#AF52DE',
+  equipamentos: '#5856D6',
 };
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -21,6 +22,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   gestao: 'Gestão',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
+  equipamentos: 'Equipamentos',
 };
 
 interface ExpensePieChartProps {

@@ -944,6 +944,7 @@ export const DashboardScreen = () => {
               center: selectedCenter,
               equipmentId: data.equipmentId,
               documents: data.documents || [],
+              debitAdjustment: data.debitAdjustment,
             });
             setExpenseModalVisible(false);
             showSuccess('Despesa registrada', data.name);

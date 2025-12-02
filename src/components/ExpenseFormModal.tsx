@@ -16,7 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { ExpenseCategory, ExpenseDocument, GestaoSubcategory, ExpenseSector } from '../context/FinancialContext';
+import { ExpenseCategory, ExpenseDocument, GestaoSubcategory, ExpenseSector, ExpenseDebitAdjustment } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import { FileText, Camera, XCircle, ChevronDown } from 'lucide-react-native';
@@ -28,6 +28,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   gestao: 'Gestão',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
+  equipamentos: 'Equipamentos',
 };
 
 const GESTAO_SUBCATEGORY_LABELS: Record<GestaoSubcategory, string> = {
@@ -58,6 +59,7 @@ interface ExpenseFormData {
   isFixed?: boolean;
   sector?: ExpenseSector;
   fixedDurationMonths?: number;
+  debitAdjustment?: ExpenseDebitAdjustment;
 }
 
 interface ExpenseFormModalProps {
@@ -93,6 +95,9 @@ export const ExpenseFormModal = ({
   const [sector, setSector] = useState<ExpenseSector | ''>('');
   const [sectorDropdownVisible, setSectorDropdownVisible] = useState(false);
   const [fixedDurationMonths, setFixedDurationMonths] = useState<string>('');
+  const [addDebit, setAddDebit] = useState(false);
+  const [debitValue, setDebitValue] = useState('');
+  const [debitDescription, setDebitDescription] = useState('');
 
   const formatCurrency = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -110,6 +115,11 @@ export const ExpenseFormModal = ({
   const handleValueChange = (text: string) => {
     const formatted = formatCurrency(text);
     setValue(formatted);
+  };
+
+  const handleDebitValueChange = (text: string) => {
+    const formatted = formatCurrency(text);
+    setDebitValue(formatted);
   };
 
   const parseCurrency = (formattedValue: string): number => {
@@ -171,6 +181,9 @@ export const ExpenseFormModal = ({
         setObservations('');
         setIsFixed(false);
         setSector('');
+        setAddDebit(false);
+        setDebitValue('');
+        setDebitDescription('');
       }
     }
   }, [visible, initialData]);
@@ -447,8 +460,8 @@ export const ExpenseFormModal = ({
     }
     
     // Validações específicas por categoria
-    // Equipamento é obrigatório apenas para "manutenção" e "funcionário"
-    if ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) {
+    // Equipamento é obrigatório para "manutenção", "funcionário" e "equipamentos"
+    if ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && !selectedEquipmentId) {
       Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento.');
       return;
     }
@@ -479,18 +492,44 @@ export const ExpenseFormModal = ({
       }
     }
 
+    // Validação: se débito está marcado, valor do débito é obrigatório
+    if (addDebit && !debitValue) {
+      Alert.alert('Campo obrigatório', 'Por favor, informe o valor do débito.');
+      return;
+    }
+
+    // Calcula valor final (valor base - débito)
+    const baseValue = parseCurrency(value);
+    const debitAmount = addDebit ? parseCurrency(debitValue) : 0;
+    const finalValue = baseValue - debitAmount;
+
+    // Validação: valor final não pode ser negativo
+    if (finalValue < 0) {
+      Alert.alert('Valor inválido', 'O valor do débito não pode ser maior que o valor da despesa.');
+      return;
+    }
+
+    // Prepara debitAdjustment se houver débito
+    const debitAdjustment: ExpenseDebitAdjustment | undefined = addDebit && debitAmount > 0
+      ? {
+          amount: debitAmount,
+          description: debitDescription.trim() || undefined,
+        }
+      : undefined;
+
     onSubmit({
       name: name.trim(),
       category,
       date: dayjs(date).format('DD/MM/YYYY'),
-      value: parseCurrency(value),
+      value: finalValue, // Valor final após abatimento
       documents,
-      equipmentId: (category === 'manutencao' || category === 'funcionario' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) ? selectedEquipmentId : undefined,
+      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) ? selectedEquipmentId : undefined,
       gestaoSubcategory: category === 'gestao' ? gestaoSubcategory : undefined,
       observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
       isFixed,
       sector: isFixed && sector ? sector : undefined,
       fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
+      debitAdjustment,
     });
     onClose();
   };
@@ -571,11 +610,11 @@ export const ExpenseFormModal = ({
               )}
             </View>
 
-            {/* Dropdown de Equipamento para Manutenção, Funcionário, Terceirizados e Diversos */}
-            {(category === 'manutencao' || category === 'funcionario' || category === 'terceirizados' || category === 'diversos') && (
+            {/* Dropdown de Equipamento para Manutenção, Funcionário, Terceirizados, Diversos e Equipamentos */}
+            {(category === 'manutencao' || category === 'funcionario' || category === 'terceirizados' || category === 'diversos' || category === 'equipamentos') && (
               <View style={styles.field}>
                 <Text style={styles.label}>
-                  Equipamento {(category === 'manutencao' || category === 'funcionario') ? '*' : ''}
+                  Equipamento {(category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') ? '*' : ''}
                 </Text>
                 <TouchableOpacity
                   style={styles.input}
@@ -724,6 +763,54 @@ export const ExpenseFormModal = ({
               />
             </View>
 
+            {/* Checkbox e campos de débito */}
+            <View style={styles.field}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setAddDebit(!addDebit)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, addDebit && styles.checkboxChecked]}>
+                  {addDebit && <Text style={styles.checkboxCheckmark}>✓</Text>}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Adicionar débito</Text>
+                  <Text style={styles.checkboxHint}>
+                    Abatimento aplicado à despesa (ex: abatimento de imposto)
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Campos de débito (aparecem quando checkbox está marcado) */}
+            {addDebit && (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Valor do débito *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={debitValue}
+                    onChangeText={handleDebitValueChange}
+                    placeholder="R$ 0,00"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Descrição do débito</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={debitDescription}
+                    onChangeText={setDebitDescription}
+                    placeholder="Ex: Abatimento de imposto, desconto aplicado..."
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              </>
+            )}
+
             <View style={styles.field}>
               <TouchableOpacity
                 style={styles.checkboxContainer}
@@ -861,7 +948,7 @@ export const ExpenseFormModal = ({
                 (!name.trim() ||
                   !value ||
                   parseCurrency(value) <= 0 ||
-                  ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
+                  ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && !selectedEquipmentId) ||
                   (category === 'gestao' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
                   styles.disabledButton,

@@ -212,7 +212,7 @@ export const EquipmentDetailScreen = () => {
       return (
         expEquipmentId &&
         expEquipmentId === equipmentId &&
-        exp.category === 'manutencao'
+        exp.category === 'manutencao' || exp.category === 'equipamentos'
       );
     });
 

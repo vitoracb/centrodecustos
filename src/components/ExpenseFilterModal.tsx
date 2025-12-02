@@ -24,6 +24,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   gestao: 'Gestão',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
+  equipamentos: 'Equipamentos',
 };
 
 // Formata número para moeda brasileira

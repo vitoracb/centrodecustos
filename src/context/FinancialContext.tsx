@@ -40,7 +40,8 @@ export type ExpenseCategory =
   | "funcionario"
   | "gestao"
   | "terceirizados"
-  | "diversos";
+  | "diversos"
+  | "equipamentos";
 
 export type ExpenseStatus =
   | "confirmar"
@@ -69,6 +70,11 @@ export interface ExpenseDocument {
   mimeType?: string | null;
 }
 
+export interface ExpenseDebitAdjustment {
+  amount: number;
+  description?: string;
+}
+
 export interface Expense {
   id: string;
   name: string;
@@ -87,6 +93,7 @@ export interface Expense {
   sector?: ExpenseSector; // Setor da despesa fixa
   fixedDurationMonths?: number; // Número de meses de duração (null = indefinido)
   installmentNumber?: number; // Número da parcela (1, 2, 3...)
+  debitAdjustment?: ExpenseDebitAdjustment; // Abatimento/débito aplicado à despesa
 }
 
 interface FinancialContextType {
@@ -147,6 +154,63 @@ const fromDbDate = (value: string | null): string => {
   return `${d}/${m}/${y}`;
 };
 
+// Funções para serializar/deserializar débito no campo reference
+const DEBIT_TAG = '__DEBIT__:';
+
+function parseReferenceField(reference: string | null): {
+  observations?: string;
+  debitAdjustment?: ExpenseDebitAdjustment;
+} {
+  if (!reference) {
+    return {};
+  }
+
+  const lines = reference.split('\n');
+  let debitAdjustment: ExpenseDebitAdjustment | undefined;
+  const observationsLines: string[] = [];
+
+  lines.forEach((line) => {
+    if (line.startsWith(DEBIT_TAG)) {
+      try {
+        const jsonStr = line.replace(DEBIT_TAG, '');
+        const parsed = JSON.parse(jsonStr);
+        if (parsed && typeof parsed.amount === 'number' && parsed.amount > 0) {
+          debitAdjustment = {
+            amount: parsed.amount,
+            description: parsed.description || undefined,
+          };
+        }
+      } catch {
+        // Ignora erro de parse
+      }
+    } else {
+      observationsLines.push(line);
+    }
+  });
+
+  return {
+    observations: observationsLines.join('\n').trim() || undefined,
+    debitAdjustment,
+  };
+}
+
+function buildReferenceField(observations?: string, debitAdjustment?: ExpenseDebitAdjustment): string | null {
+  const parts: string[] = [];
+  
+  if (observations && observations.trim()) {
+    parts.push(observations.trim());
+  }
+  
+  if (debitAdjustment && debitAdjustment.amount > 0) {
+    parts.push(`${DEBIT_TAG}${JSON.stringify({
+      amount: debitAdjustment.amount,
+      description: debitAdjustment.description || '',
+    })}`);
+  }
+
+  return parts.length > 0 ? parts.join('\n') : null;
+}
+
 // ========================
 // MAPEAMENTO: LINHA -> EXPENSE
 // ========================
@@ -200,6 +264,9 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     }
   }
 
+  // Parse reference field para obter observations e debitAdjustment
+  const { observations, debitAdjustment } = parseReferenceField(row.reference ?? null);
+
   return {
     id: row.id,
     name: row.description ?? "",
@@ -210,7 +277,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     documents: documents.length > 0 ? documents : undefined,
     equipmentId: row.equipment_id ?? undefined,
     gestaoSubcategory: undefined,
-    observations: row.reference ?? undefined,
+    observations,
     status: expenseStatus,
     method: row.payment_method ?? undefined,
     createdAt: row.created_at
@@ -220,6 +287,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     sector: row.sector ? (row.sector.toLowerCase() as ExpenseSector) : undefined,
     fixedDurationMonths: row.fixed_duration_months ?? undefined,
     installmentNumber: row.installment_number ?? undefined,
+    debitAdjustment,
   };
 }
 
@@ -811,7 +879,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           category: expense.category ?? "diversos",
           description: expense.name,
           payment_method: expense.method ?? null,
-          reference: expense.observations ?? null,
+          reference: buildReferenceField(expense.observations, expense.debitAdjustment),
           is_fixed: expense.isFixed ?? false,
           sector: expense.sector ?? null,
           fixed_duration_months: expense.fixedDurationMonths ?? null,
@@ -927,7 +995,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               category: expense.category ?? "diversos",
               description: expense.name,
               payment_method: expense.method ?? null,
-              reference: expense.observations ?? null,
+              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
               is_fixed: false,
               sector: expense.sector ?? null,
               fixed_duration_months: null,
@@ -1117,7 +1185,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             category: expense.category ?? "diversos",
             description: expense.name,
             payment_method: expense.method ?? null,
-            reference: expense.observations ?? null,
+            reference: buildReferenceField(expense.observations, expense.debitAdjustment),
             status: statusToDb(expense.status),
             is_fixed: true,
             sector: expense.sector ?? null,
@@ -1144,7 +1212,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               category: expense.category ?? "diversos",
               description: expense.name,
               payment_method: expense.method ?? null,
-              reference: expense.observations ?? null,
+              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
               sector: expense.sector ?? null,
             };
 
@@ -1210,7 +1278,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                         category: expense.category ?? "diversos",
                         description: expense.name,
                         payment_method: expense.method ?? null,
-                        reference: expense.observations ?? null,
+                        reference: buildReferenceField(expense.observations, expense.debitAdjustment),
                         is_fixed: false,
                         sector: expense.sector ?? null,
                         fixed_duration_months: null,

@@ -58,6 +58,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   gestao: 'Gestão',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
+  equipamentos: 'Equipamentos',
 };
 
 const STATUS_LABELS: Record<ExpenseStatus, string> = {
@@ -1433,6 +1434,14 @@ export const FinanceiroScreen = () => {
                             </Text>
                           </View>
                         </View>
+                        {item.debitAdjustment && (
+                          <View style={styles.debitBadge}>
+                            <Text style={styles.debitText}>
+                              Abatimento: -{formatCurrency(item.debitAdjustment.amount)}
+                              {item.debitAdjustment.description ? ` • ${item.debitAdjustment.description}` : ''}
+                            </Text>
+                          </View>
+                        )}
                         {(() => {
                           const fixedInfo = getExpenseFixedInfo(item, allExpenses);
                           if (fixedInfo.isFixed) {
@@ -1888,6 +1897,7 @@ export const FinanceiroScreen = () => {
               isFixed: data.isFixed,
               sector: data.sector,
               fixedDurationMonths: data.fixedDurationMonths,
+              debitAdjustment: data.debitAdjustment,
             });
           } else {
             addExpense({
@@ -1904,6 +1914,7 @@ export const FinanceiroScreen = () => {
               isFixed: data.isFixed,
               sector: data.sector,
               fixedDurationMonths: data.fixedDurationMonths,
+              debitAdjustment: data.debitAdjustment,
             });
           }
           setEditingExpense(null);
@@ -1923,6 +1934,7 @@ export const FinanceiroScreen = () => {
                 sector: editingExpense.sector,
                 fixedDurationMonths: editingExpense.fixedDurationMonths,
                 id: editingExpense.id,
+                debitAdjustment: editingExpense.debitAdjustment,
               }
             : undefined
         }
@@ -2231,6 +2243,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  debitBadge: {
+    backgroundColor: '#FFF4E6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  debitText: {
+    fontSize: 11,
+    color: '#FF9500',
+    fontWeight: '500',
   },
   fixedBadge: {
     backgroundColor: '#E6FEEA',

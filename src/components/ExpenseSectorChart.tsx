@@ -105,12 +105,12 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
   const innerRadius = 0; // Pizza sólida, sem buraco (igual ao gráfico de categoria)
 
   const formatCurrency = (value: number): string => {
-    if (value === 0) return 'R$ 0';
+    if (value === 0) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value);
   };
 

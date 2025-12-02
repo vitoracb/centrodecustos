@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   gestao: 'Gestão',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
+  equipamentos: 'Equipamentos',
 };
 
 const STATUS_LABELS: Record<string, string> = {
