@@ -367,9 +367,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           created_at,
           cost_center_id
         `
-        )
-        .eq("type", "DESPESA")
-        .order("date", { ascending: false });
+            )
+            .eq("type", "DESPESA")
+            .order("created_at", { ascending: false });
 
       if (error) {
         console.error("❌ Erro ao carregar despesas:", error);
@@ -1035,7 +1035,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             `
             )
             .eq("type", "DESPESA")
-            .order("date", { ascending: false });
+            .order("created_at", { ascending: false });
 
           if (!reloadError && allExpensesData) {
             const mapped: Expense[] = await Promise.all(
@@ -1216,7 +1216,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .from("financial_transactions")
             .select("*")
             .eq("type", "DESPESA")
-            .order("date", { ascending: false });
+            .order("created_at", { ascending: false });
 
           if (!reloadError && reloadedExpenses) {
             const mapped: Expense[] = await Promise.all(
@@ -1319,7 +1319,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .from("financial_transactions")
             .select("*")
             .eq("type", "DESPESA")
-            .order("date", { ascending: false });
+            .order("created_at", { ascending: false });
 
           if (!reloadError && reloadedExpenses) {
             const mapped: Expense[] = await Promise.all(
@@ -1429,9 +1429,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             // Recarrega todas as despesas
             const { data: reloadedExpenses, error: reloadError } = await supabase
               .from("financial_transactions")
-              .select("*")
-              .eq("type", "DESPESA")
-              .order("date", { ascending: false });
+              .select("*"            )
+            .eq("type", "DESPESA")
+            .order("created_at", { ascending: false });
 
             if (!reloadError && reloadedExpenses) {
               const mapped: Expense[] = await Promise.all(
@@ -1447,13 +1447,15 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             const newDuration = expense.fixedDurationMonths;
 
           // Busca todas as parcelas relacionadas (template + geradas)
+          // Usa o nome ANTIGO do template para encontrar todas as parcelas
+          const oldName = currentTemplate.description;
           const { data: allInstallments, error: installmentsError } = await supabase
             .from("financial_transactions")
             .select("*")
             .eq("type", "DESPESA")
-            .eq("description", expense.name)
+            .eq("description", oldName)
             .eq("cost_center_id", expense.center)
-            .order("date", { ascending: true });
+            .order("created_at", { ascending: false });
 
           if (installmentsError) {
             console.error("❌ Erro ao buscar parcelas da despesa fixa:", installmentsError);
@@ -1508,9 +1510,22 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             return;
           }
 
+          // Verifica se a data do template foi alterada
+          const oldTemplateDate = currentTemplate.date;
+          const dateChanged = oldTemplateDate !== dbDate;
+
           // Atualiza todas as parcelas geradas existentes
           const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
           const updatedInstallments: any[] = [];
+          
+          // Se a data mudou, calcula a nova data base (dia/mês/ano)
+          let newDay = 0, newMonth = 0, newYear = 0;
+          if (dateChanged) {
+            const [day, month, year] = expense.date.split('/').map(Number);
+            newDay = day;
+            newMonth = month;
+            newYear = year;
+          }
           
           for (const installment of generatedInstallments) {
             const installmentPayload: any = {
@@ -1521,6 +1536,28 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               reference: buildReferenceField(expense.observations, expense.debitAdjustment),
               sector: expense.sector ?? null,
             };
+
+            // Se a data do template mudou, atualiza a data da parcela
+            if (dateChanged) {
+              const installmentNumber = installment.installment_number ?? 1;
+              // Calcula nova data (mês base + offset da parcela - 1, pois a primeira parcela é o template)
+              let targetMonth = newMonth + (installmentNumber - 1);
+              let targetYear = newYear;
+              
+              while (targetMonth > 12) {
+                targetMonth -= 12;
+                targetYear++;
+              }
+              
+              const lastDayOfMonth = new Date(targetYear, targetMonth, 0).getDate();
+              const day = Math.min(newDay, lastDayOfMonth);
+              const newDateStr = `${String(day).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${targetYear}`;
+              const newDateDb = toDbDate(newDateStr);
+              
+              if (newDateDb) {
+                installmentPayload.date = newDateDb;
+              }
+            }
 
             const { data: updatedInstallment } = await supabase
               .from("financial_transactions")
@@ -1553,20 +1590,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             }
           }
 
-          // Atualiza o estado local imediatamente com o template e parcelas atualizadas
-          const updatedTemplateExpense = await mapRowToExpense(updatedTemplate);
-          const updatedInstallmentExpenses = await Promise.all(
-            updatedInstallments.map((row) => mapRowToExpense(row))
-          );
-
-          setExpenses((prev) => {
-            // Remove o template antigo e todas as parcelas antigas
-            const filtered = prev.filter(
-              (e) => !(e.name === expense.name && e.center === expense.center)
-            );
-            // Adiciona o template atualizado e todas as parcelas atualizadas
-            return [...filtered, updatedTemplateExpense, ...updatedInstallmentExpenses];
-          });
+          // Nota: O estado será atualizado ao recarregar todas as despesas no final
 
           // Se a duração mudou, ajusta as parcelas
           if (oldDuration !== newDuration && newDuration) {
@@ -1603,15 +1627,17 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
                   if (installmentDbDate) {
                     // Verifica se já existe
-                    const { data: existing } = await supabase
-                      .from("financial_transactions")
-                      .select("id")
-                      .eq("type", "DESPESA")
-                      .eq("description", expense.name)
-                      .eq("cost_center_id", expense.center)
-                      .eq("is_fixed", false)
-                      .eq("date", installmentDbDate)
-                      .maybeSingle();
+                  // Usa o novo nome para verificar se já existe uma parcela com o novo nome
+                  // (se o nome mudou, não vai encontrar, então cria nova)
+                  const { data: existing } = await supabase
+                    .from("financial_transactions")
+                    .select("id")
+                    .eq("type", "DESPESA")
+                    .eq("description", expense.name)
+                    .eq("cost_center_id", expense.center)
+                    .eq("is_fixed", false)
+                    .eq("date", installmentDbDate)
+                    .maybeSingle();
 
                     if (!existing) {
                       const installmentPayload: any = {
@@ -1656,10 +1682,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                         )
                         .single();
 
-                      if (newInstallment) {
-                        const newInstallmentExpense = await mapRowToExpense(newInstallment);
-                        setExpenses((prev) => [...prev, newInstallmentExpense]);
-                      }
+                      // Nota: O estado será atualizado ao recarregar todas as despesas no final
                     }
                   }
                 }
@@ -1675,12 +1698,35 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                     .delete()
                     .eq("id", instToDelete.id);
                   
-                  // Remove do estado local imediatamente
-                  setExpenses((prev) => prev.filter((e) => e.id !== instToDelete.id));
+                  // Nota: O estado será atualizado ao recarregar todas as despesas no final
                 }
               }
             }
           }
+
+          // ✅ RECARREGA TODAS AS DESPESAS (evita duplicatas)
+          console.log("🔄 Recarregando todas as despesas após edição de despesa fixa...");
+          
+          const { data: reloadedExpenses, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(`
+              id, type, status, date, value, category, description,
+              payment_method, reference, equipment_id, is_fixed,
+              sector, fixed_duration_months, installment_number,
+              created_at, cost_center_id
+            `)
+            .eq("type", "DESPESA")
+            .order("created_at", { ascending: false });
+
+          if (!reloadError && reloadedExpenses) {
+            const mapped: Expense[] = await Promise.all(
+              reloadedExpenses.map((row: any) => mapRowToExpense(row))
+            );
+            setExpenses(mapped);
+            console.log(`✅ ${mapped.length} despesas recarregadas com sucesso`);
+          }
+
+          return;
           } // Fecha o else do currentTemplate
         } // Fecha o if (isFixedExpense)
 
@@ -1856,11 +1902,34 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             return;
           }
 
-          // Atualiza o estado local imediatamente com a despesa atualizada
-          const updatedExpense = await mapRowToExpense(data);
-          setExpenses((prev) =>
-            prev.map((e) => (e.id === expense.id ? updatedExpense : e))
-          );
+          // ✅ CORREÇÃO PRINCIPAL: Recarrega TODAS as despesas
+          console.log("🔄 Recarregando todas as despesas após edição...");
+          
+          const { data: allExpenses, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(`
+              id, type, status, date, value, category, description,
+              payment_method, reference, equipment_id, is_fixed,
+              sector, fixed_duration_months, installment_number,
+              created_at, cost_center_id
+            `)
+            .eq("type", "DESPESA")
+            .order("created_at", { ascending: false });
+
+          if (reloadError) {
+            console.error("❌ Erro ao recarregar despesas:", reloadError);
+            return;
+          }
+
+          if (allExpenses) {
+            const mapped: Expense[] = await Promise.all(
+              allExpenses.map((row: any) => mapRowToExpense(row))
+            );
+            
+            // ✅ SUBSTITUI TODA A LISTA (evita duplicatas)
+            setExpenses(mapped);
+            console.log(`✅ ${mapped.length} despesas recarregadas com sucesso`);
+          }
 
           return;
         }
@@ -2201,9 +2270,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           created_at,
           cost_center_id
         `
-        )
-        .eq("type", "DESPESA")
-        .order("date", { ascending: false });
+            )
+            .eq("type", "DESPESA")
+            .order("created_at", { ascending: false });
 
         if (!reloadError && reloadedExpenses) {
           const mapped: Expense[] = await Promise.all(

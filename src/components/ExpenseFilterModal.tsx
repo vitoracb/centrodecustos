@@ -13,7 +13,7 @@ import {
 import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import { X, Filter, ChevronDown } from 'lucide-react-native';
-import { ExpenseCategory } from '../context/FinancialContext';
+import { ExpenseCategory, ExpenseSector } from '../context/FinancialContext';
 import { Equipment } from '../context/EquipmentContext';
 
 dayjs.locale('pt-br');
@@ -25,6 +25,14 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
+};
+
+const SECTOR_LABELS: Record<ExpenseSector, string> = {
+  now: 'Now',
+  felipe_viatransportes: 'Felipe Viatransportes',
+  terceirizados: 'Terceirizados',
+  gestao: 'Gestão',
+  ronaldo: 'Ronaldo',
 };
 
 // Formata número para moeda brasileira
@@ -52,6 +60,8 @@ export interface ExpenseFilters {
   value?: number | null;
   month?: number | null;
   year?: number | null;
+  name?: string | null;
+  sector?: ExpenseSector | null;
 }
 
 interface ExpenseFilterModalProps {
@@ -75,6 +85,10 @@ export const ExpenseFilterModal = ({
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [usePeriodFilter, setUsePeriodFilter] = useState(false);
   const [equipmentDropdownVisible, setEquipmentDropdownVisible] = useState(false);
+  const [name, setName] = useState<string>('');
+  const [sector, setSector] = useState<ExpenseSector | null>(null);
+  const [sectorDropdownVisible, setSectorDropdownVisible] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
 
   useEffect(() => {
     if (visible && initialFilters) {
@@ -93,6 +107,8 @@ export const ExpenseFilterModal = ({
         setUsePeriodFilter(false);
         setSelectedDate(dayjs());
       }
+      setName(initialFilters.name || '');
+      setSector(initialFilters.sector || null);
     } else if (!visible) {
       setCategory(null);
       setSelectedEquipmentId('');
@@ -100,6 +116,10 @@ export const ExpenseFilterModal = ({
       setUsePeriodFilter(false);
       setSelectedDate(dayjs());
       setEquipmentDropdownVisible(false);
+      setName('');
+      setSector(null);
+      setSectorDropdownVisible(false);
+      setCategoryDropdownVisible(false);
     }
   }, [visible, initialFilters]);
 
@@ -119,6 +139,8 @@ export const ExpenseFilterModal = ({
       value: numericValue,
       month: usePeriodFilter ? selectedDate.month() : null,
       year: usePeriodFilter ? selectedDate.year() : null,
+      name: name.trim() || null,
+      sector: sector || null,
     });
     onClose();
   };
@@ -129,12 +151,16 @@ export const ExpenseFilterModal = ({
     setValue('');
     setUsePeriodFilter(false);
     setSelectedDate(dayjs());
+    setName('');
+    setSector(null);
     onApply({
       category: null,
       equipmentId: null,
       value: null,
       month: null,
       year: null,
+      name: null,
+      sector: null,
     });
     onClose();
   };
@@ -169,7 +195,9 @@ export const ExpenseFilterModal = ({
           style={styles.overlay} 
           activeOpacity={1} 
           onPress={() => {
+            setCategoryDropdownVisible(false);
             setEquipmentDropdownVisible(false);
+            setSectorDropdownVisible(false);
             onClose();
           }} 
         />
@@ -185,47 +213,124 @@ export const ExpenseFilterModal = ({
           <ScrollView style={styles.formScroll}>
             <View style={styles.field}>
               <Text style={styles.label}>Categoria</Text>
-              <View style={styles.categoryRow}>
-                <TouchableOpacity
-                  style={[styles.categoryChip, !category && styles.categoryChipSelected]}
-                  onPress={() => setCategory(null)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      !category && styles.categoryChipTextSelected,
-                    ]}
-                  >
-                    Todas
-                  </Text>
-                </TouchableOpacity>
-                {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => {
-                  const isSelected = category === cat;
-                  return (
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => {
+                  setCategoryDropdownVisible(!categoryDropdownVisible);
+                  setEquipmentDropdownVisible(false);
+                  setSectorDropdownVisible(false);
+                }}
+              >
+                <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
+                  {category ? CATEGORY_LABELS[category] : 'Todas as categorias'}
+                </Text>
+                <ChevronDown size={20} color="#6C6C70" />
+              </TouchableOpacity>
+              {categoryDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
                     <TouchableOpacity
-                      key={cat}
-                      style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-                      onPress={() => setCategory(cat)}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setCategory(null);
+                        setCategoryDropdownVisible(false);
+                      }}
                     >
-                      <Text
-                        style={[
-                          styles.categoryChipText,
-                          isSelected && styles.categoryChipTextSelected,
-                        ]}
-                      >
-                        {CATEGORY_LABELS[cat]}
+                      <Text style={[styles.dropdownItemText, !category && styles.dropdownItemTextSelected]}>
+                        Todas as categorias
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+                    {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => {
+                      const isSelected = category === cat;
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setCategory(cat);
+                            setCategoryDropdownVisible(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextSelected]}>
+                            {CATEGORY_LABELS[cat]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Nome</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Digite o nome da despesa"
+                placeholderTextColor="#8E8E93"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Setor</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => {
+                  setSectorDropdownVisible(!sectorDropdownVisible);
+                  setEquipmentDropdownVisible(false);
+                }}
+              >
+                <Text style={[styles.dropdownText, !sector && styles.dropdownPlaceholder]}>
+                  {sector ? SECTOR_LABELS[sector] : 'Todos os setores'}
+                </Text>
+                <ChevronDown size={20} color="#6C6C70" />
+              </TouchableOpacity>
+              {sectorDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSector(null);
+                        setSectorDropdownVisible(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, !sector && styles.dropdownItemTextSelected]}>
+                        Todos os setores
+                      </Text>
+                    </TouchableOpacity>
+                    {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec) => {
+                      const isSelected = sector === sec;
+                      return (
+                        <TouchableOpacity
+                          key={sec}
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setSector(sec);
+                            setSectorDropdownVisible(false);
+                          }}
+                        >
+                          <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextSelected]}>
+                            {SECTOR_LABELS[sec]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             <View style={styles.field}>
               <Text style={styles.label}>Equipamento</Text>
               <TouchableOpacity
                 style={styles.dropdown}
-                onPress={() => setEquipmentDropdownVisible(!equipmentDropdownVisible)}
+                onPress={() => {
+                  setEquipmentDropdownVisible(!equipmentDropdownVisible);
+                  setSectorDropdownVisible(false);
+                }}
               >
                 <Text style={[styles.dropdownText, !selectedEquipmentId && styles.dropdownPlaceholder]}>
                   {equipmentLabel}

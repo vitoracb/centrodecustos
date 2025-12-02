@@ -61,6 +61,14 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   equipamentos: 'Equipamentos',
 };
 
+const SECTOR_LABELS: Record<string, string> = {
+  now: 'Now',
+  felipe_viatransportes: 'Felipe Viatransportes',
+  terceirizados: 'Terceirizados',
+  gestao: 'Gestão',
+  ronaldo: 'Ronaldo',
+};
+
 const STATUS_LABELS: Record<ExpenseStatus, string> = {
   confirmar: 'A Confirmar',
   confirmado: 'Confirmado',
@@ -712,6 +720,19 @@ export const FinanceiroScreen = () => {
       filtered = filtered.filter((expense) => expense.value === expenseFilters.value);
     }
 
+    // Filtrar por nome
+    if (expenseFilters.name && expenseFilters.name.trim()) {
+      const searchName = expenseFilters.name.trim().toLowerCase();
+      filtered = filtered.filter((expense) => 
+        expense.name.toLowerCase().includes(searchName)
+      );
+    }
+
+    // Filtrar por setor
+    if (expenseFilters.sector) {
+      filtered = filtered.filter((expense) => expense.sector === expenseFilters.sector);
+    }
+
     // Filtrar por período do filtro (se especificado, aplica filtro adicional dentro do período já selecionado)
     // Nota: O filtro do modal é aplicado APÓS o filtro Mensal/Anual, então funciona como um refinamento
     if (expenseFilters.month !== null && expenseFilters.month !== undefined && expenseFilters.year) {
@@ -770,7 +791,9 @@ export const FinanceiroScreen = () => {
       (expenseFilters.value !== null && expenseFilters.value !== undefined) ||
       (expenseFilters.month !== null &&
         expenseFilters.month !== undefined &&
-        expenseFilters.year)
+        expenseFilters.year) ||
+      (expenseFilters.name && expenseFilters.name.trim()) ||
+      expenseFilters.sector
     );
   }, [expenseFilters]);
 
@@ -1428,10 +1451,19 @@ export const FinanceiroScreen = () => {
                         </Text>
                         <View style={styles.cardMeta}>
                           <Text style={styles.cardDate}>{item.date}</Text>
-                          <View style={styles.categoryBadge}>
-                            <Text style={styles.categoryText}>
-                              {CATEGORY_LABELS[item.category]}
-                            </Text>
+                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                            <View style={styles.categoryBadge}>
+                              <Text style={styles.categoryText}>
+                                {CATEGORY_LABELS[item.category]}
+                              </Text>
+                            </View>
+                            {item.sector && (
+                              <View style={styles.sectorBadge}>
+                                <Text style={styles.sectorText}>
+                                  {SECTOR_LABELS[item.sector] || item.sector}
+                                </Text>
+                              </View>
+                            )}
                           </View>
                         </View>
                         {item.debitAdjustment && (
@@ -1883,12 +1915,15 @@ export const FinanceiroScreen = () => {
               }
             }
             
+            // Verifica se a data foi alterada (para despesas não fixas)
+            const dateChanged = !editingExpense.isFixed && data.date !== editingExpense.date;
+            
             // Atualiza usando o template (que atualizará todas as parcelas)
             updateExpense({
               ...templateExpense,
               name: data.name,
               category: data.category,
-              date: templateExpense.date, // Mantém a data original do template
+              date: data.date, // Usa a nova data (para fixas, será atualizada nas parcelas também)
               value: data.value,
               documents: data.documents,
               equipmentId: data.equipmentId,
@@ -1899,6 +1934,16 @@ export const FinanceiroScreen = () => {
               fixedDurationMonths: data.fixedDurationMonths,
               debitAdjustment: data.debitAdjustment,
             });
+            
+            // Navega para o mês da nova data se foi alterada e está no modo mensal
+            if (dateChanged && expenseMode === 'mensal' && data.date) {
+              const [day, month, year] = data.date.split('/').map(Number);
+              const newDate = dayjs(`${year}-${month}-${day}`);
+              
+              if (newDate.isValid()) {
+                setSelectedExpensePeriod(newDate.startOf('month'));
+              }
+            }
           } else {
             addExpense({
               name: data.name,
@@ -1921,21 +1966,45 @@ export const FinanceiroScreen = () => {
         }}
         initialData={
           editingExpense
-            ? {
-                name: editingExpense.name,
-                category: editingExpense.category,
-                date: editingExpense.date,
-                value: editingExpense.value,
-                documents: editingExpense.documents || [],
-                equipmentId: editingExpense.equipmentId,
-                gestaoSubcategory: editingExpense.gestaoSubcategory,
-                observations: editingExpense.observations,
-                isFixed: editingExpense.isFixed ?? false,
-                sector: editingExpense.sector,
-                fixedDurationMonths: editingExpense.fixedDurationMonths,
-                id: editingExpense.id,
-                debitAdjustment: editingExpense.debitAdjustment,
-              }
+            ? (() => {
+                // Se for uma despesa fixa (ou parcela de despesa fixa), busca o template
+                let expenseData = editingExpense;
+                const fixedInfo = getExpenseFixedInfo(editingExpense, getAllExpenses());
+                
+                if (fixedInfo.isFixed) {
+                  // Busca o template para obter isFixed e fixedDurationMonths corretos
+                  const allExpenses = getAllExpenses();
+                  const template = allExpenses.find(
+                    (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
+                  );
+                  
+                  if (template) {
+                    // Usa os dados do template, mas mantém a data e documentos da despesa sendo editada
+                    expenseData = {
+                      ...template,
+                      date: editingExpense.date, // Mantém a data da parcela sendo editada
+                      documents: editingExpense.documents || [], // Mantém os documentos da parcela
+                      id: editingExpense.id, // Mantém o ID da parcela sendo editada
+                    };
+                  }
+                }
+                
+                return {
+                  name: expenseData.name,
+                  category: expenseData.category,
+                  date: expenseData.date,
+                  value: expenseData.value,
+                  documents: expenseData.documents || [],
+                  equipmentId: expenseData.equipmentId,
+                  gestaoSubcategory: expenseData.gestaoSubcategory,
+                  observations: expenseData.observations,
+                  isFixed: expenseData.isFixed ?? false,
+                  sector: expenseData.sector,
+                  fixedDurationMonths: expenseData.fixedDurationMonths,
+                  id: expenseData.id,
+                  debitAdjustment: expenseData.debitAdjustment,
+                };
+              })()
             : undefined
         }
       />
@@ -2243,6 +2312,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  sectorBadge: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  sectorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6C6C70',
   },
   debitBadge: {
     backgroundColor: '#FFF4E6',

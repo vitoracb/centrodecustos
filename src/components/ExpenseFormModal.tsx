@@ -520,8 +520,9 @@ export const ExpenseFormModal = ({
     
     // Validações específicas por categoria
     // Equipamento é obrigatório para "manutenção", "funcionário" e "equipamentos"
-    if ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && !selectedEquipmentId) {
-      Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento.');
+    // Permite "all" (Todos os equipamentos) como valor válido
+    if ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento ou "Todos os equipamentos".');
       return;
     }
     // Para "terceirizados" e "diversos", o equipamento é opcional
@@ -590,7 +591,9 @@ export const ExpenseFormModal = ({
       date: dayjs(date).format('DD/MM/YYYY'),
       value: finalValue, // Valor final após abatimento
       documents,
-      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) ? selectedEquipmentId : undefined,
+      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) 
+        ? (selectedEquipmentId === 'all' ? undefined : selectedEquipmentId) 
+        : undefined,
       gestaoSubcategory: category === 'gestao' ? gestaoSubcategory : undefined,
       observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
       isFixed,
@@ -688,7 +691,9 @@ export const ExpenseFormModal = ({
                   onPress={() => setEquipmentDropdownVisible(!equipmentDropdownVisible)}
                 >
                   <Text style={styles.inputText}>
-                    {selectedEquipmentId
+                    {selectedEquipmentId === 'all'
+                      ? 'Todos os equipamentos'
+                      : selectedEquipmentId
                       ? equipments.find((eq) => eq.id === selectedEquipmentId)?.name || 'Selecione um equipamento'
                       : 'Selecione um equipamento'}
                   </Text>
@@ -696,6 +701,25 @@ export const ExpenseFormModal = ({
                 </TouchableOpacity>
                 {equipmentDropdownVisible && (
                   <View style={styles.dropdownList}>
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        selectedEquipmentId === 'all' && styles.dropdownItemSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedEquipmentId('all');
+                        setEquipmentDropdownVisible(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          selectedEquipmentId === 'all' && styles.dropdownItemTextSelected,
+                        ]}
+                      >
+                        Todos os equipamentos
+                      </Text>
+                    </TouchableOpacity>
                     {equipments.length > 0 ? (
                       equipments.map((equipment, index, array) => (
                         <TouchableOpacity
@@ -1035,7 +1059,7 @@ export const ExpenseFormModal = ({
                 (!name.trim() ||
                   !value ||
                   parseCurrency(value) === 0 ||
-                  ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && !selectedEquipmentId) ||
+                  ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                   (category === 'gestao' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
                   styles.disabledButton,
@@ -1044,7 +1068,7 @@ export const ExpenseFormModal = ({
                 !name.trim() ||
                 !value ||
                 parseCurrency(value) === 0 ||
-                ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
+                ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                 (category === 'gestao' && !gestaoSubcategory) ||
                 (isFixed && !sector) ||
                 (isFixed && !fixedDurationMonths)
