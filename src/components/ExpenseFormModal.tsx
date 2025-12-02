@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ExpenseCategory, ExpenseDocument, GestaoSubcategory, ExpenseSector, ExpenseDebitAdjustment } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
-import { FileText, Camera, XCircle, ChevronDown } from 'lucide-react-native';
+import { FileText, Camera, XCircle, ChevronDown, Minus } from 'lucide-react-native';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -98,23 +98,38 @@ export const ExpenseFormModal = ({
   const [addDebit, setAddDebit] = useState(false);
   const [debitValue, setDebitValue] = useState('');
   const [debitDescription, setDebitDescription] = useState('');
+  const [isNegative, setIsNegative] = useState(false);
 
-  const formatCurrency = (text: string): string => {
+  const formatCurrency = (text: string, negative: boolean = false): string => {
     const numbers = text.replace(/\D/g, '');
     if (!numbers) return '';
     
     const amount = Number(numbers) / 100;
+    const finalAmount = negative ? -Math.abs(amount) : Math.abs(amount);
     
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
       minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(finalAmount);
   };
 
   const handleValueChange = (text: string) => {
-    const formatted = formatCurrency(text);
+    const formatted = formatCurrency(text, isNegative);
     setValue(formatted);
+  };
+
+  const handleToggleNegative = () => {
+    const newIsNegative = !isNegative;
+    setIsNegative(newIsNegative);
+    // Atualiza o valor formatado com o novo sinal
+    if (value) {
+      const numbers = value.replace(/\D/g, '');
+      if (numbers) {
+        const formatted = formatCurrency(numbers, newIsNegative);
+        setValue(formatted);
+      }
+    }
   };
 
   const handleDebitValueChange = (text: string) => {
@@ -122,9 +137,26 @@ export const ExpenseFormModal = ({
     setDebitValue(formatted);
   };
 
-  const parseCurrency = (formattedValue: string): number => {
+  const parseCurrency = (formattedValue: string, useNegativeState: boolean = false): number => {
+    if (!formattedValue) return 0;
     const numbers = formattedValue.replace(/\D/g, '');
-    return Number(numbers) / 100;
+    if (!numbers) return 0;
+    const amount = Number(numbers) / 100;
+    // Detecta se o valor formatado é negativo
+    // No formato brasileiro pode ser: "R$ -100,00" ou "-R$ 100,00" ou contém "−"
+    const trimmed = formattedValue.trim();
+    const hasNegativeSign = 
+      trimmed.startsWith('-') || 
+      trimmed.includes('−') || 
+      trimmed.includes('R$ -') ||
+      trimmed.includes('-R$');
+    
+    // Se o parâmetro useNegativeState for true, usa o estado isNegative
+    if (useNegativeState) {
+      return isNegative ? -Math.abs(amount) : Math.abs(amount);
+    }
+    
+    return hasNegativeSign ? -Math.abs(amount) : Math.abs(amount);
   };
 
   useEffect(() => {
@@ -145,6 +177,7 @@ export const ExpenseFormModal = ({
       setSector('');
       setSectorDropdownVisible(false);
       setFixedDurationMonths('');
+      setIsNegative(false);
     } else {
       // Sempre inicializa com initialData se fornecido, senão usa valores padrão
       if (initialData) {
@@ -152,15 +185,24 @@ export const ExpenseFormModal = ({
         setCategory(initialData.category || 'manutencao');
         const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
         setDate(parsedDate.isValid() ? parsedDate.toDate() : new Date());
-        if (initialData.value > 0) {
+        if (initialData.value !== 0) {
+          // Se houver débito, o valor salvo é o valor final (base - débito)
+          // Precisamos calcular o valor base para exibir no campo
+          let baseValue = initialData.value;
+          if (initialData.debitAdjustment && initialData.debitAdjustment.amount > 0) {
+            baseValue = initialData.value + initialData.debitAdjustment.amount;
+          }
+          
           const formattedValue = new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
             minimumFractionDigits: 2,
-          }).format(initialData.value);
+          }).format(baseValue);
           setValue(formattedValue);
+          setIsNegative(baseValue < 0);
         } else {
           setValue('');
+          setIsNegative(false);
         }
         setDocuments(initialData.documents || []);
         setSelectedEquipmentId(initialData.equipmentId || '');
@@ -169,6 +211,22 @@ export const ExpenseFormModal = ({
         setIsFixed(initialData.isFixed || false);
         setSector(initialData.sector || '');
         setFixedDurationMonths(initialData.fixedDurationMonths ? String(initialData.fixedDurationMonths) : '');
+        
+        // Inicializa débito se houver
+        if (initialData.debitAdjustment && initialData.debitAdjustment.amount > 0) {
+          setAddDebit(true);
+          const formattedDebit = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+          }).format(initialData.debitAdjustment.amount);
+          setDebitValue(formattedDebit);
+          setDebitDescription(initialData.debitAdjustment.description || '');
+        } else {
+          setAddDebit(false);
+          setDebitValue('');
+          setDebitDescription('');
+        }
       } else {
         // Valores padrão quando não há initialData
         setName('');
@@ -184,6 +242,7 @@ export const ExpenseFormModal = ({
         setAddDebit(false);
         setDebitValue('');
         setDebitDescription('');
+        setIsNegative(false);
       }
     }
   }, [visible, initialData]);
@@ -454,8 +513,8 @@ export const ExpenseFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
       return;
     }
-    if (!value || parseCurrency(value) <= 0) {
-      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa.');
+    if (!value || parseCurrency(value) === 0) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo).');
       return;
     }
     
@@ -499,17 +558,25 @@ export const ExpenseFormModal = ({
     }
 
     // Calcula valor final (valor base - débito)
-    const baseValue = parseCurrency(value);
-    const debitAmount = addDebit ? parseCurrency(debitValue) : 0;
+    // Usa o estado isNegative para garantir que valores negativos sejam preservados
+    let baseValue = parseCurrency(value, true); // Usa o estado isNegative para interpretar o valor
+    
+    // Se o checkbox de débito está desmarcado, garante que não há débito
+    let debitAmount = 0;
+    if (addDebit && debitValue) {
+      debitAmount = parseCurrency(debitValue, false); // Débito sempre positivo
+    }
+    
     const finalValue = baseValue - debitAmount;
 
-    // Validação: valor final não pode ser negativo
-    if (finalValue < 0) {
+    // Validação: se não for negativo e tiver débito, valor final não pode ser negativo
+    if (!isNegative && addDebit && finalValue < 0) {
       Alert.alert('Valor inválido', 'O valor do débito não pode ser maior que o valor da despesa.');
       return;
     }
 
     // Prepara debitAdjustment se houver débito
+    // Se o checkbox está desmarcado, não deve haver debitAdjustment
     const debitAdjustment: ExpenseDebitAdjustment | undefined = addDebit && debitAmount > 0
       ? {
           amount: debitAmount,
@@ -754,20 +821,40 @@ export const ExpenseFormModal = ({
 
             <View style={styles.field}>
               <Text style={styles.label}>Valor *</Text>
-              <TextInput
-                style={styles.input}
-                value={value}
-                onChangeText={handleValueChange}
-                placeholder="R$ 0,00"
-                keyboardType="numeric"
-              />
+              <View style={styles.valueInputContainer}>
+                <TouchableOpacity
+                  style={[styles.negativeButton, isNegative && styles.negativeButtonActive]}
+                  onPress={handleToggleNegative}
+                  activeOpacity={0.7}
+                >
+                  <Minus size={18} color={isNegative ? '#FFFFFF' : '#FF3B30'} />
+                </TouchableOpacity>
+                <TextInput
+                  style={[styles.input, styles.valueInput]}
+                  value={value}
+                  onChangeText={handleValueChange}
+                  placeholder="R$ 0,00"
+                  keyboardType="numeric"
+                />
+              </View>
+              {isNegative && (
+                <Text style={styles.negativeHint}>Valor negativo (abatimento)</Text>
+              )}
             </View>
 
             {/* Checkbox e campos de débito */}
             <View style={styles.field}>
               <TouchableOpacity
                 style={styles.checkboxContainer}
-                onPress={() => setAddDebit(!addDebit)}
+                onPress={() => {
+                  const newAddDebit = !addDebit;
+                  setAddDebit(newAddDebit);
+                  // Se desmarcar o checkbox, limpa os campos de débito
+                  if (!newAddDebit) {
+                    setDebitValue('');
+                    setDebitDescription('');
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.checkbox, addDebit && styles.checkboxChecked]}>
@@ -947,7 +1034,7 @@ export const ExpenseFormModal = ({
                 styles.primaryButton,
                 (!name.trim() ||
                   !value ||
-                  parseCurrency(value) <= 0 ||
+                  parseCurrency(value) === 0 ||
                   ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && !selectedEquipmentId) ||
                   (category === 'gestao' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
@@ -956,7 +1043,7 @@ export const ExpenseFormModal = ({
               disabled={
                 !name.trim() ||
                 !value ||
-                parseCurrency(value) <= 0 ||
+                parseCurrency(value) === 0 ||
                 ((category === 'manutencao' || category === 'funcionario') && !selectedEquipmentId) ||
                 (category === 'gestao' && !gestaoSubcategory) ||
                 (isFixed && !sector) ||
@@ -1223,5 +1310,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6C6C70',
     lineHeight: 16,
+  },
+  valueInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  negativeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FF3B30',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  negativeButtonActive: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#FF3B30',
+  },
+  valueInput: {
+    flex: 1,
+  },
+  negativeHint: {
+    fontSize: 12,
+    color: '#FF3B30',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });

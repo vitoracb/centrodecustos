@@ -46,6 +46,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
       gestao: 0,
       terceirizados: 0,
       diversos: 0,
+      equipamentos: 0,
     };
 
     // Se as props externas foram fornecidas, usa as despesas já filtradas diretamente
