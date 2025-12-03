@@ -98,14 +98,14 @@ export const buildReportHTML = (data: ReportData): string => {
   // Agrupar despesas por categoria
   const expensesByCategory: Record<string, number> = {};
   expenses.forEach((expense) => {
-    const category = CATEGORY_LABELS[expense.category] || expense.category;
+    const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
     expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.value;
   });
 
   // Agrupar despesas por status
   const expensesByStatus: Record<string, number> = {};
   expenses.forEach((expense) => {
-    const status = STATUS_LABELS[expense.status] || expense.status;
+    const status = expense.status ? (STATUS_LABELS[expense.status] || expense.status) : 'Sem status';
     expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
   });
 
@@ -511,9 +511,9 @@ export const buildReportHTML = (data: ReportData): string => {
                 .map((expense) => `
                   <tr>
                     <td>${formatDate(expense.date)}</td>
-                    <td>${expense.description || expense.name || ''}</td>
-                    <td>${CATEGORY_LABELS[expense.category] || expense.category}</td>
-                    <td>${STATUS_LABELS[expense.status] || expense.status}</td>
+                    <td>${expense.name || ''}</td>
+                    <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
+                    <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
                     <td>${formatCurrency(expense.value)}</td>
                   </tr>
                 `)
@@ -542,7 +542,7 @@ export const buildReportHTML = (data: ReportData): string => {
         .map((expense) => `
           <tr>
             <td>${formatDate(expense.date)}</td>
-            <td>${expense.description || expense.name || ''}</td>
+            <td>${expense.name || ''}</td>
             <td>${CATEGORY_LABELS[expense.category] || expense.category}</td>
             <td>${STATUS_LABELS[expense.status] || expense.status}</td>
             <td>${formatCurrency(expense.value)}</td>
@@ -566,7 +566,7 @@ export const buildReportHTML = (data: ReportData): string => {
         .map((receipt) => `
           <tr>
             <td>${formatDate(receipt.date)}</td>
-            <td>${receipt.description || receipt.name || ''}</td>
+            <td>${receipt.name || ''}</td>
             <td>${formatCurrency(receipt.value)}</td>
           </tr>
         `)
@@ -648,7 +648,8 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     // Despesas por Status
     const expensesByStatus: Record<string, number> = {};
     expenses.forEach((expense) => {
-      expensesByStatus[expense.status] = (expensesByStatus[expense.status] || 0) + expense.value;
+      const status = expense.status || 'Sem status';
+      expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
     });
     csv += 'DESPESAS POR STATUS\n';
     csv += 'Status,Valor\n';
@@ -679,8 +680,10 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     csv += 'DETALHAMENTO DE DESPESAS\n';
     csv += 'Data,Descrição,Categoria,Status,Valor\n';
     expenses.forEach((expense) => {
-      const description = (expense.description || expense.name || '').replace(/"/g, '""');
-      csv += `${expense.date},"${description}",${CATEGORY_LABELS[expense.category] || expense.category},${STATUS_LABELS[expense.status] || expense.status},${expense.value.toFixed(2)}\n`;
+      const description = (expense.name || '').replace(/"/g, '""');
+      const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
+      const status = expense.status ? (STATUS_LABELS[expense.status] || expense.status) : 'Sem status';
+      csv += `${expense.date},"${description}",${category},${status},${expense.value.toFixed(2)}\n`;
     });
     csv += '\n';
 
@@ -688,7 +691,7 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     csv += 'DETALHAMENTO DE RECEBIMENTOS\n';
     csv += 'Data,Descrição,Valor\n';
     receipts.forEach((receipt) => {
-      const description = (receipt.description || receipt.name || '').replace(/"/g, '""');
+      const description = (receipt.name || '').replace(/"/g, '""');
       csv += `${receipt.date},"${description}",${receipt.value.toFixed(2)}\n`;
     });
     csv += '\n';
@@ -773,7 +776,7 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
             return dateB.valueOf() - dateA.valueOf();
           })
           .forEach((expense) => {
-            const description = (expense.description || expense.name || '').replace(/"/g, '""');
+            const description = (expense.name || '').replace(/"/g, '""');
             csv += `${expense.date},"${description}",${CATEGORY_LABELS[expense.category] || expense.category},${STATUS_LABELS[expense.status] || expense.status},${expense.value.toFixed(2)}\n`;
           });
         csv += '\n';
