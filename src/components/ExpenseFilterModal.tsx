@@ -21,6 +21,7 @@ dayjs.locale('pt-br');
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
+  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
