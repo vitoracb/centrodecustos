@@ -25,6 +25,7 @@ import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/valida
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
+  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
