@@ -209,6 +209,11 @@ export default function DashboardExecutivoScreen() {
     }));
   }, [currentMonthData.expensesData]);
 
+  const capitalize = (text: string): string => {
+    if (!text) return '';
+    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+  };
+
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -393,7 +398,7 @@ export default function DashboardExecutivoScreen() {
                       <View key={item.sector} style={styles.sectorItem}>
                         <View style={styles.sectorInfo}>
                           <View style={[styles.sectorDot, { backgroundColor: getSectorColor(index) }]} />
-                          <Text style={styles.sectorName}>{item.sector}</Text>
+                          <Text style={styles.sectorName}>{capitalize(item.sector)}</Text>
                         </View>
                         <Text style={styles.sectorValue}>{formatCurrency(item.value)}</Text>
                       </View>
@@ -426,7 +431,7 @@ export default function DashboardExecutivoScreen() {
                   <TopExpenseItem
                     key={item.rank}
                     rank={item.rank}
-                    name={item.name}
+                    name={capitalize(item.name)}
                     value={formatCurrency(item.value)}
                     percentage={item.percentage}
                   />
