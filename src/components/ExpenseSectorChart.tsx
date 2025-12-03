@@ -226,12 +226,11 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
                   {item.percentage > 5 && (
                     <SvgText
                       x={labelX}
-                      y={labelY}
+                      y={labelY + 4}
                       fontSize="11"
                       fontWeight="600"
                       fill="#FFFFFF"
                       textAnchor="middle"
-                      dominantBaseline="middle"
                     >
                       {item.percentage.toFixed(0)}%
                     </SvgText>

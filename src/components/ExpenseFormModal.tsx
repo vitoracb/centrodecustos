@@ -365,7 +365,7 @@ export const ExpenseFormModal = ({
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? undefined,
         allowedTypes,
         80
       );
@@ -411,7 +411,7 @@ export const ExpenseFormModal = ({
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? undefined,
         allowedTypes,
         80
       );
