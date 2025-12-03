@@ -188,7 +188,14 @@ export default function DashboardExecutivoScreen() {
               contentContainerStyle={styles.kpiContainer}
             >
               {/* Receitas */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push({
+                  pathname: '/(tabs)/financeiro' as any,
+                  params: { tab: 'Recebimentos' }
+                })}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#E9FAF0' }]}>
                   <TrendingUp size={24} color="#34C759" strokeWidth={2.5} />
                 </View>
@@ -198,10 +205,17 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#10B981' }]}>+12%</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Receitas</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Despesas */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push({
+                  pathname: '/(tabs)/financeiro' as any,
+                  params: { tab: 'Despesas' }
+                })}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#FDECEC' }]}>
                   <TrendingDown size={24} color="#FF3B30" strokeWidth={2.5} />
                 </View>
@@ -211,10 +225,17 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#EF4444' }]}>-5%</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Despesas</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Saldo */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push({
+                  pathname: '/(tabs)/financeiro' as any,
+                  params: { tab: 'Fechamento' }
+                })}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#E6F2FF' }]}>
                   <DollarSign size={24} color="#0A84FF" strokeWidth={2.5} />
                 </View>
@@ -224,10 +245,14 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#10B981' }]}>+18%</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Saldo</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Equipamentos */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push('/(tabs)/equipamentos' as any)}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#FFF3E0' }]}>
                   <Tractor size={24} color="#FF9500" strokeWidth={2.5} />
                 </View>
@@ -237,10 +262,14 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#10B981' }]}>+2</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Equipamentos</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Contratos */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push('/(tabs)/contratos' as any)}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#F3E5F5' }]}>
                   <FileText size={24} color="#AF52DE" strokeWidth={2.5} />
                 </View>
@@ -250,10 +279,14 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#6C6C70' }]}>0</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Contratos</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Funcionários */}
-              <View style={styles.kpiCard}>
+              <TouchableOpacity
+                style={styles.kpiCard}
+                activeOpacity={0.7}
+                onPress={() => router.push('/(tabs)/funcionarios' as any)}
+              >
                 <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
                   <Users size={24} color="#2196F3" strokeWidth={2.5} />
                 </View>
@@ -263,7 +296,7 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#10B981' }]}>+1</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Funcionários</Text>
-              </View>
+              </TouchableOpacity>
             </ScrollView>
           </View>
 
