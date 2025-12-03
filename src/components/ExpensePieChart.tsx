@@ -299,6 +299,11 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
                 </View>
               </View>
             ))}
+            {/* Total */}
+            <View style={styles.totalContainer}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{formatCurrency(chartData.total)}</Text>
+            </View>
           </View>
         </>
       )}
@@ -441,6 +446,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  totalContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    marginTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#E5E5EA',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0A84FF',
   },
 });
 
