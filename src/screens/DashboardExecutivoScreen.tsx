@@ -18,6 +18,7 @@ import { CostCenterSelector } from '../components/CostCenterSelector';
 import { TopExpenseItem } from '../components/TopExpenseItem';
 import { ComparisonRow } from '../components/ComparisonRow';
 import { ExpensePieChart } from '../components/ExpensePieChart';
+import { GlobalSearch } from '../components/GlobalSearch';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -41,7 +42,6 @@ export default function DashboardExecutivoScreen() {
   const { getContractsByCenter } = useContracts();
   const { getEmployeesByCenter } = useEmployees();
   const [refreshing, setRefreshing] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -167,23 +167,11 @@ export default function DashboardExecutivoScreen() {
     };
   }, [selectedCenter, getEquipmentsByCenter, getContractsByCenter, getEmployeesByCenter]);
 
-  // Filtrar despesas por busca
-  const filteredExpenses = useMemo(() => {
-    if (!searchQuery.trim()) return currentMonthData.expensesData;
-    
-    const query = searchQuery.toLowerCase();
-    return currentMonthData.expensesData.filter(exp => 
-      exp.name.toLowerCase().includes(query) ||
-      (exp.sector && exp.sector.toLowerCase().includes(query)) ||
-      (exp.category && exp.category.toLowerCase().includes(query))
-    );
-  }, [currentMonthData.expensesData, searchQuery]);
-
   // Despesas por setor
   const expensesBySector = useMemo(() => {
     const sectorTotals: Record<string, number> = {};
     
-    filteredExpenses.forEach(exp => {
+    currentMonthData.expensesData.forEach(exp => {
       const sector = exp.sector || 'Outros';
       sectorTotals[sector] = (sectorTotals[sector] || 0) + exp.value;
     });
@@ -198,13 +186,13 @@ export default function DashboardExecutivoScreen() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
-  }, [filteredExpenses]);
+  }, [currentMonthData.expensesData]);
 
   // Top 5 despesas
   const topExpenses = useMemo(() => {
     const expensesByName = new Map<string, number>();
     
-    filteredExpenses.forEach(exp => {
+    currentMonthData.expensesData.forEach(exp => {
       const current = expensesByName.get(exp.name) || 0;
       expensesByName.set(exp.name, current + exp.value);
     });
@@ -222,7 +210,7 @@ export default function DashboardExecutivoScreen() {
       value: item.value,
       percentage: (item.value / maxValue) * 100,
     }));
-  }, [filteredExpenses]);
+  }, [currentMonthData.expensesData]);
 
   const capitalize = (text: string): string => {
     if (!text) return '';
@@ -282,16 +270,7 @@ export default function DashboardExecutivoScreen() {
           </View>
 
           {/* Barra de Busca Global */}
-          <View style={styles.searchContainer}>
-            <Search size={20} color="#6C6C70" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar despesas, equipamentos, contratos..."
-              placeholderTextColor="#9CA3AF"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+          <GlobalSearch />
 
           {/* KPIs Principais */}
           <View style={styles.section}>
