@@ -435,7 +435,33 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
       const mapped: Expense[] = await Promise.all(
         (data ?? []).map((row: any) => mapRowToExpense(row))
       );
-      setExpenses(mapped);
+      
+      // Migração: converter categoria 'gestao' para 'gestor'
+      const migratedExpenses = mapped.map(expense => {
+        if ((expense.category as any) === 'gestao') {
+          console.log(`🔄 Migrando despesa ${expense.name} de 'gestao' para 'gestor'`);
+          return { ...expense, category: 'gestor' as any };
+        }
+        return expense;
+      });
+      
+      setExpenses(migratedExpenses);
+      
+      // Atualizar no Supabase as despesas migradas
+      const expensesToUpdate = migratedExpenses.filter((exp, idx) => 
+        (mapped[idx].category as any) === 'gestao'
+      );
+      
+      if (expensesToUpdate.length > 0) {
+        console.log(`📝 Atualizando ${expensesToUpdate.length} despesa(s) no Supabase...`);
+        for (const expense of expensesToUpdate) {
+          await supabase
+            .from('financial_transactions')
+            .update({ category: 'gestor' })
+            .eq('id', expense.id);
+        }
+        console.log('✅ Migração concluída!');
+      }
     };
 
     loadExpenses();
