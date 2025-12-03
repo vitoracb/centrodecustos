@@ -21,10 +21,10 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   terceirizados: '#FF9500', // Laranja
   gestao: '#AF52DE', // Roxo
   ronaldo: '#FF3B30', // Vermelho
-  variavel: '#5856D6', // Roxo claro
+  variavel: '#00C7BE', // Turquesa/Ciano
   parcela_patrol_ronaldo: '#FF2D55', // Rosa
   particular: '#FFD60A', // Amarelo
-  imposto: '#FF9F0A', // Laranja escuro
+  imposto: '#8E8E93', // Cinza
 };
 
 interface ExpenseSectorChartProps {
