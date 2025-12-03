@@ -40,16 +40,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#374151',
+    color: '#3A3A3C',
   },
   value: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1C1C1E',
   },
   barContainer: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E5E5EA',
     borderRadius: 4,
     overflow: 'hidden',
   },

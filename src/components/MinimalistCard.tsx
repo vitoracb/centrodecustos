@@ -25,16 +25,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 120,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   icon: {
     fontSize: 32,
@@ -43,12 +43,12 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1C1C1E',
     marginBottom: 4,
   },
   label: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#6C6C70',
   },
 });

@@ -44,12 +44,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E5EA',
   },
   label: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#374151',
+    color: '#3A3A3C',
   },
   valueContainer: {
     flexDirection: 'row',

@@ -34,20 +34,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 16,
     minWidth: 100,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   value: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1C1C1E',
     marginBottom: 4,
   },
   trendContainer: {
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#6C6C70',
     textAlign: 'center',
   },
 });

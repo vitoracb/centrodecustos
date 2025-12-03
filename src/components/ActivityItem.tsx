@@ -31,13 +31,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E5EA',
   },
   iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F5F5F7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: '#3A3A3C',
     marginBottom: 2,
   },
   time: {
     fontSize: 12,
     fontWeight: '400',
-    color: '#9CA3AF',
+    color: '#8E8E93',
   },
 });

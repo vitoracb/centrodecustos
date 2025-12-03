@@ -280,9 +280,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1C1C1E',
     marginBottom: 12,
     paddingHorizontal: 20,
   },
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: '#1C1C1E',
     marginBottom: 12,
   },
   pieChartContainer: {

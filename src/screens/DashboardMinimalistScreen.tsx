@@ -257,14 +257,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#1C1C1E',
     marginBottom: 16,
   },
   sectionTitleDark: {
     fontSize: 17,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#1C1C1E',
     marginBottom: 12,
   },
   financialCard: {
