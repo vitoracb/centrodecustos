@@ -45,19 +45,21 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
           return true;
         }
         
-        // Se é o template (isFixed: true), verifica se há parcelas geradas no array
+        // Se é o template (isFixed: true), verifica se há parcelas geradas NO MESMO MÊS
         // Se houver, exclui o template para evitar duplicação
         if (exp.isFixed) {
-          const hasGeneratedInstallments = expenses.some(
+          const templateMonth = exp.date.substring(0, 7); // YYYY-MM
+          const hasGeneratedInstallmentsInSameMonth = expenses.some(
             other => 
               other.id !== exp.id && // Não é a mesma despesa
               other.name === exp.name &&
               other.center === exp.center &&
+              other.date.substring(0, 7) === templateMonth && // Mesmo mês
               other.installmentNumber !== undefined &&
               other.installmentNumber !== null
           );
-          // Só inclui o template se NÃO houver parcelas geradas
-          return !hasGeneratedInstallments;
+          // Só inclui o template se NÃO houver parcelas geradas no mesmo mês
+          return !hasGeneratedInstallmentsInSameMonth;
         }
         
         return false;

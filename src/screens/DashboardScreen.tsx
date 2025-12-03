@@ -260,7 +260,7 @@ export const DashboardScreen = () => {
                 year: String(equipment.year || ''),
                 purchaseDate: equipment.purchaseDate || '',
                 nextReview: equipment.nextReview || '',
-                center: centerLabels[equipment.center] || '',
+                center: centerLabels[equipment.center as keyof typeof centerLabels] || '',
               },
             });
           } else {
@@ -324,13 +324,45 @@ export const DashboardScreen = () => {
     const centerExpenses = expenses.filter(exp => {
       if (exp.center !== selectedCenter) return false;
       
-      const expenseDate = dayjs(exp.date, 'DD/MM/YYYY');
-      return expenseDate.isValid() && 
-             expenseDate.isAfter(startOfMonth.subtract(1, 'day')) && 
-             expenseDate.isBefore(endOfMonth.add(1, 'day'));
+      // Extrai ano e mês da despesa no formato DD/MM/YYYY
+      const dateParts = exp.date.split('/');
+      if (dateParts.length !== 3) return false;
+      
+      const expenseMonth = `${dateParts[2]}-${dateParts[1]}`; // YYYY-MM
+      const currentMonth = now.format('YYYY-MM');
+      
+      return expenseMonth === currentMonth;
     });
 
-    const total = centerExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
+    // Filtra para evitar duplicação de templates e parcelas
+    // Prioriza parcelas geradas (installmentNumber) sobre templates (isFixed)
+    const filteredExpenses = centerExpenses.filter(exp => {
+      // Se tem installmentNumber, é uma parcela gerada - sempre inclui
+      if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
+        return true;
+      }
+      
+      // Se é o template (isFixed: true), verifica se há parcelas geradas NO MESMO MÊS
+      if (exp.isFixed) {
+        const expMonth = dayjs(exp.date, 'DD/MM/YYYY').format('YYYY-MM');
+        const hasGeneratedInstallmentsInSameMonth = centerExpenses.some(
+          other => 
+            other.id !== exp.id &&
+            other.name === exp.name &&
+            other.center === exp.center &&
+            dayjs(other.date, 'DD/MM/YYYY').format('YYYY-MM') === expMonth &&
+            other.installmentNumber !== undefined &&
+            other.installmentNumber !== null
+        );
+        // Só inclui o template se NÃO houver parcelas geradas no mesmo mês
+        return !hasGeneratedInstallmentsInSameMonth;
+      }
+      
+      // Despesas avulsas (não fixas, sem installmentNumber)
+      return true;
+    });
+
+    const total = filteredExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
     return total;
   }, [selectedCenter, getAllExpenses]);
 
@@ -685,50 +717,38 @@ export const DashboardScreen = () => {
   const handleDownloadReport = useCallback(async () => {
     if (!reportPreview) return;
     try {
-      let fileUri: string;
-      
       if (reportPreview.type === 'pdf') {
-        fileUri = await exportToPDF(reportPreview.data);
+        const fileUri = await exportToPDF(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
+        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`;
+        await shareFile(fileUri, fileName);
       } else {
-        fileUri = await exportToExcel(reportPreview.data);
+        await exportToExcel(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
       }
       
-      // Compartilha automaticamente após gerar
-      const fileName = reportPreview.type === 'pdf' 
-        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
-        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
-      
-      await shareFile(fileUri, fileName);
       setReportPreview(null);
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
     }
-  }, [reportPreview, showSuccess, showError]);
+  }, [reportPreview]);
 
   const handleShareReport = useCallback(async () => {
     if (!reportPreview) return;
     
     try {
-      // Gera o arquivo
-      let fileUri: string;
       if (reportPreview.type === 'pdf') {
-        fileUri = await exportToPDF(reportPreview.data);
+        const fileUri = await exportToPDF(reportPreview.data);
+        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`;
+        await shareFile(fileUri, fileName);
       } else {
-        fileUri = await exportToExcel(reportPreview.data);
+        await exportToExcel(reportPreview.data);
+        showSuccess('Relatório compartilhado', 'O relatório Excel foi gerado');
       }
-      
-      // Compartilha imediatamente
-      const fileName = reportPreview.type === 'pdf' 
-        ? `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`
-        : `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.csv`;
-      
-      await shareFile(fileUri, fileName);
     } catch (error: any) {
       showError('Erro ao compartilhar', error.message || 'Tente novamente');
     }
-  }, [reportPreview, showError]);
+  }, [reportPreview]);
 
   const quickActions = [
     { 
@@ -778,7 +798,7 @@ export const DashboardScreen = () => {
             <Text style={styles.title}>Dashboard</Text>
             <Text style={styles.subtitle}>
               Visão geral das operações do centro de custo{' '}
-              {centerLabels[selectedCenter]}
+              {centerLabels[selectedCenter as keyof typeof centerLabels]}
             </Text>
           </View>
 
@@ -896,6 +916,8 @@ export const DashboardScreen = () => {
               nextReview: data.nextReview,
               status: 'ativo',
               center: selectedCenter,
+              currentHours: 0,
+              hoursUntilRevision: 0,
             });
             setIsEquipmentModalVisible(false);
             showSuccess('Equipamento adicionado', data.name);

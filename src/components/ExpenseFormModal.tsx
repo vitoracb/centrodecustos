@@ -518,10 +518,15 @@ export const ExpenseFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
       return;
     }
-    // Permite valor zero apenas se for um abatimento (isNegative marcado)
+    // Permite valor zero se:
+    // 1. For um valor negativo (isNegative marcado) OU
+    // 2. Houver um débito/abatimento preenchido (addDebit marcado e debitValue > 0)
     const parsedValue = parseCurrency(value);
-    if (!value || (parsedValue === 0 && !isNegative)) {
-      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero para abatimentos).');
+    const parsedDebit = parseCurrency(debitValue);
+    const hasValidDebit = addDebit && parsedDebit > 0;
+    
+    if (!value || (parsedValue === 0 && !isNegative && !hasValidDebit)) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero se houver abatimento).');
       return;
     }
     
@@ -578,7 +583,8 @@ export const ExpenseFormModal = ({
     const finalValue = baseValue - debitAmount;
 
     // Validação: se não for negativo e tiver débito, valor final não pode ser negativo
-    if (!isNegative && addDebit && finalValue < 0) {
+    // EXCETO quando o valor base for zero (permite débito maior que zero para criar abatimentos)
+    if (!isNegative && addDebit && finalValue < 0 && baseValue !== 0) {
       Alert.alert('Valor inválido', 'O valor do débito não pode ser maior que o valor da despesa.');
       return;
     }
@@ -1065,7 +1071,7 @@ export const ExpenseFormModal = ({
                 styles.primaryButton,
                 (!name.trim() ||
                   !value ||
-                  (parseCurrency(value) === 0 && !isNegative) ||
+                  (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
                   ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                   (category === 'gestao' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
@@ -1074,7 +1080,7 @@ export const ExpenseFormModal = ({
               disabled={
                 !name.trim() ||
                 !value ||
-                (parseCurrency(value) === 0 && !isNegative) ||
+                (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
                 ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                 (category === 'gestao' && !gestaoSubcategory) ||
                 (isFixed && !sector) ||
