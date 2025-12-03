@@ -55,7 +55,6 @@ dayjs.locale('pt-br');
 const CATEGORY_LABELS: Record<string, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
-  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',

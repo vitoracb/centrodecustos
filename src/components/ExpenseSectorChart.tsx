@@ -8,7 +8,6 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   felipe_viatransportes: 'Felipe Viatransportes',
   terceirizados: 'Funcionário Particular',
   gestao: 'Gestão',
-  gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
@@ -21,7 +20,6 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   felipe_viatransportes: '#34C759', // Verde
   terceirizados: '#FF9500', // Laranja
    // Roxo
-  gestor: '#5AC8FA', // Azul claro
   ronaldo: '#FF3B30', // Vermelho
   variavel: '#00C7BE', // Turquesa/Ciano
   parcela_patrol_ronaldo: '#FF2D55', // Rosa

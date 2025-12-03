@@ -21,7 +21,6 @@ dayjs.locale('pt-br');
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
-  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
@@ -33,7 +32,6 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   felipe_viatransportes: 'Felipe Viatransportes',
   terceirizados: 'Funcionário Particular',
   gestao: 'Gestão',
-  gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',

@@ -63,7 +63,6 @@ export type ExpenseSector =
   | "felipe_viatransportes"
   | "terceirizados"
   | "gestao"
-  | "gestor"
   | "ronaldo"
   | "variavel"
   | "parcela_patrol_ronaldo"
