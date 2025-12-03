@@ -263,13 +263,20 @@ export const EquipamentosScreen = () => {
                 <View style={styles.cardHeaderLeft}>
                   <View style={styles.cardTitleRow}>
                     <Text style={styles.cardTitle}>{equipment.name}</Text>
-                    <View
+                    <TouchableOpacity
                       style={[
                         styles.statusBadge,
                         equipment.status === 'ativo'
                           ? styles.statusBadgeActive
                           : styles.statusBadgeInactive,
                       ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
+                        updateEquipment(equipment.id, { status: newStatus });
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Text
                         style={[
@@ -281,7 +288,7 @@ export const EquipamentosScreen = () => {
                       >
                         {equipment.status === 'ativo' ? 'Ativo' : 'Inativo'}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                   <Text style={styles.cardSubtitle}>
                     {equipment.brand} · Ano {equipment.year}
