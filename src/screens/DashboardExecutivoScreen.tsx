@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -21,11 +21,17 @@ import {
   TrendingDown, 
   DollarSign, 
   Tractor, 
-  FileText 
+  FileText,
+  Users,
+  ShoppingCart,
+  Download,
+  Plus,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import dayjs from 'dayjs';
 
 export default function DashboardExecutivoScreen() {
+  const router = useRouter();
   const { selectedCenter } = useCostCenter();
   const { getAllExpenses, getAllReceipts } = useFinancial();
   const { getEquipmentsByCenter } = useEquipment();
@@ -36,6 +42,30 @@ export default function DashboardExecutivoScreen() {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
+
+  // Ações Rápidas
+  const quickActions = [
+    { 
+      label: 'Novo Equipamento', 
+      icon: Tractor,
+      onPress: () => router.push('/(tabs)/equipamentos' as any),
+    },
+    { 
+      label: 'Registrar Despesa', 
+      icon: DollarSign,
+      onPress: () => router.push('/(tabs)/financeiro' as any),
+    },
+    { 
+      label: 'Novo Funcionário', 
+      icon: Users,
+      onPress: () => router.push('/(tabs)/funcionarios' as any),
+    },
+    { 
+      label: 'Ver Contratos', 
+      icon: FileText,
+      onPress: () => router.push('/(tabs)/contratos' as any),
+    },
+  ];
 
   // Cálculos do mês atual
   const currentMonthData = useMemo(() => {
@@ -280,6 +310,26 @@ export default function DashboardExecutivoScreen() {
             </View>
           </View>
 
+          {/* Ações Rápidas */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⚡ Ações Rápidas</Text>
+            <View style={styles.quickActionsGrid}>
+              {quickActions.map(action => (
+                <TouchableOpacity
+                  key={action.label}
+                  style={styles.quickActionButton}
+                  activeOpacity={0.8}
+                  onPress={action.onPress}
+                >
+                  <View style={styles.quickActionIcon}>
+                    <action.icon size={24} color="#0A84FF" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.quickActionLabel}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* Espaçamento final */}
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -452,6 +502,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#6C6C70',
+    textAlign: 'center',
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 20,
+  },
+  quickActionButton: {
+    flex: 1,
+    minWidth: '47%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E6F2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  quickActionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1C1C1E',
     textAlign: 'center',
   },
 });
