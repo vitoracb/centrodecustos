@@ -22,6 +22,8 @@ const getCenterLabel = (center: CostCenter): string => {
 const CATEGORY_LABELS: Record<string, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
+  gestao: 'Gestão',
+  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
