@@ -53,8 +53,12 @@ const SECTOR_COLORS: Record<string, string> = {
   now: '#0A84FF',
   felipe_viatransportes: '#34C759',
   terceirizados: '#FF9500',
-  
+  gestao: '#AF52DE',
   ronaldo: '#FF3B30',
+  variavel: '#00C7BE',
+  parcela_patrol_ronaldo: '#FF2D55',
+  particular: '#FFD60A',
+  imposto: '#8E8E93',
 };
 
 const formatCurrency = (value: number): string => {
