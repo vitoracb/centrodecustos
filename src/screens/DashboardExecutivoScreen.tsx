@@ -188,6 +188,27 @@ export default function DashboardExecutivoScreen() {
       .slice(0, 5);
   }, [currentMonthData.expensesData]);
 
+  // Despesas por categoria
+  const expensesByCategory = useMemo(() => {
+    const categoryTotals: Record<string, number> = {};
+    
+    currentMonthData.expensesData.forEach(exp => {
+      const category = exp.category || 'Outros';
+      categoryTotals[category] = (categoryTotals[category] || 0) + exp.value;
+    });
+
+    const total = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
+
+    return Object.entries(categoryTotals)
+      .map(([category, value]) => ({
+        category,
+        value,
+        percentage: total > 0 ? (value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [currentMonthData.expensesData]);
+
   // Top 5 despesas
   const topExpenses = useMemo(() => {
     const expensesByName = new Map<string, number>();
@@ -416,13 +437,23 @@ export default function DashboardExecutivoScreen() {
                 </View>
               </View>
 
-              {/* Evolução Mensal (Placeholder) */}
+              {/* Despesas por Categoria */}
               <View style={styles.chartCard}>
-                <Text style={styles.cardTitle}>Evolução Mensal</Text>
-                <View style={styles.lineChartPlaceholder}>
-                  <Text style={styles.placeholderText}>Gráfico de Linha</Text>
-                  <Text style={styles.placeholderSubtext}>Rec ─────</Text>
-                  <Text style={styles.placeholderSubtext}>Des ─ ─ ─</Text>
+                <Text style={styles.cardTitle}>Despesas/Categoria</Text>
+                <View style={styles.sectorList}>
+                  {expensesByCategory.length > 0 ? (
+                    expensesByCategory.map((item, index) => (
+                      <View key={item.category} style={styles.sectorItem}>
+                        <View style={styles.sectorInfo}>
+                          <View style={[styles.sectorDot, { backgroundColor: getSectorColor(index) }]} />
+                          <Text style={styles.sectorName}>{capitalize(item.category)}</Text>
+                        </View>
+                        <Text style={styles.sectorValue}>{formatCurrency(item.value)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>Sem despesas</Text>
+                  )}
                 </View>
               </View>
             </View>
