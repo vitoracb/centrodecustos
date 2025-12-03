@@ -109,11 +109,12 @@ export const buildReportHTML = (data: ReportData): string => {
     expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
   });
 
-  // Agrupar despesas fixas por setor (inclui templates e parcelas geradas)
+  // Agrupar despesas fixas por setor (apenas parcelas geradas, não templates)
   const expensesBySector: Record<string, number> = {};
   expenses.forEach((expense) => {
-    // Inclui despesas fixas (templates) ou parcelas geradas (com sector e installmentNumber)
-    if (expense.sector && (expense.isFixed || expense.installmentNumber)) {
+    // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
+    // Não inclui templates (is_fixed=true) para evitar duplicação
+    if (expense.sector && expense.installmentNumber && !expense.isFixed) {
       const sector = SECTOR_LABELS[expense.sector] || expense.sector;
       expensesBySector[sector] = (expensesBySector[sector] || 0) + expense.value;
     }
@@ -460,11 +461,12 @@ export const buildReportHTML = (data: ReportData): string => {
   ${Object.keys(expensesBySector).length > 0 ? `
   <h2>Detalhamento por Setor de Despesas Fixas</h2>
   ${(() => {
-    // Agrupa despesas fixas por setor (inclui templates e parcelas geradas)
+    // Agrupa despesas fixas por setor (apenas parcelas geradas, não templates)
     const expensesBySectorDetail: Record<string, Expense[]> = {};
     expenses.forEach((expense) => {
-      // Inclui despesas fixas (templates) ou parcelas geradas (com sector e installmentNumber)
-      if (expense.sector && (expense.isFixed || expense.installmentNumber)) {
+      // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
+      // Não inclui templates (is_fixed=true) para evitar duplicação
+      if (expense.sector && expense.installmentNumber && !expense.isFixed) {
         const sector = SECTOR_LABELS[expense.sector] || expense.sector;
         if (!expensesBySectorDetail[sector]) {
           expensesBySectorDetail[sector] = [];
@@ -658,11 +660,12 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     });
     csv += '\n';
 
-    // Despesas por Setor (inclui templates e parcelas geradas)
+    // Despesas por Setor (apenas parcelas geradas, não templates)
     const expensesBySectorExcel: Record<string, number> = {};
     expenses.forEach((expense) => {
-      // Inclui despesas fixas (templates) ou parcelas geradas (com sector e installmentNumber)
-      if (expense.sector && (expense.isFixed || expense.installmentNumber)) {
+      // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
+      // Não inclui templates (is_fixed=true) para evitar duplicação
+      if (expense.sector && expense.installmentNumber && !expense.isFixed) {
         const sector = SECTOR_LABELS[expense.sector] || expense.sector;
         expensesBySectorExcel[sector] = (expensesBySectorExcel[sector] || 0) + expense.value;
       }
@@ -742,8 +745,9 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     if (Object.keys(expensesBySectorExcel).length > 0) {
       const expensesBySectorDetail: Record<string, Expense[]> = {};
       expenses.forEach((expense) => {
-        // Inclui despesas fixas (templates) ou parcelas geradas (com sector e installmentNumber)
-        if (expense.sector && (expense.isFixed || expense.installmentNumber)) {
+        // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
+        // Não inclui templates (is_fixed=true) para evitar duplicação
+        if (expense.sector && expense.installmentNumber && !expense.isFixed) {
           const sector = SECTOR_LABELS[expense.sector] || expense.sector;
           if (!expensesBySectorDetail[sector]) {
             expensesBySectorDetail[sector] = [];
