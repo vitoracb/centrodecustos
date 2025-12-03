@@ -44,13 +44,13 @@ const GESTAO_SUBCATEGORY_LABELS: Record<GestaoSubcategory, string> = {
 const SECTOR_LABELS: Record<ExpenseSector, string> = {
   now: 'Now',
   felipe_viatransportes: 'Felipe Viatransportes',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Funcionário Particular',
   gestao: 'Gestão',
   gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
-  particular: 'Particular',
+  particular: 'Locação Particular',
   imposto: 'Impostos',
 };
 
