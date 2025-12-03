@@ -263,9 +263,9 @@ export default function DashboardExecutivoScreen() {
       variavel: 'Variável',
       parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
       particular: 'Locação Particular',
-      imposto: 'Impostos',
+      imposto: 'Imposto',
     };
-    return labels[sector] || sector;
+    return labels[sector] || capitalize(sector);
   };
 
   const formatCompact = (value: number): string => {
