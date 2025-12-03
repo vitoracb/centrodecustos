@@ -811,6 +811,12 @@ export const DashboardScreen = () => {
                 <Text style={styles.prototypeButtonText}>Clean</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.prototypeButton, { backgroundColor: '#10B981' }]}
+                onPress={() => router.push('/(tabs)/dashboard-executivo' as any)}
+              >
+                <Text style={styles.prototypeButtonText}>Pro</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.prototypeButton}
                 onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
               >
