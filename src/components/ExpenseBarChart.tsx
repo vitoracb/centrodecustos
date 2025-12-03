@@ -109,6 +109,18 @@ export const ExpenseBarChart = ({ expenses }: ExpenseBarChartProps) => {
     }).format(value);
   };
 
+  // Formato compacto para valores nas barras
+  const formatCompact = (value: number): string => {
+    if (value === 0) return '';
+    if (value >= 1000000) {
+      return `R$ ${(value / 1000000).toFixed(1)}M`;
+    }
+    if (value >= 1000) {
+      return `R$ ${Math.floor(value / 1000)}K`;
+    }
+    return `R$ ${Math.floor(value)}`;
+  };
+
   // Calcular valores para o eixo Y (5 marcas)
   const yAxisSteps = 5;
   const yAxisValues: number[] = [];
@@ -189,17 +201,17 @@ export const ExpenseBarChart = ({ expenses }: ExpenseBarChartProps) => {
                     fill="#0A84FF"
                     rx="4"
                   />
-                  {/* Valor acima da barra se for maior que 0 */}
-                  {item.value > 0 && (
+                  {/* Valor acima da barra se for maior que 0 e tiver espaço */}
+                  {item.value > 0 && barHeight > 15 && (
                     <SvgText
                       x={x + barWidth / 2}
                       y={y - 4}
-                      fontSize="9"
+                      fontSize="8"
                       fill="#1C1C1E"
-                      fontWeight="600"
+                      fontWeight="700"
                       textAnchor="middle"
                     >
-                      {formatCurrency(item.value)}
+                      {formatCompact(item.value)}
                     </SvgText>
                   )}
                 </G>
