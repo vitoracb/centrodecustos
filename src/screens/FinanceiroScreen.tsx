@@ -40,9 +40,6 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
-import { FixGestorSalaryButton } from '../components/FixGestorSalaryButton';
-import { FixGestorSectorButton } from '../components/FixGestorSectorButton';
-import { RemoveDuplicateGestorButton } from '../components/RemoveDuplicateGestorButton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -1799,18 +1796,6 @@ export const FinanceiroScreen = () => {
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       <View style={styles.container}>
         <CostCenterSelector />
-        
-        {/* Botões temporários para corrigir Salário Gestor */}
-        <View style={{ padding: 16, paddingTop: 8, paddingBottom: 0 }}>
-          <RemoveDuplicateGestorButton expenseName="Salário Gestor" />
-          <FixGestorSectorButton expenseName="Salário Gestor" />
-          <FixGestorSalaryButton 
-            expenseName="Salário Gestor"
-            targetMonth={10}
-            targetYear={2024}
-          />
-        </View>
-        
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
