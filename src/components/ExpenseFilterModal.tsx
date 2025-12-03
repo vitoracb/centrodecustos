@@ -23,7 +23,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   funcionario: 'Funcionário',
   gestao: 'Gestão',
   gestor: 'Gestor',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Funcionário Particular',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
   impostos: 'Impostos',

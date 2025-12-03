@@ -147,7 +147,8 @@ export const GlobalSearch = () => {
           manutencao: 'Manutenção',
           funcionario: 'Funcionário',
           gestao: 'Gestão',
-          terceirizados: 'Terceirizados',
+          gestor: 'Gestor',
+          terceirizados: 'Funcionário Particular',
           diversos: 'Diversos',
         };
         results.push({

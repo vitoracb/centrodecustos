@@ -23,7 +23,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
   gestao: 'Gestão',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Funcionário Particular',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
 };
@@ -38,9 +38,10 @@ const STATUS_LABELS: Record<string, string> = {
 const SECTOR_LABELS: Record<string, string> = {
   now: 'Now',
   felipe_viatransportes: 'Felipe Viatransportes',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Funcionário Particular',
   gestao: 'Gestão',
   ronaldo: 'Ronaldo',
+  particular: 'Locação Particular',
 };
 
 const SECTOR_COLORS: Record<string, string> = {

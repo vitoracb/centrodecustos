@@ -6,12 +6,13 @@ import { Expense, ExpenseSector } from '../context/FinancialContext';
 const SECTOR_LABELS: Record<ExpenseSector, string> = {
   now: 'Now',
   felipe_viatransportes: 'Felipe Viatransportes',
-  terceirizados: 'Terceirizados',
+  terceirizados: 'Funcionário Particular',
   gestao: 'Gestão',
+  gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
-  particular: 'Particular',
+  particular: 'Locação Particular',
   imposto: 'Impostos',
 };
 
@@ -20,6 +21,7 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   felipe_viatransportes: '#34C759', // Verde
   terceirizados: '#FF9500', // Laranja
   gestao: '#AF52DE', // Roxo
+  gestor: '#5AC8FA', // Azul claro
   ronaldo: '#FF3B30', // Vermelho
   variavel: '#00C7BE', // Turquesa/Ciano
   parcela_patrol_ronaldo: '#FF2D55', // Rosa
