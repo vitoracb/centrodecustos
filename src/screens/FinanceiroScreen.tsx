@@ -546,17 +546,25 @@ export const FinanceiroScreen = () => {
 
   // Aplica parâmetros da navegação (vindo do dashboard) - apenas uma vez
   useEffect(() => {
-    if (paramsAppliedRef.current) return;
-    
     const tabParam = params.tab as string | undefined;
     const monthParam = params.month as string | undefined;
     const yearParam = params.year as string | undefined;
+
+    // Reset ref quando params mudam
+    if (tabParam || monthParam || yearParam) {
+      paramsAppliedRef.current = false;
+    }
+
+    if (paramsAppliedRef.current) return;
 
     if (tabParam === 'Despesas') {
       setActiveTab('Despesas');
       paramsAppliedRef.current = true;
     } else if (tabParam === 'Recebimentos') {
       setActiveTab('Recebimentos');
+      paramsAppliedRef.current = true;
+    } else if (tabParam === 'Fechamento') {
+      setActiveTab('Fechamento');
       paramsAppliedRef.current = true;
     }
     
