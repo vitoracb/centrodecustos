@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -12,10 +13,16 @@ import { useFinancial } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useContracts } from '../context/ContractContext';
 import { CostCenterSelector } from '../components/CostCenterSelector';
-import { KPICard } from '../components/KPICard';
 import { TopExpenseItem } from '../components/TopExpenseItem';
 import { ComparisonRow } from '../components/ComparisonRow';
 import { ExpensePieChart } from '../components/ExpensePieChart';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  Tractor, 
+  FileText 
+} from 'lucide-react-native';
 import dayjs from 'dayjs';
 
 export default function DashboardExecutivoScreen() {
@@ -147,31 +154,70 @@ export default function DashboardExecutivoScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.kpiContainer}
             >
-              <KPICard
-                value={formatCompact(currentMonthData.receipts)}
-                trend={{ value: 12, isPositive: true }}
-                label="Receitas"
-              />
-              <KPICard
-                value={formatCompact(currentMonthData.expenses)}
-                trend={{ value: 5, isPositive: false }}
-                label="Despesas"
-              />
-              <KPICard
-                value={formatCompact(currentMonthData.balance)}
-                trend={{ value: 18, isPositive: true }}
-                label="Saldo"
-              />
-              <KPICard
-                value={counts.equipments.toString()}
-                trend={{ value: 2, isPositive: true }}
-                label="Equipamentos"
-              />
-              <KPICard
-                value={counts.contracts.toString()}
-                trend={{ value: 0, isPositive: true }}
-                label="Contratos"
-              />
+              {/* Receitas */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#E9FAF0' }]}>
+                  <TrendingUp size={24} color="#34C759" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{formatCompact(currentMonthData.receipts)}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>↗</Text>
+                  <Text style={[styles.trendText, { color: '#10B981' }]}>+12%</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Receitas</Text>
+              </View>
+
+              {/* Despesas */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FDECEC' }]}>
+                  <TrendingDown size={24} color="#FF3B30" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{formatCompact(currentMonthData.expenses)}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>↘</Text>
+                  <Text style={[styles.trendText, { color: '#EF4444' }]}>-5%</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Despesas</Text>
+              </View>
+
+              {/* Saldo */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#E6F2FF' }]}>
+                  <DollarSign size={24} color="#0A84FF" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{formatCompact(currentMonthData.balance)}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>↗</Text>
+                  <Text style={[styles.trendText, { color: '#10B981' }]}>+18%</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Saldo</Text>
+              </View>
+
+              {/* Equipamentos */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF3E0' }]}>
+                  <Tractor size={24} color="#FF9500" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{counts.equipments}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>↗</Text>
+                  <Text style={[styles.trendText, { color: '#10B981' }]}>+2</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Equipamentos</Text>
+              </View>
+
+              {/* Contratos */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#F3E5F5' }]}>
+                  <FileText size={24} color="#AF52DE" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{counts.contracts}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>→</Text>
+                  <Text style={[styles.trendText, { color: '#6C6C70' }]}>0</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Contratos</Text>
+              </View>
             </ScrollView>
           </View>
 
@@ -361,5 +407,51 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     paddingVertical: 20,
+  },
+  kpiCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    minWidth: 120,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    marginRight: 12,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  kpiValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1C1C1E',
+    marginBottom: 4,
+  },
+  trendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  trendIconText: {
+    fontSize: 14,
+    marginRight: 2,
+  },
+  trendText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  kpiLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6C6C70',
+    textAlign: 'center',
   },
 });
