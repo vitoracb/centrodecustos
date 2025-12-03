@@ -22,7 +22,7 @@ const getCenterLabel = (center: CostCenter): string => {
 const CATEGORY_LABELS: Record<string, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
-  gestao: 'Gestão',
+  gestor: 'Gestor',
   gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
@@ -41,7 +41,7 @@ const SECTOR_LABELS: Record<string, string> = {
   now: 'Now',
   felipe_viatransportes: 'Felipe Viatransportes',
   terceirizados: 'Funcionário Particular',
-  gestao: 'Gestão',
+  gestor: 'Gestor',
   gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
@@ -54,7 +54,7 @@ const SECTOR_COLORS: Record<string, string> = {
   now: '#0A84FF',
   felipe_viatransportes: '#34C759',
   terceirizados: '#FF9500',
-  gestao: '#AF52DE',
+  
   ronaldo: '#FF3B30',
 };
 

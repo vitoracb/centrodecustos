@@ -146,7 +146,7 @@ export const GlobalSearch = () => {
         const categoryLabels: Record<string, string> = {
           manutencao: 'Manutenção',
           funcionario: 'Funcionário',
-          gestao: 'Gestão',
+          gestor: 'Gestor',
           gestor: 'Gestor',
           terceirizados: 'Terceirizados',
           diversos: 'Diversos',

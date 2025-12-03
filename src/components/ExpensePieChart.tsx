@@ -10,7 +10,7 @@ dayjs.locale('pt-br');
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   manutencao: '#0A84FF',
   funcionario: '#34C759',
-  gestao: '#FF9500',
+  
   gestor: '#00C7BE',
   terceirizados: '#FF3B30',
   diversos: '#AF52DE',
@@ -21,7 +21,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
-  gestao: 'Gestão',
+  gestor: 'Gestor',
   gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
@@ -47,7 +47,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
     const totalsByCategory: Record<ExpenseCategory, number> = {
       manutencao: 0,
       funcionario: 0,
-      gestao: 0,
+      
       gestor: 0,
       terceirizados: 0,
       diversos: 0,

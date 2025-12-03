@@ -20,7 +20,7 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   now: '#0A84FF', // Azul
   felipe_viatransportes: '#34C759', // Verde
   terceirizados: '#FF9500', // Laranja
-  gestao: '#AF52DE', // Roxo
+   // Roxo
   gestor: '#5AC8FA', // Azul claro
   ronaldo: '#FF3B30', // Vermelho
   variavel: '#00C7BE', // Turquesa/Ciano
