@@ -41,6 +41,7 @@ import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { FixGestorSalaryButton } from '../components/FixGestorSalaryButton';
+import { FixGestorSectorButton } from '../components/FixGestorSectorButton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -1798,8 +1799,9 @@ export const FinanceiroScreen = () => {
       <View style={styles.container}>
         <CostCenterSelector />
         
-        {/* Botão temporário para corrigir data do Salário Gestor */}
+        {/* Botões temporários para corrigir Salário Gestor */}
         <View style={{ padding: 16, paddingTop: 8, paddingBottom: 0 }}>
+          <FixGestorSectorButton expenseName="Salário Gestor" />
           <FixGestorSalaryButton 
             expenseName="Salário Gestor"
             targetMonth={10}
