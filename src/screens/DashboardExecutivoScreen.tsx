@@ -157,17 +157,9 @@ export default function DashboardExecutivoScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Dashboard Executivo</Text>
-            <Text style={styles.subtitle}>
-              {centerLabels[selectedCenter]} • {dayjs().format('MMMM YYYY')}
-            </Text>
-          </View>
-          <CostCenterSelector />
-        </View>
-
+        {/* Seletor de Centro de Custo */}
+        <CostCenterSelector />
+        
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
@@ -176,6 +168,13 @@ export default function DashboardExecutivoScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Dashboard Executivo</Text>
+            <Text style={styles.subtitle}>
+              {centerLabels[selectedCenter]} • {dayjs().format('MMMM YYYY')}
+            </Text>
+          </View>
           {/* KPIs Principais */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>KPIs Principais</Text>
@@ -347,12 +346,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#F5F5F7',
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -370,7 +366,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingVertical: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   section: {
     marginBottom: 20,
