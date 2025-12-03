@@ -486,6 +486,19 @@ export const buildReportHTML = (data: ReportData): string => {
       const sectorExpenses = expensesBySectorDetail[sector];
       const sectorTotal = sectorExpenses.reduce((sum, exp) => sum + exp.value, 0);
       
+      // Agrupa despesas deste setor por categoria
+      const expensesByCategory: Record<string, Expense[]> = {};
+      sectorExpenses.forEach((expense) => {
+        const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
+        if (!expensesByCategory[category]) {
+          expensesByCategory[category] = [];
+        }
+        expensesByCategory[category].push(expense);
+      });
+
+      // Ordena categorias por nome
+      const sortedCategories = Object.keys(expensesByCategory).sort();
+      
       return `
         <div style="margin-bottom: 30px;">
           <h3 style="color: #0A84FF; margin-bottom: 10px; border-bottom: 2px solid #E5E5EA; padding-bottom: 5px;">
@@ -502,24 +515,27 @@ export const buildReportHTML = (data: ReportData): string => {
               </tr>
             </thead>
             <tbody>
-              ${sectorExpenses
-                .sort((a, b) => {
-                  // Ordena por data (mais recente primeiro)
-                  const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
-                  const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
-                  if (!dateA.isValid() || !dateB.isValid()) return 0;
-                  return dateB.valueOf() - dateA.valueOf();
-                })
-                .map((expense) => `
-                  <tr>
-                    <td>${formatDate(expense.date)}</td>
-                    <td>${expense.name || ''}</td>
-                    <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
-                    <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
-                    <td>${formatCurrency(expense.value)}</td>
-                  </tr>
-                `)
-                .join('')}
+              ${sortedCategories.map((category) => {
+                const categoryExpenses = expensesByCategory[category];
+                return categoryExpenses
+                  .sort((a, b) => {
+                    // Ordena por data (mais recente primeiro)
+                    const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+                    const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+                    if (!dateA.isValid() || !dateB.isValid()) return 0;
+                    return dateB.valueOf() - dateA.valueOf();
+                  })
+                  .map((expense) => `
+                    <tr>
+                      <td>${formatDate(expense.date)}</td>
+                      <td>${expense.name || ''}</td>
+                      <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
+                      <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
+                      <td>${formatCurrency(expense.value)}</td>
+                    </tr>
+                  `)
+                  .join('');
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -807,18 +823,38 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
         csv += `Total do Setor,${sectorTotal.toFixed(2)}\n`;
         csv += 'Data,Descrição,Categoria,Status,Valor\n';
         
-        sectorExpenses
-          .sort((a, b) => {
-            // Ordena por data (mais recente primeiro)
-            const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
-            const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
-            if (!dateA.isValid() || !dateB.isValid()) return 0;
-            return dateB.valueOf() - dateA.valueOf();
-          })
-          .forEach((expense) => {
-            const description = (expense.name || '').replace(/"/g, '""');
-            csv += `${expense.date},"${description}",${CATEGORY_LABELS[expense.category] || expense.category},${STATUS_LABELS[expense.status] || expense.status},${expense.value.toFixed(2)}\n`;
-          });
+        // Agrupa despesas deste setor por categoria
+        const expensesByCategory: Record<string, Expense[]> = {};
+        sectorExpenses.forEach((expense) => {
+          const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
+          if (!expensesByCategory[category]) {
+            expensesByCategory[category] = [];
+          }
+          expensesByCategory[category].push(expense);
+        });
+
+        // Ordena categorias por nome
+        const sortedCategories = Object.keys(expensesByCategory).sort();
+        
+        // Para cada categoria, lista as despesas
+        sortedCategories.forEach((category) => {
+          const categoryExpenses = expensesByCategory[category];
+          categoryExpenses
+            .sort((a, b) => {
+              // Ordena por data (mais recente primeiro)
+              const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+              const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+              if (!dateA.isValid() || !dateB.isValid()) return 0;
+              return dateB.valueOf() - dateA.valueOf();
+            })
+            .forEach((expense) => {
+              const description = (expense.name || '').replace(/"/g, '""');
+              const cat = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
+              const stat = expense.status ? (STATUS_LABELS[expense.status] || expense.status) : 'Sem status';
+              csv += `${expense.date},"${description}",${cat},${stat},${expense.value.toFixed(2)}\n`;
+            });
+        });
+        
         csv += '\n';
       });
     }
