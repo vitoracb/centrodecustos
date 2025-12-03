@@ -323,11 +323,13 @@ export default function DashboardExecutivoScreen() {
               <View style={styles.chartCard}>
                 <Text style={styles.cardTitle}>Despesas/Setor</Text>
                 <View style={styles.pieChartContainer}>
-                  <ExpensePieChart
-                    expenses={currentMonthData.expensesData}
-                    mode="mensal"
-                    selectedPeriod={dayjs()}
-                  />
+                  <View style={styles.pieChartScaler}>
+                    <ExpensePieChart
+                      expenses={currentMonthData.expensesData}
+                      mode="mensal"
+                      selectedPeriod={dayjs()}
+                    />
+                  </View>
                 </View>
               </View>
 
@@ -473,6 +475,12 @@ const styles = StyleSheet.create({
   },
   pieChartContainer: {
     height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  pieChartScaler: {
+    transform: [{ scale: 0.7 }],
     alignItems: 'center',
     justifyContent: 'center',
   },
