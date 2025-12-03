@@ -272,9 +272,9 @@ export default function DashboardExecutivoScreen() {
           {/* Barra de Busca Global */}
           <GlobalSearch />
 
-          {/* KPIs Principais */}
+          {/* Painel de Gerenciamento */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>KPIs Principais</Text>
+            <Text style={styles.sectionTitle}>Painel de Gerenciamento</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
