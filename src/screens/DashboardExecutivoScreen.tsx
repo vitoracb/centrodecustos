@@ -252,6 +252,22 @@ export default function DashboardExecutivoScreen() {
     return colors[index % colors.length];
   };
 
+  const getSectorLabel = (sector: string): string => {
+    const labels: Record<string, string> = {
+      now: 'Now',
+      felipe_viatransportes: 'Felipe Viatransportes',
+      terceirizados: 'Funcionário Particular',
+      gestao: 'Gestão',
+      gestor: 'Gestor',
+      ronaldo: 'Ronaldo',
+      variavel: 'Variável',
+      parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
+      particular: 'Locação Particular',
+      imposto: 'Impostos',
+    };
+    return labels[sector] || sector;
+  };
+
   const formatCompact = (value: number): string => {
     if (value >= 1000000) {
       return `${(value / 1000000).toFixed(0)}M`;
@@ -426,7 +442,7 @@ export default function DashboardExecutivoScreen() {
                       <View key={item.sector} style={styles.sectorItem}>
                         <View style={styles.sectorInfo}>
                           <View style={[styles.sectorDot, { backgroundColor: getSectorColor(index) }]} />
-                          <Text style={styles.sectorName}>{capitalize(item.sector)}</Text>
+                          <Text style={styles.sectorName}>{getSectorLabel(item.sector)}</Text>
                         </View>
                         <Text style={styles.sectorValue}>{formatCurrency(item.value)}</Text>
                       </View>
