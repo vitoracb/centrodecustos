@@ -92,6 +92,13 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="dashboard-visual"
+        options={{
+          href: null, // Oculta da tab bar
+          title: 'Dashboard Visual',
+        }}
+      />
     </Tabs>
   );
 }
