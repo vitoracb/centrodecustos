@@ -13,3 +13,10 @@ export const showSuccess = (title: string, message?: string): void => {
 export const showError = (title: string, message?: string): void => {
   Alert.alert(title, message);
 };
+
+/**
+ * Exibe uma mensagem informativa
+ */
+export const showInfo = (title: string, message?: string): void => {
+  Alert.alert(title, message);
+};
