@@ -1418,6 +1418,56 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Se já era fixa e continua fixa, atualiza normalmente
         if (isFixedExpense) {
+          // Verifica se é uma parcela gerada (não template)
+          const isGeneratedInstallment = currentExpense.is_fixed === false && currentExpense.installment_number && currentExpense.installment_number > 1;
+          
+          if (isGeneratedInstallment) {
+            // Se é uma parcela gerada, apenas atualiza ela sem mexer no installment_number
+            console.log(`📝 Atualizando parcela ${currentExpense.installment_number} sem alterar numeração`);
+            
+            const installmentPayload: any = {
+              cost_center_id: expense.center,
+              equipment_id: expense.equipmentId ?? null,
+              value: expense.value,
+              date: dbDate,
+              category: expense.category ?? "diversos",
+              description: expense.name,
+              payment_method: expense.method ?? null,
+              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
+              status: statusToDb(expense.status),
+              is_fixed: false,
+              sector: expense.sector ?? null,
+              fixed_duration_months: null,
+              installment_number: currentExpense.installment_number, // Mantém o número original
+            };
+
+            const { error: updateError } = await supabase
+              .from("financial_transactions")
+              .update(installmentPayload)
+              .eq("id", expense.id);
+
+            if (updateError) {
+              console.error("❌ Erro ao atualizar parcela:", updateError);
+              return;
+            }
+
+            // Recarrega todas as despesas
+            const { data: reloadedExpenses, error: reloadError } = await supabase
+              .from("financial_transactions")
+              .select("*")
+              .eq("type", "DESPESA")
+              .order("created_at", { ascending: false });
+
+            if (!reloadError && reloadedExpenses) {
+              const mapped: Expense[] = await Promise.all(
+                (reloadedExpenses ?? []).map((row: any) => mapRowToExpense(row))
+              );
+              setExpenses(mapped);
+            }
+
+            return;
+          }
+          
           // Busca a despesa template atual no banco
           const { data: currentTemplate, error: templateError } = await supabase
             .from("financial_transactions")
