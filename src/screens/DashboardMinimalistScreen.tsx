@@ -220,7 +220,7 @@ export default function DashboardMinimalistScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F5F5F7',
   },
   container: {
     flex: 1,
@@ -231,20 +231,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#F5F5F7',
   },
   title: {
     fontSize: 28,
-    fontWeight: '300',
-    color: '#111827',
-    letterSpacing: -0.5,
+    fontWeight: '700',
+    color: '#1C1C1E',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '400',
-    color: '#6B7280',
+    color: '#6C6C70',
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -272,13 +269,13 @@ const styles = StyleSheet.create({
   },
   financialCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   divider: {
     height: 1,
