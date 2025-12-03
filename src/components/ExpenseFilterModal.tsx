@@ -33,6 +33,7 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   felipe_viatransportes: 'Felipe Viatransportes',
   terceirizados: 'Terceirizados',
   gestao: 'Gestão',
+  gestor: 'Gestor',
   ronaldo: 'Ronaldo',
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
