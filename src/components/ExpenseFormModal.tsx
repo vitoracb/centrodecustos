@@ -49,7 +49,7 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   variavel: 'Variável',
   parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
   particular: 'Particular',
-  imposto: 'Imposto',
+  imposto: 'Impostos',
 };
 
 interface ExpenseFormData {
