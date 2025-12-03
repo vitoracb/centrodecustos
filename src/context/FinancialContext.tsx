@@ -39,7 +39,6 @@ export interface Receipt {
 export type ExpenseCategory =
   | "manutencao"
   | "funcionario"
-  | "gestao"
   | "gestor"
   | "terceirizados"
   | "diversos"
@@ -107,7 +106,6 @@ export interface Expense {
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: "Manutenção",
   funcionario: "Funcionário",
-  gestao: "Gestão",
   gestor: "Gestor",
   terceirizados: "Terceirizados",
   diversos: "Diversos",

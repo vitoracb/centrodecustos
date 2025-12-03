@@ -25,7 +25,6 @@ import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/valida
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
-  gestao: 'Gestão',
   gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
@@ -540,8 +539,8 @@ export const ExpenseFormModal = ({
       return;
     }
     // Para "terceirizados" e "diversos", o equipamento é opcional
-    if (category === 'gestao' && !gestaoSubcategory) {
-      Alert.alert('Campo obrigatório', 'Por favor, selecione uma subcategoria de gestão.');
+    if (category === 'gestor' && !gestaoSubcategory) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione uma subcategoria de gestor.');
       return;
     }
     
@@ -609,8 +608,8 @@ export const ExpenseFormModal = ({
       equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) 
         ? (selectedEquipmentId === 'all' ? undefined : selectedEquipmentId) 
         : undefined,
-      gestaoSubcategory: category === 'gestao' ? gestaoSubcategory : undefined,
-      observations: (category === 'diversos' || (category === 'gestao' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
+      gestaoSubcategory: category === 'gestor' ? gestaoSubcategory : undefined,
+      observations: (category === 'diversos' || (category === 'gestor' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
       isFixed,
       sector: isFixed && sector ? sector : undefined,
       fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
@@ -772,7 +771,7 @@ export const ExpenseFormModal = ({
             )}
 
             {/* Dropdown de Subcategoria para Gestão */}
-            {category === 'gestao' && (
+            {category === 'gestor' && (
               <View style={styles.field}>
                 <Text style={styles.label}>Subcategoria *</Text>
                 <TouchableOpacity
@@ -817,7 +816,7 @@ export const ExpenseFormModal = ({
             )}
 
             {/* Campo de Observações para Gestão > Diversos */}
-            {category === 'gestao' && gestaoSubcategory === 'diversos' && (
+            {category === 'gestor' && gestaoSubcategory === 'diversos' && (
               <View style={styles.field}>
                 <Text style={styles.label}>Observações</Text>
                 <TextInput
@@ -1075,7 +1074,7 @@ export const ExpenseFormModal = ({
                   !value ||
                   (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
                   ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
-                  (category === 'gestao' && !gestaoSubcategory) ||
+                  (category === 'gestor' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
                   styles.disabledButton,
               ]}
@@ -1084,7 +1083,7 @@ export const ExpenseFormModal = ({
                 !value ||
                 (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
                 ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
-                (category === 'gestao' && !gestaoSubcategory) ||
+                (category === 'gestor' && !gestaoSubcategory) ||
                 (isFixed && !sector) ||
                 (isFixed && !fixedDurationMonths)
               }
