@@ -803,13 +803,21 @@ export const DashboardScreen = () => {
                 {centerLabels[selectedCenter as keyof typeof centerLabels]}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.prototypeButton}
-              onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
-            >
-              <Sparkles size={20} color="#FFFFFF" />
-              <Text style={styles.prototypeButtonText}>Novo</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.prototypeButton, { backgroundColor: '#0A84FF' }]}
+                onPress={() => router.push('/(tabs)/dashboard-minimalista' as any)}
+              >
+                <Text style={styles.prototypeButtonText}>Clean</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.prototypeButton}
+                onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
+              >
+                <Sparkles size={18} color="#FFFFFF" />
+                <Text style={styles.prototypeButtonText}>Novo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <GlobalSearch />

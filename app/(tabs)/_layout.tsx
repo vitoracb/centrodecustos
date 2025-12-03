@@ -99,6 +99,13 @@ export default function TabLayout() {
           title: 'Dashboard Visual',
         }}
       />
+      <Tabs.Screen
+        name="dashboard-minimalista"
+        options={{
+          href: null, // Oculta da tab bar
+          title: 'Dashboard Minimalista',
+        }}
+      />
     </Tabs>
   );
 }
