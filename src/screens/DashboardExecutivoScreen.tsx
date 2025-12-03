@@ -6,6 +6,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -27,6 +28,7 @@ import {
   ShoppingCart,
   Download,
   Plus,
+  Search,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import dayjs from 'dayjs';
@@ -39,6 +41,7 @@ export default function DashboardExecutivoScreen() {
   const { getContractsByCenter } = useContracts();
   const { getEmployeesByCenter } = useEmployees();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -265,6 +268,19 @@ export default function DashboardExecutivoScreen() {
               {centerLabels[selectedCenter]} • {dayjs().format('MMMM YYYY')}
             </Text>
           </View>
+
+          {/* Barra de Busca Global */}
+          <View style={styles.searchContainer}>
+            <Search size={20} color="#6C6C70" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar despesas, equipamentos, contratos..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
           {/* KPIs Principais */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>KPIs Principais</Text>
@@ -517,6 +533,30 @@ const styles = StyleSheet.create({
     color: '#6C6C70',
     marginTop: 2,
     textTransform: 'capitalize',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1C1C1E',
+    padding: 0,
   },
   scroll: {
     flex: 1,
