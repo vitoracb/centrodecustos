@@ -46,23 +46,26 @@ export async function removeDuplicateGestorSalary(
 
     console.log(`✅ Encontrado ${expenses.length} despesa(s)`);
 
-    // Agrupa por installment_number
-    const groupedByInstallment: Record<number, any[]> = {};
+    // Agrupa por data E installment_number para pegar duplicatas exatas
+    const groupedByDateAndInstallment: Record<string, any[]> = {};
     
     expenses.forEach(expense => {
       const installmentNum = expense.installment_number || 0;
-      if (!groupedByInstallment[installmentNum]) {
-        groupedByInstallment[installmentNum] = [];
+      const date = expense.date || 'no-date';
+      const key = `${date}-${installmentNum}`;
+      
+      if (!groupedByDateAndInstallment[key]) {
+        groupedByDateAndInstallment[key] = [];
       }
-      groupedByInstallment[installmentNum].push(expense);
+      groupedByDateAndInstallment[key].push(expense);
     });
 
     let removedCount = 0;
 
-    // Para cada número de parcela, mantém apenas a mais recente
-    for (const [installmentNum, duplicates] of Object.entries(groupedByInstallment)) {
+    // Para cada grupo (data + parcela), mantém apenas a mais recente
+    for (const [key, duplicates] of Object.entries(groupedByDateAndInstallment)) {
       if (duplicates.length > 1) {
-        console.log(`\n📦 Parcela ${installmentNum}: ${duplicates.length} duplicata(s) encontrada(s)`);
+        console.log(`\n📦 Grupo ${key}: ${duplicates.length} duplicata(s) encontrada(s)`);
         
         // Mantém a primeira (mais recente) e remove as outras
         const [keep, ...toRemove] = duplicates;
