@@ -167,11 +167,23 @@ export default function DashboardExecutivoScreen() {
     };
   }, [selectedCenter, getEquipmentsByCenter, getContractsByCenter, getEmployeesByCenter]);
 
+  // Filtrar despesas por busca
+  const filteredExpenses = useMemo(() => {
+    if (!searchQuery.trim()) return currentMonthData.expensesData;
+    
+    const query = searchQuery.toLowerCase();
+    return currentMonthData.expensesData.filter(exp => 
+      exp.name.toLowerCase().includes(query) ||
+      (exp.sector && exp.sector.toLowerCase().includes(query)) ||
+      (exp.category && exp.category.toLowerCase().includes(query))
+    );
+  }, [currentMonthData.expensesData, searchQuery]);
+
   // Despesas por setor
   const expensesBySector = useMemo(() => {
     const sectorTotals: Record<string, number> = {};
     
-    currentMonthData.expensesData.forEach(exp => {
+    filteredExpenses.forEach(exp => {
       const sector = exp.sector || 'Outros';
       sectorTotals[sector] = (sectorTotals[sector] || 0) + exp.value;
     });
@@ -186,13 +198,13 @@ export default function DashboardExecutivoScreen() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
-  }, [currentMonthData.expensesData]);
+  }, [filteredExpenses]);
 
   // Top 5 despesas
   const topExpenses = useMemo(() => {
     const expensesByName = new Map<string, number>();
     
-    currentMonthData.expensesData.forEach(exp => {
+    filteredExpenses.forEach(exp => {
       const current = expensesByName.get(exp.name) || 0;
       expensesByName.set(exp.name, current + exp.value);
     });
@@ -210,7 +222,7 @@ export default function DashboardExecutivoScreen() {
       value: item.value,
       percentage: (item.value / maxValue) * 100,
     }));
-  }, [currentMonthData.expensesData]);
+  }, [filteredExpenses]);
 
   const capitalize = (text: string): string => {
     if (!text) return '';
