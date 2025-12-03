@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
+  impostos: 'Impostos',
 };
 
 const SECTOR_LABELS: Record<ExpenseSector, string> = {
@@ -33,6 +34,10 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   terceirizados: 'Terceirizados',
   gestao: 'Gestão',
   ronaldo: 'Ronaldo',
+  variavel: 'Variável',
+  parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
+  particular: 'Particular',
+  imposto: 'Imposto',
 };
 
 // Formata número para moeda brasileira

@@ -9,6 +9,10 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   terceirizados: 'Terceirizados',
   gestao: 'Gestão',
   ronaldo: 'Ronaldo',
+  variavel: 'Variável',
+  parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
+  particular: 'Particular',
+  imposto: 'Imposto',
 };
 
 const SECTOR_COLORS: Record<ExpenseSector, string> = {
@@ -17,6 +21,10 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   terceirizados: '#FF9500', // Laranja
   gestao: '#AF52DE', // Roxo
   ronaldo: '#FF3B30', // Vermelho
+  variavel: '#5856D6', // Roxo claro
+  parcela_patrol_ronaldo: '#FF2D55', // Rosa
+  particular: '#FFD60A', // Amarelo
+  imposto: '#FF9F0A', // Laranja escuro
 };
 
 interface ExpenseSectorChartProps {
@@ -43,8 +51,8 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
           const hasGeneratedInstallments = expenses.some(
             other => 
               other.id !== exp.id && // Não é a mesma despesa
-              other.description === exp.description &&
-              other.costCenterId === exp.costCenterId &&
+              other.name === exp.name &&
+              other.center === exp.center &&
               other.installmentNumber !== undefined &&
               other.installmentNumber !== null
           );
@@ -62,6 +70,7 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
     fixedExpensesWithSector.forEach(exp => {
       if (exp.sector) {
         const current = sectorMap.get(exp.sector) || 0;
+        // Valores negativos (abatimentos) são subtraídos do total
         sectorMap.set(exp.sector, current + exp.value);
       }
     });
@@ -71,8 +80,8 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
       .map(([sector, value]) => ({
         sector,
         value,
-        label: SECTOR_LABELS[sector],
-        color: SECTOR_COLORS[sector],
+        label: SECTOR_LABELS[sector] || sector,
+        color: SECTOR_COLORS[sector] || '#999999', // Cor padrão cinza para setores sem cor
       }))
       .sort((a, b) => b.value - a.value);
 

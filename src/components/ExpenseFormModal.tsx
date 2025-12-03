@@ -29,6 +29,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
+  impostos: 'Impostos',
 };
 
 const GESTAO_SUBCATEGORY_LABELS: Record<GestaoSubcategory, string> = {
@@ -45,6 +46,10 @@ const SECTOR_LABELS: Record<ExpenseSector, string> = {
   terceirizados: 'Terceirizados',
   gestao: 'Gestão',
   ronaldo: 'Ronaldo',
+  variavel: 'Variável',
+  parcela_patrol_ronaldo: 'Parcela Patrol Ronaldo',
+  particular: 'Particular',
+  imposto: 'Imposto',
 };
 
 interface ExpenseFormData {
@@ -513,8 +518,10 @@ export const ExpenseFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
       return;
     }
-    if (!value || parseCurrency(value) === 0) {
-      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo).');
+    // Permite valor zero apenas se for um abatimento (isNegative marcado)
+    const parsedValue = parseCurrency(value);
+    if (!value || (parsedValue === 0 && !isNegative)) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero para abatimentos).');
       return;
     }
     
@@ -1058,7 +1065,7 @@ export const ExpenseFormModal = ({
                 styles.primaryButton,
                 (!name.trim() ||
                   !value ||
-                  parseCurrency(value) === 0 ||
+                  (parseCurrency(value) === 0 && !isNegative) ||
                   ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                   (category === 'gestao' && !gestaoSubcategory) ||
                   (isFixed && !sector)) &&
@@ -1067,7 +1074,7 @@ export const ExpenseFormModal = ({
               disabled={
                 !name.trim() ||
                 !value ||
-                parseCurrency(value) === 0 ||
+                (parseCurrency(value) === 0 && !isNegative) ||
                 ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                 (category === 'gestao' && !gestaoSubcategory) ||
                 (isFixed && !sector) ||

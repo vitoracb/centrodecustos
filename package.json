@@ -9,7 +9,13 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "remove-duplicates:preview": "ts-node --project tsconfig.scripts.json scripts/remove-duplicate-installments.ts",
+    "remove-duplicates:execute": "ts-node --project tsconfig.scripts.json scripts/remove-duplicate-installments.ts --execute",
+    "remove-templates:preview": "ts-node --project tsconfig.scripts.json scripts/remove-duplicate-templates.ts",
+    "remove-templates:execute": "ts-node --project tsconfig.scripts.json scripts/remove-duplicate-templates.ts --execute",
+    "fix-installments:preview": "ts-node --project tsconfig.scripts.json scripts/fix-duplicate-month-installments.ts",
+    "fix-installments:execute": "ts-node --project tsconfig.scripts.json scripts/fix-duplicate-month-installments.ts --execute"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -57,10 +63,13 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@types/node": "^20.19.25",
     "@types/react": "~19.1.10",
     "@types/react-native": "^0.72.8",
+    "dotenv": "^17.2.3",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   }
 }

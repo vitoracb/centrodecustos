@@ -59,6 +59,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
+  impostos: 'Impostos',
 };
 
 const SECTOR_LABELS: Record<string, string> = {

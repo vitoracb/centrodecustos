@@ -14,6 +14,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   terceirizados: '#FF3B30',
   diversos: '#AF52DE',
   equipamentos: '#5856D6',
+  impostos: '#FF2D55',
 };
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -23,6 +24,7 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
+  impostos: 'Impostos',
 };
 
 interface ExpensePieChartProps {
@@ -47,6 +49,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
       terceirizados: 0,
       diversos: 0,
       equipamentos: 0,
+      impostos: 0,
     };
 
     // Usa as despesas já filtradas; trata categorias desconhecidas e valores inválidos

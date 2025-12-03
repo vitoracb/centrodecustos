@@ -7,6 +7,7 @@ import React, {
   useEffect,
 } from "react";
 import dayjs from "dayjs";
+import { Alert } from "react-native";
 import { CostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
@@ -41,7 +42,8 @@ export type ExpenseCategory =
   | "gestao"
   | "terceirizados"
   | "diversos"
-  | "equipamentos";
+  | "equipamentos"
+  | "impostos";
 
 export type ExpenseStatus =
   | "confirmar"
@@ -61,7 +63,11 @@ export type ExpenseSector =
   | "felipe_viatransportes"
   | "terceirizados"
   | "gestao"
-  | "ronaldo";
+  | "ronaldo"
+  | "variavel"
+  | "parcela_patrol_ronaldo"
+  | "particular"
+  | "imposto";
 
 export interface ExpenseDocument {
   type: "nota_fiscal" | "recibo" | "comprovante_pagamento";
@@ -96,6 +102,23 @@ export interface Expense {
   debitAdjustment?: ExpenseDebitAdjustment; // Abatimento/débito aplicado à despesa
 }
 
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  manutencao: "Manutenção",
+  funcionario: "Funcionário",
+  gestao: "Gestão",
+  terceirizados: "Terceirizados",
+  diversos: "Diversos",
+  equipamentos: "Equipamentos",
+  impostos: "Impostos",
+};
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
+};
+
 interface FinancialContextType {
   receipts: Receipt[];
   expenses: Expense[];
@@ -117,6 +140,39 @@ interface FinancialContextType {
   getAllExpenses: () => Expense[];
   generateFixedExpenses: () => Promise<void>;
 }
+
+// Verifica se já existe uma despesa idêntica no mesmo mês
+const isDuplicateExpense = (
+  expenses: Expense[],
+  newExpense: {
+    name: string;
+    value: number;
+    category: ExpenseCategory;
+    equipmentId?: string;
+    date: string;
+    center: CostCenter;
+  },
+): boolean => {
+  const [, month, year] = newExpense.date.split("/").map(Number);
+
+  return expenses.some((existing) => {
+    const [, existingMonth, existingYear] = existing.date
+      .split("/")
+      .map(Number);
+
+    const isSameMonth = existingMonth === month && existingYear === year;
+    if (!isSameMonth) return false;
+
+    return (
+      existing.name.toLowerCase().trim() ===
+        newExpense.name.toLowerCase().trim() &&
+      existing.value === newExpense.value &&
+      existing.category === newExpense.category &&
+      (existing.equipmentId ?? undefined) === newExpense.equipmentId &&
+      existing.center === newExpense.center
+    );
+  });
+};
 
 // ========================
 // CONTEXTO / HOOK
@@ -819,6 +875,29 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
     (async () => {
       try {
+        // Evita cadastrar despesas duplicadas no mesmo mês
+        const allExpenses = getAllExpenses();
+        if (
+          isDuplicateExpense(allExpenses, {
+            name: expense.name,
+            value: expense.value,
+            category: expense.category,
+            equipmentId: expense.equipmentId,
+            date: expense.date,
+            center: expense.center,
+          })
+        ) {
+          Alert.alert(
+            "Despesa Duplicada",
+            `Já existe uma despesa idêntica cadastrada em ${expense.date}:\n\n` +
+              `• ${expense.name}\n` +
+              `• ${formatCurrency(expense.value)}\n` +
+              `• ${CATEGORY_LABELS[expense.category]}\n\n` +
+              "Não é possível cadastrar despesas duplicadas no mesmo mês.",
+            [{ text: "OK" }],
+          );
+          return;
+        }
 
         const dbDate = toDbDate(expense.date);
         if (!dbDate) {
@@ -943,7 +1022,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           const creationYear = expenseDate.getFullYear();
           const creationDay = expenseDate.getDate();
 
-          // Gera as parcelas restantes (a primeira já foi criada acima como template)
+          // Gera as parcelas restantes (começando do mês seguinte ao template)
           for (let offset = 1; offset < expense.fixedDurationMonths; offset++) {
             const targetMonth = creationMonth + offset;
             let targetYear = creationYear;
@@ -979,7 +1058,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               is_fixed: false,
               sector: expense.sector ?? null,
               fixed_duration_months: null,
-              installment_number: offset + 1,
+              installment_number: offset + 1, // Parcela 2, 3, 4... (template é parcela 1)
             };
 
             const { error: installError } = await supabase
@@ -2141,19 +2220,20 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         }
 
         const existingCount = existingInstallments?.length ?? 0;
-        if (existingCount >= totalMonths) {
-          continue; // Todas as parcelas já foram geradas
+        if (existingCount >= totalMonths - 1) {
+          continue; // Todas as parcelas já foram geradas (totalMonths - 1 porque o template não conta)
         }
 
         // Gera as parcelas faltantes
-        const createdAt = fixedExpense.created_at
-          ? new Date(fixedExpense.created_at)
-          : new Date(fixedExpense.date);
-        const creationMonth = createdAt.getMonth() + 1;
-        const creationYear = createdAt.getFullYear();
-        const creationDay = createdAt.getDate();
+        // Usa a data do template (fixedExpense.date) para calcular as parcelas
+        // Converte a data do banco (YYYY-MM-DD) para evitar problemas de timezone
+        const [year, month, day] = fixedExpense.date.split('-').map(Number);
+        const creationMonth = month;
+        const creationYear = year;
+        const creationDay = day;
 
-        for (let offset = existingCount; offset < totalMonths; offset++) {
+        // Começa do offset 1 (mês seguinte ao template) até totalMonths-1
+        for (let offset = 1; offset < totalMonths; offset++) {
           const targetMonth = creationMonth + offset;
           let targetYear = creationYear;
           let actualMonth = targetMonth;
