@@ -112,6 +112,45 @@ export default function DashboardExecutivoScreen() {
     };
   }, [selectedCenter, getAllExpenses, getAllReceipts]);
 
+  // Cálculos do mês anterior
+  const previousMonthData = useMemo(() => {
+    const previousMonth = dayjs().subtract(1, 'month').format('YYYY-MM');
+
+    const expenses = getAllExpenses().filter(exp => {
+      const expMonth = exp.date.split('/').reverse().slice(0, 2).join('-');
+      return exp.center === selectedCenter && expMonth === previousMonth;
+    });
+
+    const receipts = getAllReceipts().filter(rec => {
+      const recMonth = rec.date.split('/').reverse().slice(0, 2).join('-');
+      return rec.center === selectedCenter && recMonth === previousMonth;
+    });
+
+    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.value, 0);
+    const totalReceipts = receipts.reduce((sum, rec) => sum + rec.value, 0);
+    const balance = totalReceipts - totalExpenses;
+
+    return {
+      expenses: totalExpenses,
+      receipts: totalReceipts,
+      balance,
+    };
+  }, [selectedCenter, getAllExpenses, getAllReceipts]);
+
+  // Comparação com mês anterior (percentual)
+  const comparison = useMemo(() => {
+    const calculatePercentage = (current: number, previous: number): number => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    return {
+      receipts: calculatePercentage(currentMonthData.receipts, previousMonthData.receipts),
+      expenses: calculatePercentage(currentMonthData.expenses, previousMonthData.expenses),
+      balance: calculatePercentage(currentMonthData.balance, previousMonthData.balance),
+    };
+  }, [currentMonthData, previousMonthData]);
+
   // Contadores
   const counts = useMemo(() => {
     const equipments = getEquipmentsByCenter(selectedCenter);
@@ -403,9 +442,21 @@ export default function DashboardExecutivoScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Comparação com Mês Anterior</Text>
               <View style={styles.divider} />
-              <ComparisonRow label="Receitas" value={12} isPositive={true} />
-              <ComparisonRow label="Despesas" value={-5} isPositive={false} />
-              <ComparisonRow label="Saldo" value={18} isPositive={true} />
+              <ComparisonRow 
+                label="Receitas" 
+                value={comparison.receipts} 
+                isPositive={comparison.receipts >= 0} 
+              />
+              <ComparisonRow 
+                label="Despesas" 
+                value={comparison.expenses} 
+                isPositive={comparison.expenses <= 0} 
+              />
+              <ComparisonRow 
+                label="Saldo" 
+                value={comparison.balance} 
+                isPositive={comparison.balance >= 0} 
+              />
             </View>
           </View>
 
