@@ -12,6 +12,7 @@ import { useCostCenter } from '../context/CostCenterContext';
 import { useFinancial } from '../context/FinancialContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useContracts } from '../context/ContractContext';
+import { useEmployees } from '../context/EmployeeContext';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { TopExpenseItem } from '../components/TopExpenseItem';
 import { ComparisonRow } from '../components/ComparisonRow';
@@ -36,6 +37,7 @@ export default function DashboardExecutivoScreen() {
   const { getAllExpenses, getAllReceipts } = useFinancial();
   const { getEquipmentsByCenter } = useEquipment();
   const { getContractsByCenter } = useContracts();
+  const { getEmployeesByCenter } = useEmployees();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const onRefresh = React.useCallback(() => {
@@ -98,12 +100,14 @@ export default function DashboardExecutivoScreen() {
   const counts = useMemo(() => {
     const equipments = getEquipmentsByCenter(selectedCenter);
     const contracts = getContractsByCenter(selectedCenter);
+    const employees = getEmployeesByCenter(selectedCenter);
 
     return {
       equipments: equipments.length,
       contracts: contracts.length,
+      employees: employees.length,
     };
-  }, [selectedCenter, getEquipmentsByCenter, getContractsByCenter]);
+  }, [selectedCenter, getEquipmentsByCenter, getContractsByCenter, getEmployeesByCenter]);
 
   // Top 5 despesas
   const topExpenses = useMemo(() => {
@@ -246,6 +250,19 @@ export default function DashboardExecutivoScreen() {
                   <Text style={[styles.trendText, { color: '#6C6C70' }]}>0</Text>
                 </View>
                 <Text style={styles.kpiLabel}>Contratos</Text>
+              </View>
+
+              {/* Funcionários */}
+              <View style={styles.kpiCard}>
+                <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                  <Users size={24} color="#2196F3" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.kpiValue}>{counts.employees}</Text>
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendIconText}>↗</Text>
+                  <Text style={[styles.trendText, { color: '#10B981' }]}>+1</Text>
+                </View>
+                <Text style={styles.kpiLabel}>Funcionários</Text>
               </View>
             </ScrollView>
           </View>
