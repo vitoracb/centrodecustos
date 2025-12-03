@@ -913,7 +913,7 @@ export const DashboardScreen = () => {
               brand: data.brand,
               year: Number(data.year),
               purchaseDate: data.purchaseDate,
-              nextReview: data.nextReview,
+              nextReview: (data as any).nextReview || '',
               status: 'ativo',
               center: selectedCenter,
               currentHours: 0,
