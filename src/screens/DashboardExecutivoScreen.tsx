@@ -55,7 +55,10 @@ export default function DashboardExecutivoScreen() {
     { 
       label: 'Registrar Despesa', 
       icon: DollarSign,
-      onPress: () => router.push('/(tabs)/financeiro' as any),
+      onPress: () => router.push({
+        pathname: '/(tabs)/financeiro' as any,
+        params: { tab: 'Despesas' }
+      }),
     },
     { 
       label: 'Novo Funcionário', 
@@ -63,9 +66,22 @@ export default function DashboardExecutivoScreen() {
       onPress: () => router.push('/(tabs)/funcionarios' as any),
     },
     { 
-      label: 'Ver Contratos', 
+      label: 'Criar Pedido', 
+      icon: ShoppingCart,
+      onPress: () => router.push('/(tabs)/pedidos' as any),
+    },
+    {
+      label: 'Ver Contratos',
       icon: FileText,
       onPress: () => router.push('/(tabs)/contratos' as any),
+    },
+    {
+      label: 'Ver Relatórios',
+      icon: Download,
+      onPress: () => router.push({
+        pathname: '/(tabs)/financeiro' as any,
+        params: { tab: 'Fechamento' }
+      }),
     },
   ];
 
@@ -556,19 +572,20 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     paddingHorizontal: 20,
+    justifyContent: 'space-between',
   },
   quickActionButton: {
-    flex: 1,
-    minWidth: '47%',
+    width: '48%',
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    padding: 16,
+    padding: 20,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+    marginBottom: 12,
   },
   quickActionIcon: {
     width: 48,
