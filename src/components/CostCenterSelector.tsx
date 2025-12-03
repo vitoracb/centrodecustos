@@ -8,11 +8,13 @@ import {
   Pressable,
   ScrollView,
 } from 'react-native';
-import { ChevronDown, Plus } from 'lucide-react-native';
+import { ChevronDown, Plus, User } from 'lucide-react-native';
 import { useCostCenter } from '../context/CostCenterContext';
 import { CostCenterFormModal } from './CostCenterFormModal';
+import { useRouter } from 'expo-router';
 
 export const CostCenterSelector = () => {
+  const router = useRouter();
   const { selectedCenter, setSelectedCenter, costCenters, addCostCenter } = useCostCenter();
   const [isOpen, setIsOpen] = useState(false);
   const [isFormModalVisible, setIsFormModalVisible] = useState(false);
@@ -41,20 +43,38 @@ export const CostCenterSelector = () => {
     }
   };
 
+  const handleProfilePress = () => {
+    // Navegar para tela de perfil (quando existir)
+    // router.push('/profile' as any);
+    console.log('Perfil clicado');
+  };
+
   return (
     <>
       <View style={styles.container}>
-        <Text style={styles.label}>Centro de Custo</Text>
-        <TouchableOpacity
-          style={styles.dropdown}
-          activeOpacity={0.8}
-          onPress={() => setIsOpen(true)}
-        >
-          <Text style={styles.dropdownLabel}>
-            {currentOption?.name || 'Selecione'}
-          </Text>
-          <ChevronDown size={18} color="#1C1C1E" />
-        </TouchableOpacity>
+        <View style={styles.row}>
+          <View style={styles.selectorWrapper}>
+            <Text style={styles.label}>Centro de Custo</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              activeOpacity={0.8}
+              onPress={() => setIsOpen(true)}
+            >
+              <Text style={styles.dropdownLabel}>
+                {currentOption?.name || 'Selecione'}
+              </Text>
+              <ChevronDown size={18} color="#1C1C1E" />
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity
+            style={styles.profileButton}
+            activeOpacity={0.7}
+            onPress={handleProfilePress}
+          >
+            <User size={24} color="#1C1C1E" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal visible={isOpen} transparent animationType="fade">
@@ -120,6 +140,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  selectorWrapper: {
+    flex: 1,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F5F5F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   label: {
     fontSize: 13,
