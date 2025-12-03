@@ -803,7 +803,11 @@ export const DashboardScreen = () => {
                 {centerLabels[selectedCenter as keyof typeof centerLabels]}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8 }}
+            >
               <TouchableOpacity
                 style={[styles.prototypeButton, { backgroundColor: '#0A84FF' }]}
                 onPress={() => router.push('/(tabs)/dashboard-minimalista' as any)}
@@ -817,13 +821,19 @@ export const DashboardScreen = () => {
                 <Text style={styles.prototypeButtonText}>Pro</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.prototypeButton, { backgroundColor: '#F59E0B' }]}
+                onPress={() => router.push('/(tabs)/dashboard-gamificado' as any)}
+              >
+                <Text style={styles.prototypeButtonText}>🏆 Game</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.prototypeButton}
                 onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
               >
                 <Sparkles size={18} color="#FFFFFF" />
                 <Text style={styles.prototypeButtonText}>Novo</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
 
           <GlobalSearch />

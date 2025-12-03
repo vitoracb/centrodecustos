@@ -113,6 +113,13 @@ export default function TabLayout() {
           title: 'Dashboard Executivo',
         }}
       />
+      <Tabs.Screen
+        name="dashboard-gamificado"
+        options={{
+          href: null, // Oculta da tab bar
+          title: 'Dashboard Gamificado',
+        }}
+      />
     </Tabs>
   );
 }
