@@ -125,6 +125,27 @@ export default function DashboardExecutivoScreen() {
     };
   }, [selectedCenter, getEquipmentsByCenter, getContractsByCenter, getEmployeesByCenter]);
 
+  // Despesas por setor
+  const expensesBySector = useMemo(() => {
+    const sectorTotals: Record<string, number> = {};
+    
+    currentMonthData.expensesData.forEach(exp => {
+      const sector = exp.sector || 'Outros';
+      sectorTotals[sector] = (sectorTotals[sector] || 0) + exp.value;
+    });
+
+    const total = Object.values(sectorTotals).reduce((sum, val) => sum + val, 0);
+
+    return Object.entries(sectorTotals)
+      .map(([sector, value]) => ({
+        sector,
+        value,
+        percentage: total > 0 ? (value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [currentMonthData.expensesData]);
+
   // Top 5 despesas
   const topExpenses = useMemo(() => {
     const expensesByName = new Map<string, number>();
@@ -156,6 +177,11 @@ export default function DashboardExecutivoScreen() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+  };
+
+  const getSectorColor = (index: number): string => {
+    const colors = ['#0A84FF', '#FF3B30', '#34C759', '#FF9500', '#AF52DE'];
+    return colors[index % colors.length];
   };
 
   const formatCompact = (value: number): string => {
@@ -322,14 +348,20 @@ export default function DashboardExecutivoScreen() {
               {/* Despesas por Setor */}
               <View style={styles.chartCard}>
                 <Text style={styles.cardTitle}>Despesas/Setor</Text>
-                <View style={styles.pieChartContainer}>
-                  <View style={styles.pieChartScaler}>
-                    <ExpensePieChart
-                      expenses={currentMonthData.expensesData}
-                      mode="mensal"
-                      selectedPeriod={dayjs()}
-                    />
-                  </View>
+                <View style={styles.sectorList}>
+                  {expensesBySector.length > 0 ? (
+                    expensesBySector.map((item, index) => (
+                      <View key={item.sector} style={styles.sectorItem}>
+                        <View style={styles.sectorInfo}>
+                          <View style={[styles.sectorDot, { backgroundColor: getSectorColor(index) }]} />
+                          <Text style={styles.sectorName}>{item.sector}</Text>
+                        </View>
+                        <Text style={styles.sectorValue}>{formatCurrency(item.value)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>Sem despesas</Text>
+                  )}
                 </View>
               </View>
 
@@ -484,6 +516,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sectorList: {
+    gap: 12,
+  },
+  sectorItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sectorInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  sectorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  sectorName: {
+    fontSize: 14,
+    color: '#1C1C1E',
+    flex: 1,
+  },
+  sectorValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6C6C70',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
   lineChartPlaceholder: {
     height: 200,
     backgroundColor: '#F9FAFB',
@@ -521,13 +589,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
     marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#9CA3AF',
-    textAlign: 'center',
-    paddingVertical: 20,
   },
   kpiCard: {
     backgroundColor: '#FFFFFF',
