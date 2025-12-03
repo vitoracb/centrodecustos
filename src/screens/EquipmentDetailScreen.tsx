@@ -209,11 +209,12 @@ export const EquipmentDetailScreen = () => {
       const expEquipmentId = exp.equipmentId
         ? String(exp.equipmentId).trim()
         : null;
-      return (
-        expEquipmentId &&
-        expEquipmentId === equipmentId &&
-        exp.category === 'manutencao' || exp.category === 'equipamentos'
-      );
+
+      if (!expEquipmentId || expEquipmentId !== equipmentId) {
+        return false;
+      }
+
+      return exp.category === 'manutencao' || exp.category === 'equipamentos';
     });
 
     const sorted = filtered.sort((a, b) => {

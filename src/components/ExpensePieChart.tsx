@@ -49,15 +49,25 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
       equipamentos: 0,
     };
 
-    // Se as props externas foram fornecidas, usa as despesas já filtradas diretamente
-    // (não precisa filtrar novamente por período)
+    // Usa as despesas já filtradas; trata categorias desconhecidas e valores inválidos
     expenses.forEach((expense) => {
-      totalsByCategory[expense.category] += expense.value;
+      const rawCategory = expense.category as ExpenseCategory | string;
+
+      // Garante que a categoria existe no mapa; senão, agrupa em 'diversos'
+      const categoryKey: ExpenseCategory =
+        (rawCategory in totalsByCategory
+          ? (rawCategory as ExpenseCategory)
+          : 'diversos');
+
+      const value = Number.isFinite(expense.value) ? expense.value : 0;
+      totalsByCategory[categoryKey] += value;
     });
 
-    const total = Object.values(totalsByCategory).reduce((sum, val) => sum + val, 0);
+    const total = Object.values(totalsByCategory)
+      .filter((val) => Number.isFinite(val))
+      .reduce((sum, val) => sum + val, 0);
 
-    if (total === 0) {
+    if (!Number.isFinite(total) || total <= 0) {
       return null;
     }
 
@@ -65,9 +75,12 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
       .map((category) => ({
         category,
         value: totalsByCategory[category],
-        percentage: (totalsByCategory[category] / total) * 100,
+        percentage:
+          total > 0 && Number.isFinite(totalsByCategory[category])
+            ? (totalsByCategory[category] / total) * 100
+            : 0,
       }))
-      .filter((item) => item.value > 0)
+      .filter((item) => item.value > 0 && Number.isFinite(item.percentage))
       .sort((a, b) => b.value - a.value);
 
     return { data, total };

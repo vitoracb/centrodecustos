@@ -372,7 +372,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("❌ Erro ao carregar despesas:", error);
+        console.warn("❌ Erro ao carregar despesas:", error);
         return;
       }
 
@@ -384,26 +384,6 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
     loadExpenses();
   }, []);
-
-  // --------- GERAR DESPESAS FIXAS AUTOMATICAMENTE ---------
-  useEffect(() => {
-    let hasRun = false;
-    const timer = setTimeout(async () => {
-      if (hasRun) {
-        console.log("⚠️ generateFixedExpenses já foi executado, pulando...");
-        return;
-      }
-      hasRun = true;
-      console.log("🔄 Executando geração de fixos (despesas e receitas)...");
-      await generateFixedExpenses();
-      // Nota: generateFixedReceipts será adicionado quando necessário
-    }, 2000);
-
-    return () => {
-      clearTimeout(timer);
-      hasRun = false;
-    };
-  }, [generateFixedExpenses]);
 
   // --------- CARREGAR RECEITAS DO SUPABASE ---------
   useEffect(() => {
@@ -432,7 +412,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         .order("date", { ascending: false });
 
       if (error) {
-        console.error("❌ Erro ao carregar receitas:", error);
+        console.warn("❌ Erro ao carregar receitas:", error);
         return;
       }
 
@@ -2118,7 +2098,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         .eq("is_fixed", true);
 
       if (fixedError) {
-        console.error("❌ Erro ao buscar despesas fixas:", fixedError);
+        console.warn("❌ Erro ao buscar despesas fixas:", fixedError);
         return;
       }
 
@@ -2128,10 +2108,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       // Para cada despesa fixa, verifica se precisa gerar parcelas
       for (const fixedExpense of fixedExpensesData) {
-        const rawCostCenter = Array.isArray(fixedExpense.cost_centers)
-          ? fixedExpense.cost_centers[0]
-          : fixedExpense.cost_centers;
-        const centerCode = (rawCostCenter as any)?.code;
+        const centerCode = (fixedExpense.cost_center_id ?? "valenca") as CostCenter;
 
         if (!centerCode) continue;
 

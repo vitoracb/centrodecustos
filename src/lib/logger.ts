@@ -1,56 +1,43 @@
-/**
- * Sistema de Logging
- * 
- * Desabilita logs em produção para melhor performance
- * e reduzir exposição de informações sensíveis
- */
-
-const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
-
-type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface Logger {
-  log: (...args: any[]) => void;
+  debug: (...args: any[]) => void;
   info: (...args: any[]) => void;
   warn: (...args: any[]) => void;
   error: (...args: any[]) => void;
-  debug: (...args: any[]) => void;
+  log: (level: LogLevel, ...args: any[]) => void;
 }
 
-const createLogger = (level: LogLevel): Logger[LogLevel] => {
-  if (!isDevelopment) {
-    // Em produção, apenas erros são logados
-    if (level === 'error') {
-      return (...args: any[]) => {
-        console.error(...args);
-      };
-    }
-    // Silencia outros logs em produção
-    return () => {};
-  }
-
-  // Em desenvolvimento, todos os logs funcionam
-  const consoleMethod = console[level] || console.log;
-  return (...args: any[]) => {
-    consoleMethod(...args);
-  };
-};
-
 export const logger: Logger = {
-  log: createLogger('log'),
-  info: createLogger('info'),
-  warn: createLogger('warn'),
-  error: createLogger('error'),
-  debug: createLogger('debug'),
-};
-
-// Helper para logs formatados
-export const logWithPrefix = (prefix: string, level: LogLevel = 'log') => {
-  return (...args: any[]) => {
-    if (isDevelopment || level === 'error') {
-      const consoleMethod = console[level] || console.log;
-      consoleMethod(`[${prefix}]`, ...args);
+  debug: (...args: any[]) => {
+    if (__DEV__) console.debug('[DEBUG]', ...args);
+  },
+  info: (...args: any[]) => {
+    if (__DEV__) console.info('[INFO]', ...args);
+  },
+  warn: (...args: any[]) => {
+    console.warn('[WARN]', ...args);
+  },
+  error: (...args: any[]) => {
+    console.error('[ERROR]', ...args);
+  },
+  log: (level: LogLevel, ...args: any[]) => {
+    switch (level) {
+      case 'debug':
+        if (__DEV__) console.debug('[DEBUG]', ...args);
+        break;
+      case 'info':
+        if (__DEV__) console.info('[INFO]', ...args);
+        break;
+      case 'warn':
+        console.warn('[WARN]', ...args);
+        break;
+      case 'error':
+        console.error('[ERROR]', ...args);
+        break;
+      default:
+        console.log(...args);
     }
-  };
+  },
 };
 
