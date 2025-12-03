@@ -339,17 +339,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             // controla statusChangedAt
             if (updates.status === 'inativo' && eq.status === 'ativo') {
               merged.statusChangedAt = Date.now();
-              showInfo('Equipamento inativado', equipmentName);
             }
             if (updates.status === 'ativo' && eq.status === 'inativo') {
               merged.statusChangedAt = Date.now();
-              showInfo('Equipamento ativado', equipmentName);
             }
 
             return merged;
           }),
         );
-        showSuccess('Equipamento atualizado', equipmentName);
+        
+        // Só mostra mensagem se não for apenas mudança de status
+        const isOnlyStatusChange = Object.keys(updates).length === 1 && 'status' in updates;
+        if (!isOnlyStatusChange) {
+          showSuccess('Equipamento atualizado', equipmentName);
+        }
       } catch (err: any) {
         logger.error('Erro em updateEquipment:', err);
         throw err;
