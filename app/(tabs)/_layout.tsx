@@ -120,6 +120,13 @@ export default function TabLayout() {
           title: 'Dashboard Gamificado',
         }}
       />
+      <Tabs.Screen
+        name="dashboard-mobile"
+        options={{
+          href: null, // Oculta da tab bar
+          title: 'Dashboard Mobile',
+        }}
+      />
     </Tabs>
   );
 }

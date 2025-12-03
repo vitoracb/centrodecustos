@@ -827,6 +827,12 @@ export const DashboardScreen = () => {
                 <Text style={styles.prototypeButtonText}>🏆 Game</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.prototypeButton, { backgroundColor: '#EC4899' }]}
+                onPress={() => router.push('/(tabs)/dashboard-mobile' as any)}
+              >
+                <Text style={styles.prototypeButtonText}>📱 Mobile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.prototypeButton}
                 onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
               >
