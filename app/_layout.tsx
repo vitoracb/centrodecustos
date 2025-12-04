@@ -4,6 +4,7 @@ import Toast from "react-native-toast-message";
 import { useEffect } from "react";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
 import { AuthProvider } from "@/src/context/AuthContext";
+import { PermissionsProvider } from "@/src/context/PermissionsContext";
 import { ProtectedRoute } from "@/src/components/ProtectedRoute";
 import { CostCenterProvider } from "@/src/context/CostCenterContext";
 import { EquipmentProvider } from "@/src/context/EquipmentContext";
@@ -27,8 +28,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ProtectedRoute>
-        <CostCenterProvider>
+      <PermissionsProvider>
+        <ProtectedRoute>
+          <CostCenterProvider>
           <EquipmentProvider>
             <EmployeeProvider>
               <OrdersProvider>
@@ -51,6 +53,7 @@ export default function RootLayout() {
           </EquipmentProvider>
         </CostCenterProvider>
       </ProtectedRoute>
+    </PermissionsProvider>
     </AuthProvider>
   );
 }
