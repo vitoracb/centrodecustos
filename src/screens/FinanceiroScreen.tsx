@@ -40,6 +40,7 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
+import { RemoveAllDuplicatesButton } from '../components/RemoveAllDuplicatesButton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -1796,6 +1797,12 @@ export const FinanceiroScreen = () => {
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       <View style={styles.container}>
         <CostCenterSelector />
+        
+        {/* Botão temporário para remover duplicatas */}
+        <View style={{ padding: 16, paddingTop: 8, paddingBottom: 0 }}>
+          <RemoveAllDuplicatesButton />
+        </View>
+        
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
