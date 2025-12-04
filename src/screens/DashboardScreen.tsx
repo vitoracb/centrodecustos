@@ -33,7 +33,6 @@ import {
   ShoppingCart,
   Trash2,
   Download,
-  Sparkles,
 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -846,50 +845,11 @@ export const DashboardScreen = () => {
           }
         >
           <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Dashboard</Text>
-              <Text style={styles.subtitle}>
-                Visão geral das operações do centro de custo{' '}
-                {centerLabels[selectedCenter as keyof typeof centerLabels]}
-              </Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8 }}
-            >
-              <TouchableOpacity
-                style={[styles.prototypeButton, { backgroundColor: '#0A84FF' }]}
-                onPress={() => router.push('/(tabs)/dashboard-minimalista' as any)}
-              >
-                <Text style={styles.prototypeButtonText}>Clean</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.prototypeButton, { backgroundColor: '#10B981' }]}
-                onPress={() => router.push('/(tabs)/dashboard-executivo' as any)}
-              >
-                <Text style={styles.prototypeButtonText}>Pro</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.prototypeButton, { backgroundColor: '#F59E0B' }]}
-                onPress={() => router.push('/(tabs)/dashboard-gamificado' as any)}
-              >
-                <Text style={styles.prototypeButtonText}>🏆 Game</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.prototypeButton, { backgroundColor: '#EC4899' }]}
-                onPress={() => router.push('/(tabs)/dashboard-mobile' as any)}
-              >
-                <Text style={styles.prototypeButtonText}>📱 Mobile</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.prototypeButton}
-                onPress={() => router.push('/(tabs)/dashboard-visual' as any)}
-              >
-                <Sparkles size={18} color="#FFFFFF" />
-                <Text style={styles.prototypeButtonText}>Novo</Text>
-              </TouchableOpacity>
-            </ScrollView>
+            <Text style={styles.title}>Dashboard</Text>
+            <Text style={styles.subtitle}>
+              Visão geral das operações do centro de custo{' '}
+              {centerLabels[selectedCenter as keyof typeof centerLabels]}
+            </Text>
           </View>
 
           <GlobalSearch />
@@ -1109,28 +1069,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  prototypeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  prototypeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
