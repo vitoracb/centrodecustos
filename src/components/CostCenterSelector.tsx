@@ -199,7 +199,9 @@ export const CostCenterSelector = () => {
                 style={styles.menuItem}
                 onPress={() => {
                   setIsProfileMenuOpen(false);
-                  router.push('/user-management' as any);
+                  setTimeout(() => {
+                    router.push('/user-management' as any);
+                  }, 100);
                 }}
                 activeOpacity={0.7}
               >
@@ -212,7 +214,9 @@ export const CostCenterSelector = () => {
               style={styles.menuItem}
               onPress={() => {
                 setIsProfileMenuOpen(false);
-                router.push('/change-password' as any);
+                setTimeout(() => {
+                  router.push('/change-password' as any);
+                }, 100);
               }}
               activeOpacity={0.7}
             >
