@@ -2166,21 +2166,23 @@ export const FinanceiroScreen = () => {
         }}
       />
       
-      {/* Botões flutuantes de navegação */}
-      <TouchableOpacity
-        style={[styles.floatingButton, styles.floatingButtonLeft]}
-        onPress={handlePreviousPeriod}
-        activeOpacity={0.8}
-      >
-        <ChevronLeft size={22} color="#0A84FF" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.floatingButton, styles.floatingButtonRight]}
-        onPress={handleNextPeriod}
-        activeOpacity={0.8}
-      >
-        <ChevronRight size={22} color="#0A84FF" />
-      </TouchableOpacity>
+      {/* Botões de navegação de período */}
+      <View style={styles.navigationBar}>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={handlePreviousPeriod}
+          activeOpacity={0.7}
+        >
+          <ChevronLeft size={24} color="#0A84FF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={handleNextPeriod}
+          activeOpacity={0.7}
+        >
+          <ChevronRight size={24} color="#0A84FF" />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -2722,29 +2724,30 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  floatingButton: {
+  navigationBar: {
     position: 'absolute',
-    top: '50%',
-    marginTop: -22,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    bottom: 60,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    zIndex: 1000,
+  },
+  navButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 3,
-    zIndex: 1000,
-  },
-  floatingButtonLeft: {
-    left: 16,
-  },
-  floatingButtonRight: {
-    right: 16,
   },
 });
