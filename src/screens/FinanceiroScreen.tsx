@@ -2167,22 +2167,20 @@ export const FinanceiroScreen = () => {
       />
       
       {/* Botões de navegação de período */}
-      <View style={styles.navigationBar}>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={handlePreviousPeriod}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={24} color="#0A84FF" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={handleNextPeriod}
-          activeOpacity={0.7}
-        >
-          <ChevronRight size={24} color="#0A84FF" />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={[styles.navButton, styles.navButtonLeft]}
+        onPress={handlePreviousPeriod}
+        activeOpacity={0.7}
+      >
+        <ChevronLeft size={24} color="#0A84FF" />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.navButton, styles.navButtonRight]}
+        onPress={handleNextPeriod}
+        activeOpacity={0.7}
+      >
+        <ChevronRight size={24} color="#0A84FF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -2724,21 +2722,9 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  navigationBar: {
-    position: 'absolute',
-    bottom: 60,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    backgroundColor: 'transparent',
-    zIndex: 1000,
-  },
   navButton: {
+    position: 'absolute',
+    bottom: 68,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -2747,5 +2733,12 @@ const styles = StyleSheet.create({
     borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1000,
+  },
+  navButtonLeft: {
+    left: 16,
+  },
+  navButtonRight: {
+    right: 16,
   },
 });
