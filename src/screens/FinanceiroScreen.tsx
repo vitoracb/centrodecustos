@@ -1876,6 +1876,24 @@ export const FinanceiroScreen = () => {
             })}
           </View>
 
+          {/* Botões de navegação rápida de período */}
+          <View style={styles.quickNavContainer}>
+            <TouchableOpacity
+              style={styles.quickNavButton}
+              onPress={handlePreviousPeriod}
+              activeOpacity={0.6}
+            >
+              <ChevronLeft size={20} color="#0A84FF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickNavButton}
+              onPress={handleNextPeriod}
+              activeOpacity={0.6}
+            >
+              <ChevronRight size={20} color="#0A84FF" />
+            </TouchableOpacity>
+          </View>
+
           {renderContent()}
         </ScrollView>
       </View>
@@ -2166,21 +2184,6 @@ export const FinanceiroScreen = () => {
         }}
       />
       
-      {/* Botões de navegação de período */}
-      <TouchableOpacity
-        style={[styles.navButton, styles.navButtonLeft]}
-        onPress={handlePreviousPeriod}
-        activeOpacity={0.7}
-      >
-        <ChevronLeft size={24} color="#0A84FF" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.navButton, styles.navButtonRight]}
-        onPress={handleNextPeriod}
-        activeOpacity={0.7}
-      >
-        <ChevronRight size={24} color="#0A84FF" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -2722,23 +2725,30 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  navButton: {
-    position: 'absolute',
-    bottom: 68,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  quickNavContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  quickNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1000,
-  },
-  navButtonLeft: {
-    left: 16,
-  },
-  navButtonRight: {
-    right: 16,
   },
 });
