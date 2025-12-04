@@ -494,10 +494,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#E5E5EA',
-    marginBottom: 16,
+    marginVertical: 8,
   },
   searchPlaceholder: {
     flex: 1,
