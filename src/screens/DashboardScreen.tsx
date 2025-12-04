@@ -401,6 +401,8 @@ export const DashboardScreen = () => {
 
     // Despesas do mês anterior (com mesma lógica de filtro de duplicatas)
     const allExpenses = getAllExpenses();
+    console.log('📊 Total de despesas no banco:', allExpenses.length);
+    console.log('📊 Primeiras 3 despesas:', allExpenses.slice(0, 3).map(e => ({ date: e.date, value: e.value, center: e.center })));
     const centerExpenses = allExpenses.filter(exp => {
       if (exp.center !== selectedCenter) return false;
       
@@ -410,6 +412,8 @@ export const DashboardScreen = () => {
       const expenseMonth = `${dateParts[2]}-${dateParts[1]}`;
       return expenseMonth === previousMonth;
     });
+    console.log('📊 Despesas do centro', selectedCenter, 'no mês', previousMonth, ':', centerExpenses.length);
+    console.log('📊 Despesas filtradas:', centerExpenses.slice(0, 3).map(e => ({ date: e.date, value: e.value })));
 
     // Filtra para evitar duplicação de templates e parcelas
     const filteredExpenses = centerExpenses.filter(exp => {
