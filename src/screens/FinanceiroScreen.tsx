@@ -40,7 +40,7 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
-import { RemoveAllDuplicatesButton } from '../components/RemoveAllDuplicatesButton';
+import { RemoveDuplicateGestorButton } from '../components/RemoveDuplicateGestorButton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -1798,9 +1798,9 @@ export const FinanceiroScreen = () => {
       <View style={styles.container}>
         <CostCenterSelector />
         
-        {/* Botão temporário para remover duplicatas */}
+        {/* Botão temporário para remover duplicatas do Salário Gestor */}
         <View style={{ padding: 16, paddingTop: 8, paddingBottom: 0 }}>
-          <RemoveAllDuplicatesButton />
+          <RemoveDuplicateGestorButton expenseName="Salário Gestor" />
         </View>
         
         <ScrollView
