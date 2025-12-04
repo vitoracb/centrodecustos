@@ -261,6 +261,35 @@ export const FinanceiroScreen = () => {
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
 
+  // Sincroniza períodos entre abas quando o usuário troca de aba
+  const lastActiveTabRef = useRef(activeTab);
+  useEffect(() => {
+    // Só sincroniza se a aba mudou (não na primeira renderização)
+    if (lastActiveTabRef.current !== activeTab) {
+      // Pega o período da aba anterior
+      let currentPeriod: dayjs.Dayjs;
+      
+      if (lastActiveTabRef.current === 'Recebimentos') {
+        currentPeriod = selectedReceiptPeriod;
+      } else if (lastActiveTabRef.current === 'Despesas') {
+        currentPeriod = selectedExpensePeriod;
+      } else {
+        currentPeriod = selectedPeriod;
+      }
+
+      // Aplica o período na nova aba
+      if (activeTab === 'Recebimentos' && !selectedReceiptPeriod.isSame(currentPeriod, 'month')) {
+        setSelectedReceiptPeriod(currentPeriod);
+      } else if (activeTab === 'Despesas' && !selectedExpensePeriod.isSame(currentPeriod, 'month')) {
+        setSelectedExpensePeriod(currentPeriod);
+      } else if (activeTab === 'Fechamento' && !selectedPeriod.isSame(currentPeriod, 'month')) {
+        setSelectedPeriod(currentPeriod);
+      }
+
+      lastActiveTabRef.current = activeTab;
+    }
+  }, [activeTab, selectedPeriod, selectedReceiptPeriod, selectedExpensePeriod]);
+
   const handleAddExpenseDocument = async () => {
     if (!selectedExpenseForDocument) return;
 
