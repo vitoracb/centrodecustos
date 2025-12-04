@@ -544,68 +544,6 @@ export const buildReportHTML = (data: ReportData): string => {
   })()}
   ` : ''}
 
-  <h2>Detalhamento de Despesas por Categoria</h2>
-  ${(() => {
-    // Agrupa despesas por categoria
-    const expensesByCategory: Record<string, Expense[]> = {};
-    expenses.forEach((expense) => {
-      const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
-      if (!expensesByCategory[category]) {
-        expensesByCategory[category] = [];
-      }
-      expensesByCategory[category].push(expense);
-    });
-
-    // Ordena categorias por total de valor (decrescente)
-    const sortedCategories = Object.keys(expensesByCategory).sort((a, b) => {
-      const totalA = expensesByCategory[a].reduce((sum, exp) => sum + exp.value, 0);
-      const totalB = expensesByCategory[b].reduce((sum, exp) => sum + exp.value, 0);
-      return totalB - totalA;
-    });
-
-    return sortedCategories.map((category) => {
-      const categoryExpenses = expensesByCategory[category];
-      const categoryTotal = categoryExpenses.reduce((sum, exp) => sum + exp.value, 0);
-      
-      return `
-        <div style="margin-bottom: 30px;">
-          <h3 style="background: #f5f5f5; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-            ${category} — Total: ${formatCurrency(categoryTotal)}
-          </h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Descrição</th>
-                <th>Status</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${categoryExpenses
-                .sort((a, b) => {
-                  // Ordena por data (mais recente primeiro)
-                  const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
-                  const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
-                  if (!dateA.isValid() || !dateB.isValid()) return 0;
-                  return dateB.valueOf() - dateA.valueOf();
-                })
-                .map((expense) => `
-                  <tr>
-                    <td>${formatDate(expense.date)}</td>
-                    <td>${expense.name || ''}</td>
-                    <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
-                    <td>${formatCurrency(expense.value)}</td>
-                  </tr>
-                `)
-                .join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }).join('');
-  })()}
-
   <h2>Detalhamento de Recebimentos</h2>
   <table>
     <thead>
