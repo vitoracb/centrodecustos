@@ -464,6 +464,17 @@ export const DashboardScreen = () => {
       return ((current - previous) / previous) * 100;
     };
 
+    // Debug
+    console.log('=== COMPARAÇÃO MÊS ANTERIOR ===');
+    console.log('Mês atual:', dayjs().format('YYYY-MM'));
+    console.log('Mês anterior:', dayjs().subtract(1, 'month').format('YYYY-MM'));
+    console.log('Receitas atual:', monthlyReceipts);
+    console.log('Receitas anterior:', previousMonthData.receipts);
+    console.log('Despesas atual:', monthlyExpenses);
+    console.log('Despesas anterior:', previousMonthData.expenses);
+    console.log('Saldo atual:', monthlyBalance);
+    console.log('Saldo anterior:', previousMonthData.balance);
+
     return {
       receipts: calculatePercentage(monthlyReceipts, previousMonthData.receipts),
       expenses: calculatePercentage(monthlyExpenses, previousMonthData.expenses),
