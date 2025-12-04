@@ -42,6 +42,7 @@ import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { RemoveDuplicateGestorButton } from '../components/RemoveDuplicateGestorButton';
 import { DiagnoseGestorButton } from '../components/DiagnoseGestorButton';
+import { RemoveOldTemplateButton } from '../components/RemoveOldTemplateButton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -1802,7 +1803,7 @@ export const FinanceiroScreen = () => {
         {/* Botões temporários para diagnosticar e remover duplicatas */}
         <View style={{ padding: 16, paddingTop: 8, paddingBottom: 0 }}>
           <DiagnoseGestorButton />
-          <RemoveDuplicateGestorButton expenseName="Salário Gestor" />
+          <RemoveOldTemplateButton />
         </View>
         
         <ScrollView
