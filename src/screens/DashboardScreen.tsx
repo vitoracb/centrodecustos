@@ -22,6 +22,7 @@ import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { showSuccess, showError } from '../lib/toast';
 import { GlobalSearch } from '../components/GlobalSearch';
+import { ProfileMenu } from '../components/ProfileMenu';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { DashboardOverviewSkeleton } from '../components/skeletons/DashboardOverviewSkeleton';
 import {
@@ -845,11 +846,14 @@ export const DashboardScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>
-              Visão geral das operações do centro de custo{' '}
-              {centerLabels[selectedCenter as keyof typeof centerLabels]}
-            </Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.title}>Dashboard</Text>
+              <Text style={styles.subtitle}>
+                Visão geral das operações do centro de custo{' '}
+                {centerLabels[selectedCenter as keyof typeof centerLabels]}
+              </Text>
+            </View>
+            <ProfileMenu />
           </View>
 
           <GlobalSearch />
@@ -1069,7 +1073,13 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 6,
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
     fontSize: 28,
