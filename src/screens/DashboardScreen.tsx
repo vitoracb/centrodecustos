@@ -396,22 +396,58 @@ export const DashboardScreen = () => {
 
   // Cálculos do mês anterior
   const previousMonthData = useMemo(() => {
-    const previousMonth = dayjs().subtract(1, 'month').format('YYYY-MM');
+    const prevMonth = dayjs().subtract(1, 'month');
+    const previousMonth = prevMonth.format('YYYY-MM');
 
-    const expenses = getAllExpenses().filter(exp => {
+    // Despesas do mês anterior (com mesma lógica de filtro de duplicatas)
+    const allExpenses = getAllExpenses();
+    const centerExpenses = allExpenses.filter(exp => {
       if (exp.center !== selectedCenter) return false;
-      const expMonth = exp.date.split('/').reverse().slice(0, 2).join('-');
-      return expMonth === previousMonth;
+      
+      const dateParts = exp.date.split('/');
+      if (dateParts.length !== 3) return false;
+      
+      const expenseMonth = `${dateParts[2]}-${dateParts[1]}`;
+      return expenseMonth === previousMonth;
     });
 
-    const receipts = getAllReceipts().filter(rec => {
+    // Filtra para evitar duplicação de templates e parcelas
+    const filteredExpenses = centerExpenses.filter(exp => {
+      if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
+        return true;
+      }
+      
+      if (exp.isFixed) {
+        const expMonth = dayjs(exp.date, 'DD/MM/YYYY').format('YYYY-MM');
+        const hasGeneratedInstallmentsInSameMonth = centerExpenses.some(
+          other => 
+            other.id !== exp.id &&
+            other.name === exp.name &&
+            other.center === exp.center &&
+            dayjs(other.date, 'DD/MM/YYYY').format('YYYY-MM') === expMonth &&
+            other.installmentNumber !== undefined &&
+            other.installmentNumber !== null
+        );
+        return !hasGeneratedInstallmentsInSameMonth;
+      }
+      
+      return true;
+    });
+
+    // Receitas do mês anterior
+    const allReceipts = getAllReceipts();
+    const centerReceipts = allReceipts.filter(rec => {
       if (rec.center !== selectedCenter) return false;
-      const recMonth = rec.date.split('/').reverse().slice(0, 2).join('-');
-      return recMonth === previousMonth;
+      
+      const dateParts = rec.date.split('/');
+      if (dateParts.length !== 3) return false;
+      
+      const receiptMonth = `${dateParts[2]}-${dateParts[1]}`;
+      return receiptMonth === previousMonth;
     });
 
-    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.value, 0);
-    const totalReceipts = receipts.reduce((sum, rec) => sum + rec.value, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
+    const totalReceipts = centerReceipts.reduce((sum, rec) => sum + (rec.value || 0), 0);
     const balance = totalReceipts - totalExpenses;
 
     return {
