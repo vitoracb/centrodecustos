@@ -367,6 +367,32 @@ export const DashboardScreen = () => {
     return total;
   }, [selectedCenter, getAllExpenses]);
 
+  // Calcula receitas do mês atual
+  const monthlyReceipts = useMemo(() => {
+    const receipts = getAllReceipts();
+    const now = dayjs();
+
+    const centerReceipts = receipts.filter(receipt => {
+      if (receipt.center !== selectedCenter) return false;
+      
+      const dateParts = receipt.date.split('/');
+      if (dateParts.length !== 3) return false;
+      
+      const receiptMonth = `${dateParts[2]}-${dateParts[1]}`;
+      const currentMonth = now.format('YYYY-MM');
+      
+      return receiptMonth === currentMonth;
+    });
+
+    const total = centerReceipts.reduce((sum, receipt) => sum + (receipt.value || 0), 0);
+    return total;
+  }, [selectedCenter, getAllReceipts]);
+
+  // Calcula saldo do mês (receitas - despesas)
+  const monthlyBalance = useMemo(() => {
+    return monthlyReceipts - monthlyExpenses;
+  }, [monthlyReceipts, monthlyExpenses]);
+
   // Calcula funcionários únicos (excluindo deletados e sem equipamento válido)
   const employeesCount = useMemo(() => {
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
@@ -643,11 +669,16 @@ export const DashboardScreen = () => {
 
   const statCards = useMemo(() => [
     {
-      label: 'Equipamentos Ativos',
-      value: String(activeEquipments),
+      label: 'Receitas do Mês',
+      value: formatCurrency(monthlyReceipts),
       change: '',
-      icon: Tractor,
-      onPress: () => router.push('/(tabs)/equipamentos'),
+      icon: DollarSign,
+      onPress: () => {
+        router.push({
+          pathname: '/(tabs)/financeiro',
+          params: { tab: 'Recebimentos', month: dayjs().month(), year: dayjs().year() },
+        });
+      },
     },
     {
       label: 'Despesas do Mês',
@@ -662,6 +693,25 @@ export const DashboardScreen = () => {
       },
     },
     {
+      label: 'Saldo do Mês',
+      value: formatCurrency(monthlyBalance),
+      change: '',
+      icon: DollarSign,
+      onPress: () => {
+        router.push({
+          pathname: '/(tabs)/financeiro',
+          params: { tab: 'Fechamento', month: dayjs().month(), year: dayjs().year() },
+        });
+      },
+    },
+    {
+      label: 'Equipamentos Ativos',
+      value: String(activeEquipments),
+      change: '',
+      icon: Tractor,
+      onPress: () => router.push('/(tabs)/equipamentos'),
+    },
+    {
       label: 'Funcionários',
       value: String(employeesCount),
       change: '',
@@ -669,13 +719,13 @@ export const DashboardScreen = () => {
       onPress: () => router.push('/(tabs)/funcionarios'),
     },
     {
-      label: 'Contratos Ativos',
+      label: 'Contratos',
       value: String(contractsCount),
       change: '',
       icon: FileText,
       onPress: () => router.push('/(tabs)/contratos'),
     },
-  ], [activeEquipments, monthlyExpenses, employeesCount, contractsCount, router]);
+  ], [monthlyReceipts, monthlyExpenses, monthlyBalance, activeEquipments, employeesCount, contractsCount, router]);
 
   const buildReportData = useCallback((): ReportData => {
     const currentMonth = dayjs().month();
@@ -1118,39 +1168,40 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
   },
   statCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    width: '48%',
+    borderRadius: 12,
+    padding: 12,
+    width: '31.5%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 2,
-    gap: 8,
+    gap: 6,
   },
   statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#E5F1FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#6C6C70',
+    fontWeight: '500',
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1C1C1E',
   },
   statChange: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#34C759',
   },
   sectionsRow: {
