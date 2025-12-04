@@ -166,6 +166,19 @@ ALTER TABLE review_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE financial_transactions ENABLE ROW LEVEL SECURITY;
 
 -- 12. Criar políticas de acesso (permite tudo - ajuste depois se necessário)
+-- Remove políticas existentes primeiro (se houver)
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON cost_centers;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON equipments;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON expenses;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON receipts;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON contracts;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON orders;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON employee_documents;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON contract_documents;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON review_notifications;
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON financial_transactions;
+
+-- Cria as políticas
 CREATE POLICY "Enable all for authenticated users" ON cost_centers FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON equipments FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON expenses FOR ALL USING (true);
