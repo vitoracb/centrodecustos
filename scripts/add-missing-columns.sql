@@ -1,20 +1,25 @@
 -- Script para adicionar colunas faltantes nas tabelas existentes
 -- Execute este script no SQL Editor do Supabase
 
--- Adicionar coluna active em equipments
+-- EQUIPMENTS
 ALTER TABLE equipments ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE equipments ADD COLUMN IF NOT EXISTS current_hours NUMERIC;
 
--- Adicionar coluna active em contracts  
+-- CONTRACTS
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS category TEXT;
 
--- Adicionar coluna quote_file_mime_type em orders
+-- ORDERS
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_file_mime_type TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_file_name TEXT;
 
--- Adicionar coluna document_date em employee_documents
+-- EMPLOYEE_DOCUMENTS
 ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS document_date TEXT;
+ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS document_name TEXT;
 
--- Adicionar coluna notified_date em review_notifications
+-- REVIEW_NOTIFICATIONS
 ALTER TABLE review_notifications ADD COLUMN IF NOT EXISTS notified_date TEXT;
 
--- Adicionar coluna contract_id em financial_transactions
+-- FINANCIAL_TRANSACTIONS
 ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS contract_id UUID REFERENCES contracts(id);
+ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS debit_amount NUMERIC;
