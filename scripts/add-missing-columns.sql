@@ -5,11 +5,13 @@
 ALTER TABLE equipments ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
 ALTER TABLE equipments ADD COLUMN IF NOT EXISTS current_hours NUMERIC;
 ALTER TABLE equipments ADD COLUMN IF NOT EXISTS hours_per_revision NUMERIC;
+ALTER TABLE equipments ADD COLUMN IF NOT EXISTS hours_until_revision NUMERIC;
 
 -- CONTRACTS
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contract_date TEXT;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS description TEXT;
 
 -- ORDERS
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_file_mime_type TEXT;
@@ -20,6 +22,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_file_url TEXT;
 ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS document_date TEXT;
 ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS document_name TEXT;
 ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS employee_name TEXT;
+ALTER TABLE employee_documents ADD COLUMN IF NOT EXISTS file_url TEXT;
 
 -- REVIEW_NOTIFICATIONS
 ALTER TABLE review_notifications ADD COLUMN IF NOT EXISTS notified_date TEXT;
@@ -28,3 +31,4 @@ ALTER TABLE review_notifications ADD COLUMN IF NOT EXISTS notified_date TEXT;
 ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS contract_id UUID REFERENCES contracts(id);
 ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS debit_amount NUMERIC;
 ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS debit_description TEXT;
+ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS fixed_duration_months INTEGER;
