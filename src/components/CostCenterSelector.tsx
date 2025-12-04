@@ -7,17 +7,23 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Alert,
 } from 'react-native';
-import { ChevronDown, Plus, User } from 'lucide-react-native';
+import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit } from 'lucide-react-native';
 import { useCostCenter } from '../context/CostCenterContext';
+import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { CostCenterFormModal } from './CostCenterFormModal';
 import { useRouter } from 'expo-router';
 
 export const CostCenterSelector = () => {
   const router = useRouter();
   const { selectedCenter, setSelectedCenter, costCenters, addCostCenter } = useCostCenter();
+  const { user, signOut } = useAuth();
+  const { profile, isAdmin, isEditor, isViewer } = usePermissions();
   const [isOpen, setIsOpen] = useState(false);
   const [isFormModalVisible, setIsFormModalVisible] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const currentOption =
     costCenters.find((option) => option.code === selectedCenter) ??
@@ -44,9 +50,42 @@ export const CostCenterSelector = () => {
   };
 
   const handleProfilePress = () => {
-    // Navegar para tela de perfil (quando existir)
-    // router.push('/profile' as any);
-    console.log('Perfil clicado');
+    setIsProfileMenuOpen(true);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair',
+      'Tem certeza que deseja sair?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            setIsProfileMenuOpen(false);
+            await signOut();
+          },
+        },
+      ]
+    );
+  };
+
+  const getRoleIcon = () => {
+    if (isAdmin) return <Shield size={16} color="#FF3B30" />;
+    if (isEditor) return <Edit size={16} color="#FF9500" />;
+    if (isViewer) return <Eye size={16} color="#0A84FF" />;
+    return null;
+  };
+
+  const getRoleLabel = () => {
+    if (isAdmin) return 'Administrador';
+    if (isEditor) return 'Editor';
+    if (isViewer) return 'Visualizador';
+    return 'Usuário';
   };
 
   return (
@@ -128,6 +167,44 @@ export const CostCenterSelector = () => {
         onClose={() => setIsFormModalVisible(false)}
         onSubmit={handleFormSubmit}
       />
+
+      {/* Modal de Perfil */}
+      <Modal
+        visible={isProfileMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsProfileMenuOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.profileOverlay}
+          activeOpacity={1}
+          onPress={() => setIsProfileMenuOpen(false)}
+        >
+          <View style={styles.profileMenu}>
+            <View style={styles.userInfo}>
+              <View style={styles.userIconLarge}>
+                <User size={24} color="#0A84FF" />
+              </View>
+              <Text style={styles.userEmail}>{user?.email}</Text>
+              <View style={styles.roleContainer}>
+                {getRoleIcon()}
+                <Text style={styles.roleText}>{getRoleLabel()}</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+            >
+              <LogOut size={20} color="#FF3B30" />
+              <Text style={styles.menuItemTextLogout}>Sair</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 };
@@ -232,5 +309,72 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  profileOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 80,
+    paddingRight: 16,
+  },
+  profileMenu: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    minWidth: 250,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  userInfo: {
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  userIconLarge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F5F5F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  userEmail: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    textAlign: 'center',
+  },
+  roleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#F5F5F7',
+    borderRadius: 12,
+  },
+  roleText: {
+    fontSize: 12,
+    color: '#6C6C70',
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+  },
+  menuItemTextLogout: {
+    fontSize: 15,
+    color: '#FF3B30',
+    fontWeight: '500',
   },
 });
