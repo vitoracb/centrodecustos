@@ -86,6 +86,9 @@ async function main() {
     'contracts',
     'orders',
     'employee_documents',
+    'contract_documents',
+    'review_notifications',
+    'financial_transactions',
   ];
   
   let totalRecords = 0;

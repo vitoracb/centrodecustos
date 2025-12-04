@@ -109,7 +109,51 @@ CREATE TABLE IF NOT EXISTS employee_documents (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8. Habilitar RLS (Row Level Security)
+-- 8. Criar tabela contract_documents
+CREATE TABLE IF NOT EXISTS contract_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id UUID REFERENCES contracts(id),
+  file_name TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  mime_type TEXT,
+  file_size INTEGER,
+  deleted_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. Criar tabela review_notifications
+CREATE TABLE IF NOT EXISTS review_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  equipment_id UUID REFERENCES equipments(id),
+  review_date TEXT NOT NULL,
+  days_until INTEGER,
+  notified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(equipment_id, review_date, notified_at)
+);
+
+-- 10. Criar tabela financial_transactions (se ainda for usada)
+CREATE TABLE IF NOT EXISTS financial_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  value NUMERIC NOT NULL,
+  date TEXT NOT NULL,
+  category TEXT,
+  sector TEXT,
+  cost_center_id TEXT REFERENCES cost_centers(id),
+  equipment_id UUID REFERENCES equipments(id),
+  is_fixed BOOLEAN DEFAULT FALSE,
+  installment_number INTEGER,
+  total_installments INTEGER,
+  parent_id UUID,
+  deleted_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. Habilitar RLS (Row Level Security)
 ALTER TABLE cost_centers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
@@ -117,8 +161,11 @@ ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contract_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE review_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financial_transactions ENABLE ROW LEVEL SECURITY;
 
--- 9. Criar políticas de acesso (permite tudo - ajuste depois se necessário)
+-- 12. Criar políticas de acesso (permite tudo - ajuste depois se necessário)
 CREATE POLICY "Enable all for authenticated users" ON cost_centers FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON equipments FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON expenses FOR ALL USING (true);
@@ -126,3 +173,6 @@ CREATE POLICY "Enable all for authenticated users" ON receipts FOR ALL USING (tr
 CREATE POLICY "Enable all for authenticated users" ON contracts FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON orders FOR ALL USING (true);
 CREATE POLICY "Enable all for authenticated users" ON employee_documents FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON contract_documents FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON review_notifications FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON financial_transactions FOR ALL USING (true);
