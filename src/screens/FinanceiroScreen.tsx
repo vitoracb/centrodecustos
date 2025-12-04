@@ -22,8 +22,6 @@ import {
   ChevronDown,
   Download,
   BarChart3,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -1794,51 +1792,6 @@ export const FinanceiroScreen = () => {
     }
   };
 
-  // Funções de navegação de período
-  const handlePreviousPeriod = () => {
-    if (activeTab === 'Recebimentos') {
-      if (receiptMode === 'mensal') {
-        setSelectedReceiptPeriod(prev => prev.subtract(1, 'month'));
-      } else {
-        setSelectedReceiptPeriod(prev => prev.subtract(1, 'year'));
-      }
-    } else if (activeTab === 'Despesas') {
-      if (expenseMode === 'mensal') {
-        setSelectedExpensePeriod(prev => prev.subtract(1, 'month'));
-      } else {
-        setSelectedExpensePeriod(prev => prev.subtract(1, 'year'));
-      }
-    } else if (activeTab === 'Fechamento') {
-      if (closureMode === 'mensal') {
-        setSelectedPeriod(prev => prev.subtract(1, 'month'));
-      } else {
-        setSelectedPeriod(prev => prev.subtract(1, 'year'));
-      }
-    }
-  };
-
-  const handleNextPeriod = () => {
-    if (activeTab === 'Recebimentos') {
-      if (receiptMode === 'mensal') {
-        setSelectedReceiptPeriod(prev => prev.add(1, 'month'));
-      } else {
-        setSelectedReceiptPeriod(prev => prev.add(1, 'year'));
-      }
-    } else if (activeTab === 'Despesas') {
-      if (expenseMode === 'mensal') {
-        setSelectedExpensePeriod(prev => prev.add(1, 'month'));
-      } else {
-        setSelectedExpensePeriod(prev => prev.add(1, 'year'));
-      }
-    } else if (activeTab === 'Fechamento') {
-      if (closureMode === 'mensal') {
-        setSelectedPeriod(prev => prev.add(1, 'month'));
-      } else {
-        setSelectedPeriod(prev => prev.add(1, 'year'));
-      }
-    }
-  };
-
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       <View style={styles.container}>
@@ -1851,27 +1804,7 @@ export const FinanceiroScreen = () => {
           }
         >
           <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <View style={styles.headerTitleContainer}>
-                <Text style={styles.title}>Financeiro</Text>
-              </View>
-              <View style={styles.headerNavButtons}>
-                <TouchableOpacity
-                  style={styles.headerNavButton}
-                  onPress={handlePreviousPeriod}
-                  activeOpacity={0.6}
-                >
-                  <ChevronLeft size={20} color="#0A84FF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.headerNavButton}
-                  onPress={handleNextPeriod}
-                  activeOpacity={0.6}
-                >
-                  <ChevronRight size={20} color="#0A84FF" />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Text style={styles.title}>Financeiro</Text>
             <Text style={styles.subtitle}>
               Controle financeiro do centro {costCenters.find(cc => cc.code === selectedCenter)?.name || centerLabels[selectedCenter as keyof typeof centerLabels] || selectedCenter}
             </Text>
@@ -2726,28 +2659,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0A84FF',
     fontWeight: '600',
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerNavButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerNavButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: '#0A84FF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
