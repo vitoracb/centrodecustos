@@ -2726,7 +2726,7 @@ const styles = StyleSheet.create({
   },
   navigationBar: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 60,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -2734,11 +2734,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    paddingBottom: 64,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    paddingVertical: 4,
+    backgroundColor: 'transparent',
     zIndex: 1000,
   },
   navButton: {
