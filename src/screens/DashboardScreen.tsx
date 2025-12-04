@@ -24,6 +24,7 @@ import { showSuccess, showError } from '../lib/toast';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { DashboardOverviewSkeleton } from '../components/skeletons/DashboardOverviewSkeleton';
+import { ComparisonRow } from '../components/ComparisonRow';
 import {
   Tractor,
   DollarSign,
@@ -392,6 +393,47 @@ export const DashboardScreen = () => {
   const monthlyBalance = useMemo(() => {
     return monthlyReceipts - monthlyExpenses;
   }, [monthlyReceipts, monthlyExpenses]);
+
+  // Cálculos do mês anterior
+  const previousMonthData = useMemo(() => {
+    const previousMonth = dayjs().subtract(1, 'month').format('YYYY-MM');
+
+    const expenses = getAllExpenses().filter(exp => {
+      if (exp.center !== selectedCenter) return false;
+      const expMonth = exp.date.split('/').reverse().slice(0, 2).join('-');
+      return expMonth === previousMonth;
+    });
+
+    const receipts = getAllReceipts().filter(rec => {
+      if (rec.center !== selectedCenter) return false;
+      const recMonth = rec.date.split('/').reverse().slice(0, 2).join('-');
+      return recMonth === previousMonth;
+    });
+
+    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.value, 0);
+    const totalReceipts = receipts.reduce((sum, rec) => sum + rec.value, 0);
+    const balance = totalReceipts - totalExpenses;
+
+    return {
+      expenses: totalExpenses,
+      receipts: totalReceipts,
+      balance,
+    };
+  }, [selectedCenter, getAllExpenses, getAllReceipts]);
+
+  // Comparação com mês anterior (percentual)
+  const comparison = useMemo(() => {
+    const calculatePercentage = (current: number, previous: number): number => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    return {
+      receipts: calculatePercentage(monthlyReceipts, previousMonthData.receipts),
+      expenses: calculatePercentage(monthlyExpenses, previousMonthData.expenses),
+      balance: calculatePercentage(monthlyBalance, previousMonthData.balance),
+    };
+  }, [monthlyReceipts, monthlyExpenses, monthlyBalance, previousMonthData]);
 
   // Calcula funcionários únicos (excluindo deletados e sem equipamento válido)
   const employeesCount = useMemo(() => {
@@ -918,6 +960,27 @@ export const DashboardScreen = () => {
               ))}
             </View>
 
+            {/* Comparação com Mês Anterior */}
+            <View style={styles.comparisonCard}>
+              <Text style={styles.comparisonTitle}>Comparação com Mês Anterior</Text>
+              <View style={styles.divider} />
+              <ComparisonRow 
+                label="Receitas" 
+                value={Math.round(comparison.receipts)} 
+                isPositive={comparison.receipts >= 0} 
+              />
+              <ComparisonRow 
+                label="Despesas" 
+                value={Math.round(comparison.expenses)} 
+                isPositive={comparison.expenses <= 0} 
+              />
+              <ComparisonRow 
+                label="Saldo" 
+                value={Math.round(comparison.balance)} 
+                isPositive={comparison.balance >= 0} 
+              />
+            </View>
+
             <View style={styles.sectionsRow}>
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Atividades Recentes</Text>
@@ -1203,6 +1266,28 @@ const styles = StyleSheet.create({
   statChange: {
     fontSize: 10,
     color: '#34C759',
+  },
+  comparisonCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  comparisonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    marginBottom: 8,
   },
   sectionsRow: {
     gap: 16,
