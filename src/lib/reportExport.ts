@@ -74,6 +74,10 @@ const formatDate = (date: string): string => {
   return date; // Já vem no formato DD/MM/YYYY
 };
 
+const capitalize = (str: string): string => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
 export interface ReportData {
   expenses: Expense[];
   receipts: Receipt[];
@@ -85,7 +89,7 @@ export const buildReportHTML = (data: ReportData): string => {
   const { expenses, receipts, period, center } = data;
     
   const periodLabel = period.month !== undefined
-    ? `${dayjs().month(period.month).format('MMMM')} de ${period.year}`
+    ? `${capitalize(dayjs().month(period.month).format('MMMM'))} de ${period.year}`
     : `Ano ${period.year}`;
 
   const centerLabel = center ? getCenterLabel(center) : 'Todos os Centros';
@@ -661,7 +665,7 @@ export const exportToPDF = async (data: ReportData): Promise<string> => {
     const html = buildReportHTML(data);
     const timestamp = Date.now();
     const periodLabel = data.period.month !== undefined
-      ? `${dayjs().month(data.period.month).format('MMMM')}_${data.period.year}`
+      ? `${capitalize(dayjs().month(data.period.month).format('MMMM'))}_${data.period.year}`
       : `Ano_${data.period.year}`;
     const centerLabel = data.center ? getCenterLabel(data.center).replace(/\s+/g, '_') : 'Todos_Centros';
     
@@ -681,7 +685,7 @@ export const exportToExcel = async (data: ReportData): Promise<void> => {
     const { expenses, receipts, period, center } = data;
     
     const periodLabel = period.month !== undefined
-      ? `${dayjs().month(period.month).format('MMMM')}_${period.year}`
+      ? `${capitalize(dayjs().month(period.month).format('MMMM'))}_${period.year}`
       : `Ano_${period.year}`;
 
     const centerLabel = center ? getCenterLabel(center).replace(/\s+/g, '_') : 'Todos_Centros';
