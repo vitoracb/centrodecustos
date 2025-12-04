@@ -26,6 +26,7 @@ import {
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useFinancial, Receipt, Expense, ExpenseCategory, ExpenseStatus } from '../context/FinancialContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
 import { ReceiptFilterModal, ReceiptFilters } from '../components/ReceiptFilterModal';
@@ -198,7 +199,22 @@ const getExpenseFixedInfo = (expense: Expense, allExpenses: Expense[]): { isFixe
 export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter, costCenters } = useCostCenter();
-  const { getReceiptsByCenter, getExpensesByCenter, getAllExpenses, getAllReceipts, addReceipt, updateReceipt, deleteReceipt, addExpense, updateExpense, deleteExpense, addDocumentToExpense, deleteExpenseDocument } = useFinancial();
+  const {
+    getReceiptsByCenter, 
+    getExpensesByCenter, 
+    getAllExpenses, 
+    getAllReceipts, 
+    addReceipt, 
+    updateReceipt, 
+    deleteReceipt, 
+    addExpense, 
+    updateExpense, 
+    deleteExpense, 
+    addDocumentToExpense,
+    deleteExpenseDocument,
+    generateFixedExpenses,
+  } = useFinancial();
+  const { canEdit, canDelete, isAdmin } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
   const [reportPreview, setReportPreview] = useState<{
     type: 'pdf' | 'excel';
@@ -1131,16 +1147,18 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => {
-                setEditingReceipt(null);
-                setReceiptModalVisible(true);
-              }}
-            >
-              <Plus size={18} color="#0A84FF" />
-              <Text style={styles.secondaryButtonText}>Novo Recebimento</Text>
-            </TouchableOpacity>
+            {canEdit && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setEditingReceipt(null);
+                  setReceiptModalVisible(true);
+                }}
+              >
+                <Plus size={18} color="#0A84FF" />
+                <Text style={styles.secondaryButtonText}>Novo Recebimento</Text>
+              </TouchableOpacity>
+            )}
             {filteredReceipts.length > 0 ? (
               filteredReceipts.map((item) => (
                 <View key={item.id} style={styles.card}>
@@ -1169,34 +1187,38 @@ export const FinanceiroScreen = () => {
                       })()}
                     </View>
                     <View style={styles.cardActions}>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => {
-                          setEditingReceipt(item);
-                          setReceiptModalVisible(true);
-                        }}
-                      >
-                        <Edit3 size={16} color="#0A84FF" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => {
-                          Alert.alert(
-                            'Excluir recebimento',
-                            'Tem certeza que deseja excluir este recebimento?',
-                            [
-                              { text: 'Cancelar', style: 'cancel' },
-                              {
-                                text: 'Excluir',
-                                style: 'destructive',
-                                onPress: () => deleteReceipt(item.id),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Trash2 size={16} color="#FF3B30" />
-                      </TouchableOpacity>
+                      {canEdit && (
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={() => {
+                            setEditingReceipt(item);
+                            setReceiptModalVisible(true);
+                          }}
+                        >
+                          <Edit3 size={16} color="#0A84FF" />
+                        </TouchableOpacity>
+                      )}
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => {
+                            Alert.alert(
+                              'Excluir recebimento',
+                              'Tem certeza que deseja excluir este recebimento?',
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                  text: 'Excluir',
+                                  style: 'destructive',
+                                  onPress: () => deleteReceipt(item.id),
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Trash2 size={16} color="#FF3B30" />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                   {item.status && (
@@ -1209,6 +1231,7 @@ export const FinanceiroScreen = () => {
                         item.status === 'recebido' && styles.statusPillRecebido,
                       ]}
                       onPress={() => {
+                        if (!canEdit) return;
                         setSelectedReceiptForStatus(item);
                         setReceiptStatusModalVisible(true);
                       }}
@@ -1360,16 +1383,18 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => {
-                setEditingExpense(null);
-                setExpenseModalVisible(true);
-              }}
-            >
-              <Plus size={18} color="#0A84FF" />
-              <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
-            </TouchableOpacity>
+            {canEdit && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setEditingExpense(null);
+                  setExpenseModalVisible(true);
+                }}
+              >
+                <Plus size={18} color="#0A84FF" />
+                <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
+              </TouchableOpacity>
+            )}
             <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
             <ExpenseBarChart expenses={filteredExpenses} />
             <ExpenseSectorChart expenses={filteredExpenses} />
@@ -1515,36 +1540,40 @@ export const FinanceiroScreen = () => {
                         })()}
                       </View>
                       <View style={styles.cardActions}>
-                        <TouchableOpacity
-                          style={styles.editButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            setEditingExpense(item);
-                            setExpenseModalVisible(true);
-                          }}
-                        >
-                          <Edit3 size={16} color="#0A84FF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.deleteButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            Alert.alert(
-                              'Excluir despesa',
-                              'Tem certeza que deseja excluir esta despesa?',
-                              [
-                                { text: 'Cancelar', style: 'cancel' },
-                                {
-                                  text: 'Excluir',
-                                  style: 'destructive',
-                                  onPress: () => deleteExpense(item.id),
-                                },
-                              ]
-                            );
-                          }}
-                        >
-                          <Trash2 size={16} color="#FF3B30" />
-                        </TouchableOpacity>
+                        {canEdit && (
+                          <TouchableOpacity
+                            style={styles.editButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setEditingExpense(item);
+                              setExpenseModalVisible(true);
+                            }}
+                          >
+                            <Edit3 size={16} color="#0A84FF" />
+                          </TouchableOpacity>
+                        )}
+                        {canDelete && (
+                          <TouchableOpacity
+                            style={styles.deleteButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              Alert.alert(
+                                'Excluir despesa',
+                                'Tem certeza que deseja excluir esta despesa?',
+                                [
+                                  { text: 'Cancelar', style: 'cancel' },
+                                  {
+                                    text: 'Excluir',
+                                    style: 'destructive',
+                                    onPress: () => deleteExpense(item.id),
+                                  },
+                                ]
+                              );
+                            }}
+                          >
+                            <Trash2 size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </TouchableOpacity>
                     
@@ -1557,8 +1586,11 @@ export const FinanceiroScreen = () => {
                             ? { backgroundColor: STATUS_STYLES[item.status].backgroundColor }
                             : { backgroundColor: '#FFF3D6' }
                         ]}
-                        onPress={() => setStatusModalExpense(item)}
-                        activeOpacity={0.7}
+                        onPress={() => {
+                          if (!isAdmin) return;
+                          setStatusModalExpense(item);
+                        }}
+                        activeOpacity={isAdmin ? 0.7 : 1}
                       >
                         <Text style={[
                           styles.statusText,
@@ -1797,7 +1829,7 @@ export const FinanceiroScreen = () => {
               />
             </View>
 
-            {/* Botões de Exportação */}
+            {/* Botão de Exportação (apenas PDF) */}
             <View style={styles.exportButtons}>
               <TouchableOpacity
                 style={[styles.exportButton, styles.exportButtonPDF]}
@@ -1805,13 +1837,6 @@ export const FinanceiroScreen = () => {
               >
                 <FileText size={18} color="#FFFFFF" />
                 <Text style={styles.exportButtonText}>Gerar Relatório PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.exportButton, styles.exportButtonExcel]}
-                onPress={() => handleOpenClosureReportPreview('excel')}
-              >
-                <Download size={18} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>Gerar Relatório Excel</Text>
               </TouchableOpacity>
             </View>
           </View>

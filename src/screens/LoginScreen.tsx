@@ -90,7 +90,14 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Entrar</Text>
             )}
           </TouchableOpacity>
-
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => router.push('/signup' as any)}
+          >
+            <Text style={styles.linkText}>
+              Não tem conta? <Text style={styles.linkTextBold}>Criar conta</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>

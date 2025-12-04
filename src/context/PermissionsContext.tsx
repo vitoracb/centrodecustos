@@ -21,6 +21,7 @@ interface PermissionsContextType {
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canUploadFiles: boolean;
   canInviteUsers: boolean;
   refreshProfile: () => Promise<void>;
 }
@@ -71,6 +72,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     canCreate: role === 'admin' || role === 'editor',
     canEdit: role === 'admin' || role === 'editor',
     canDelete: role === 'admin',
+    canUploadFiles: role === 'admin' || role === 'editor',
     canInviteUsers: role === 'admin',
     refreshProfile: loadProfile,
   };

@@ -9,6 +9,8 @@ import React, {
 import { supabase } from "@/src/lib/supabaseClient";
 import { CostCenter } from "./CostCenterContext";
 import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
+import { useAuth } from "./AuthContext";
+import { cacheManager } from "@/src/lib/cacheManager";
 
 // ============================
 // TIPOS
@@ -176,6 +178,7 @@ const mapRowToOrder = (row: any): Order => {
 // ============================
 
 const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,37 +189,57 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
-
-    const { data, error } = await supabase
-      .from("orders")
-      .select(
-        `
-        id,
-        name,
-        description,
-        order_date,
-        status,
-        equipment_id,
-        created_at,
-        cost_centers ( code ),
-        equipments ( id, name ),
-        order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
-      `
-      )
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.log("❌ Erro ao carregar pedidos:", error);
-      setError(error.message);
+    if (!user) {
+      setOrders([]);
       setLoading(false);
       return;
     }
 
-    const mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+    const cacheKey = `orders:${user.id}`;
 
-    setOrders(mapped);
-    setLoading(false);
-  }, []);
+    try {
+      console.log("[Orders] 📦 Tentando carregar pedidos do cache...");
+      const cached = await cacheManager.get<Order[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        console.log(`[Orders] ✅ ${cached.length} pedidos carregados do cache`);
+        setOrders(cached);
+      }
+
+      const { data, error } = await supabase
+        .from("orders")
+        .select(
+          `
+          id,
+          name,
+          description,
+          order_date,
+          status,
+          equipment_id,
+          created_at,
+          cost_center_id,
+          order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.log("❌ Erro ao carregar pedidos:", error);
+        setError(error.message);
+        return;
+      }
+
+      const mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+
+      setOrders(mapped);
+      await cacheManager.set(cacheKey, mapped);
+      console.log("[Orders] 💾 Cache de pedidos atualizado");
+    } catch (e: any) {
+      console.log("❌ Erro inesperado ao carregar pedidos:", e);
+      setError(e.message ?? "Erro inesperado ao carregar pedidos");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadOrders();
@@ -235,6 +258,10 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
       equipmentId?: string;
     }) => {
       try {
+        if (!user) {
+          throw new Error("Usuário não autenticado");
+        }
+        const cacheKey = `orders:${user.id}`;
         console.log("📦 Salvando pedido:", order);
 
         const payload = {
@@ -259,7 +286,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( id, name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -274,14 +300,17 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           ...data,
           cost_center_id: data.cost_center_id ?? order.costCenter,
         });
-
-        setOrders((prev) => [newOrder, ...prev]);
+        setOrders((prev) => {
+          const next = [newOrder, ...prev];
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
       } catch (err) {
         console.log("❌ Erro em addOrder:", err);
         throw err;
       }
     },
-    []
+    [user],
   );
 
   // ----------------------------
@@ -290,6 +319,10 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   const updateOrder = useCallback(
     async (order: Order) => {
       try {
+        if (!user) {
+          throw new Error("Usuário não autenticado");
+        }
+        const cacheKey = `orders:${user.id}`;
         const existing = orders.find((o) => o.id === order.id);
 
         // 1) Atualiza os campos básicos do pedido
@@ -313,10 +346,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
         }
 
         // 2) Documentos
-        // Consideramos que:
-        // - documentos que já existem no banco têm "id" e fileUri começando com http
-        // - documentos novos vêm sem "id" e com fileUri local (file:// ou similar)
-
         const currentDocs = order.documents ?? existing?.documents ?? [];
         const docsToUpload = currentDocs.filter(
           (doc) =>
@@ -331,7 +360,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
               fileName: doc.fileName,
               mimeType: doc.mimeType ?? "application/pdf",
             })),
-            "documentos"
+            "order-documents"
           );
 
           const docsPayload = docsToUpload.map((doc, index) => ({
@@ -348,7 +377,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
           if (docsError) {
             console.log("⚠️ Erro ao salvar documentos do pedido:", docsError);
-            // não dou throw aqui pra não quebrar o update inteiro
           }
         }
 
@@ -365,8 +393,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( id, name ),
-            order_documents ( id, type, file_url, file_name, mime_type, created_at )
+            order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
           .eq("id", order.id)
@@ -379,15 +406,17 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
         const updated = mapRowToOrder(data);
 
-        setOrders((prev) =>
-          prev.map((o) => (o.id === order.id ? updated : o))
-        );
+        setOrders((prev) => {
+          const next = prev.map((o) => (o.id === order.id ? updated : o));
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
       } catch (err) {
         console.log("❌ Erro em updateOrder:", err);
         throw err;
       }
     },
-    [orders]
+    [orders, user]
   );
 
   // ----------------------------
@@ -395,21 +424,38 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   // ----------------------------
   const deleteOrder = useCallback(async (id: string) => {
     try {
-      // order_documents tem FK com ON DELETE CASCADE,
-      // então ao deletar o pedido, os docs vão junto.
-      const { error } = await supabase.from("orders").delete().eq("id", id);
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
+      const cacheKey = `orders:${user.id}`;
+      const { error: docsError } = await supabase
+        .from("order_documents")
+        .delete()
+        .eq("order_id", id);
+
+      if (docsError && docsError.code !== "PGRST205") {
+        console.log("⚠️ Erro ao deletar documentos do pedido:", docsError);
+      }
+
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", id);
 
       if (error) {
         console.log("❌ Erro ao deletar pedido:", error);
         throw error;
       }
-
-      setOrders((prev) => prev.filter((o) => o.id !== id));
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== id);
+        cacheManager.set(cacheKey, next).catch(() => {});
+        return next;
+      });
     } catch (err) {
       console.log("❌ Erro em deleteOrder:", err);
       throw err;
     }
-  }, []);
+  }, [user]);
 
   // ----------------------------
   // APPROVE ORDER
@@ -417,7 +463,10 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   const approveOrder = useCallback(
     async (orderId: string, documentId: string) => {
       try {
-        // 1. Marca o documento específico como aprovado
+        if (!user) {
+          throw new Error("Usuário não autenticado");
+        }
+        const cacheKey = `orders:${user.id}`;
         const { error: docError } = await supabase
           .from("order_documents")
           .update({ approved: true })
@@ -429,7 +478,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           throw docError;
         }
 
-        // 2. Atualiza o status do pedido para aprovado
         const { error: orderError } = await supabase
           .from("orders")
           .update({ status: "orcamento_aprovado" })
@@ -440,7 +488,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           throw orderError;
         }
 
-        // 3. Recarrega o pedido completo para ter os dados atualizados
         const { data, error: loadError } = await supabase
           .from("orders")
           .select(
@@ -453,7 +500,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( id, name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -467,15 +513,17 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
         const updated = mapRowToOrder(data);
 
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? updated : o))
-        );
+        setOrders((prev) => {
+          const next = prev.map((o) => (o.id === orderId ? updated : o));
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
       } catch (err) {
         console.log("❌ Erro em approveOrder:", err);
         throw err;
       }
     },
-    []
+    [user]
   );
 
   // ----------------------------
@@ -484,6 +532,10 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   const rejectOrder = useCallback(
     async (orderId: string) => {
       try {
+        if (!user) {
+          throw new Error("Usuário não autenticado");
+        }
+        const cacheKey = `orders:${user.id}`;
         const { error } = await supabase
           .from("orders")
           .update({ status: "orcamento_reprovado" })
@@ -493,18 +545,21 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           console.log("❌ Erro ao reprovar pedido:", error);
           throw error;
         }
-
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === orderId ? { ...o, status: "orcamento_reprovado" } : o
-          )
-        );
+        setOrders((prev) => {
+          const next = prev.map((o) =>
+            o.id === orderId
+              ? { ...o, status: "orcamento_reprovado" as OrderStatus }
+              : o
+          );
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
       } catch (err) {
         console.log("❌ Erro em rejectOrder:", err);
         throw err;
       }
     },
-    []
+    [user]
   );
 
   // ----------------------------

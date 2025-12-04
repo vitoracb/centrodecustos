@@ -21,10 +21,12 @@ import {
   Check,
   X,
   Filter,
+  ShoppingCart,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useOrders, Order, OrderStatus } from '../context/OrderContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { OrderFormModal } from '../components/OrderFormModal';
 import { OrderBudgetModal } from '../components/OrderBudgetModal';
@@ -100,6 +102,7 @@ export default function PedidosScreen() {
     getOrdersByCenter,
     refresh,
   } = useOrders();
+  const { canCreate, canEdit, canDelete, isAdmin } = usePermissions();
   const { getEquipmentsByCenter } = useEquipment();
   
   // Obtém o nome do centro de custo selecionado
@@ -280,6 +283,10 @@ export default function PedidosScreen() {
   };
 
   const handleApproveBudget = async (currentFileUri?: string, currentIndex?: number) => {
+    if (!isAdmin) {
+      Alert.alert('Permissão negada', 'Apenas administradores podem aprovar orçamentos.');
+      return;
+    }
     if (!currentOrderForPreview || !previewFile) return;
 
     // Verifica se já foi aprovado
@@ -350,6 +357,10 @@ export default function PedidosScreen() {
   };
 
   const handleRejectOrder = async (order: Order) => {
+    if (!isAdmin) {
+      Alert.alert('Permissão negada', 'Apenas administradores podem reprovar orçamentos.');
+      return;
+    }
     Alert.alert(
       'Rejeitar Orçamentos',
       'Deseja rejeitar todos os orçamentos deste pedido? O status será alterado para "Orçamento reprovado".',
@@ -372,6 +383,7 @@ export default function PedidosScreen() {
   };
 
   const handleDeleteOrder = (order: Order) => {
+    if (!canDelete) return;
     const hasBudget = order.documents?.some(doc => doc.type === "orcamento") || false;
     const title = hasBudget ? 'Excluir pedido com orçamento' : 'Excluir pedido';
     const message = hasBudget
@@ -418,14 +430,16 @@ export default function PedidosScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            activeOpacity={0.9}
-            onPress={() => setIsFormVisible(true)}
-          >
-            <Plus color="#FFFFFF" size={20} />
-            <Text style={styles.primaryButtonText}>Novo Pedido</Text>
-          </TouchableOpacity>
+          {canCreate && (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              activeOpacity={0.9}
+              onPress={() => setIsFormVisible(true)}
+            >
+              <Plus color="#FFFFFF" size={20} />
+              <Text style={styles.primaryButtonText}>Novo Pedido</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -495,6 +509,11 @@ export default function PedidosScreen() {
                       <View style={styles.cardHeaderLeft}>
                         <Text style={styles.cardTitle}>{order.name}</Text>
                         <Text style={styles.cardSubtitle}>{order.description}</Text>
+                      </View>
+                      <View style={styles.cardHeaderRight}>
+                        <View style={styles.cardIconWrapper}>
+                          <ShoppingCart size={18} color="#0A84FF" />
+                        </View>
                       </View>
                     </View>
 
@@ -590,7 +609,7 @@ export default function PedidosScreen() {
                         </Text>
                       </TouchableOpacity>
 
-                      {(order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
+                      {canEdit && (order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
                         <View style={styles.actionWithStatusContainer}>
                           <TouchableOpacity
                             style={styles.actionPill}
@@ -916,6 +935,21 @@ const styles = StyleSheet.create({
   },
   cardHeaderLeft: {
     flex: 1,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  cardHeaderRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+  },
+  cardIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5F1FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
     fontSize: 16,

@@ -11,6 +11,10 @@ import { Alert } from "react-native";
 import { CostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
+import { useAuth } from "./AuthContext";
+import { useCostCenter } from "./CostCenterContext";
+import { useRealtimeSync } from "@/src/hooks/useRealtimeSync";
+import { cacheManager } from "@/src/lib/cacheManager";
 
 // ========================
 // TIPOS
@@ -280,7 +284,7 @@ async function mapRowToExpense(row: any): Promise<Expense> {
     const { data: docsData, error: docsError } = await supabase
       .from("expense_documents")
       .select("type, file_name, file_url, mime_type")
-      .eq("transaction_id", row.id)
+      .eq("expense_id", row.id)
       .order("created_at", { ascending: true });
 
     if (docsError) {
@@ -395,13 +399,31 @@ interface FinancialProviderProps {
 }
 
 export const FinancialProvider = ({ children }: FinancialProviderProps) => {
+  const { user } = useAuth();
+  const { selectedCenter } = useCostCenter();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  // --------- CARREGAR DESPESAS DO SUPABASE ---------
-  useEffect(() => {
-    const loadExpenses = async () => {
-      console.log("🔌 Carregando despesas do Supabase...");
+  // ============================================
+  // 📦 CARREGAR DESPESAS (Cache + Banco)
+  // ============================================
+  const loadExpenses = useCallback(async () => {
+    if (!user || !selectedCenter) {
+      setExpenses([]);
+      return;
+    }
+
+    const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
+
+    try {
+      console.log("[Financial] 📦 Tentando carregar despesas do cache...");
+      const cached = await cacheManager.get<Expense[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        console.log(`[Financial] ✅ ${cached.length} despesas carregadas do cache`);
+        setExpenses(cached);
+      }
+
+      console.log("[Financial] 🌐 Carregando despesas do Supabase...");
       const { data, error } = await supabase
         .from("financial_transactions")
         .select(
@@ -423,9 +445,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           created_at,
           cost_center_id
         `
-            )
-            .eq("type", "DESPESA")
-            .order("created_at", { ascending: false });
+        )
+        .eq("type", "DESPESA")
+        .eq("cost_center_id", selectedCenter)
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.warn("❌ Erro ao carregar despesas:", error);
@@ -435,42 +458,98 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
       const mapped: Expense[] = await Promise.all(
         (data ?? []).map((row: any) => mapRowToExpense(row))
       );
-      
-      // Migração: converter categoria 'gestao' para 'gestor'
-      const migratedExpenses = mapped.map(expense => {
-        if ((expense.category as any) === 'gestao') {
-          console.log(`🔄 Migrando despesa ${expense.name} de 'gestao' para 'gestor'`);
-          return { ...expense, category: 'gestor' as any };
-        }
-        return expense;
-      });
-      
-      setExpenses(migratedExpenses);
-      
-      // Atualizar no Supabase as despesas migradas
-      const expensesToUpdate = migratedExpenses.filter((exp, idx) => 
-        (mapped[idx].category as any) === 'gestao'
-      );
-      
-      if (expensesToUpdate.length > 0) {
-        console.log(`📝 Atualizando ${expensesToUpdate.length} despesa(s) no Supabase...`);
-        for (const expense of expensesToUpdate) {
-          await supabase
-            .from('financial_transactions')
-            .update({ category: 'gestor' })
-            .eq('id', expense.id);
-        }
-        console.log('✅ Migração concluída!');
-      }
-    };
 
-    loadExpenses();
-  }, []);
+      setExpenses(mapped);
+      await cacheManager.set(cacheKey, mapped);
+      console.log("[Financial] 💾 Cache de despesas atualizado");
+    } catch (e) {
+      console.error("[Financial] ❌ Erro ao carregar despesas:", e);
+    }
+  }, [user, selectedCenter]);
 
-  // --------- CARREGAR RECEITAS DO SUPABASE ---------
   useEffect(() => {
-    const loadReceipts = async () => {
-      console.log("🔌 Carregando receitas do Supabase...");
+    loadExpenses();
+  }, [loadExpenses]);
+
+  // ============================================
+  // 🔄 REALTIME SYNC - DESPESAS
+  // ============================================
+  useRealtimeSync<any>({
+    table: "financial_transactions",
+    filters:
+      user && selectedCenter
+        ? [
+            { column: "type", value: "DESPESA" },
+            { column: "cost_center_id", value: selectedCenter },
+          ]
+        : [],
+    onInsert: async (row) => {
+      if (row.type !== "DESPESA") return;
+      console.log("[Financial] 📥 INSERT via Realtime:", row.description);
+
+      const expense = await mapRowToExpense(row);
+      setExpenses((prev) => {
+        if (prev.some((e) => e.id === expense.id)) return prev;
+        return [expense, ...prev];
+      });
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
+        const next = await cacheManager.get<Expense[]>(cacheKey);
+        const base = next ?? [];
+        const merged = [expense, ...base.filter((e) => e.id !== expense.id)];
+        await cacheManager.set(cacheKey, merged);
+      }
+    },
+    onUpdate: async (row) => {
+      if (row.type !== "DESPESA") return;
+      console.log("[Financial] 📝 UPDATE via Realtime:", row.description);
+
+      const expense = await mapRowToExpense(row);
+      setExpenses((prev) => prev.map((e) => (e.id === expense.id ? expense : e)));
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
+        const current = (await cacheManager.get<Expense[]>(cacheKey)) ?? [];
+        const merged = current.map((e) => (e.id === expense.id ? expense : e));
+        await cacheManager.set(cacheKey, merged);
+      }
+    },
+    onDelete: async (row) => {
+      if (row.type !== "DESPESA") return;
+      console.log("[Financial] 🗑️ DELETE via Realtime:", row.description);
+
+      setExpenses((prev) => prev.filter((e) => e.id !== row.id));
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
+        const current = (await cacheManager.get<Expense[]>(cacheKey)) ?? [];
+        const next = current.filter((e) => e.id !== row.id);
+        await cacheManager.set(cacheKey, next);
+      }
+    },
+  });
+
+  // ============================================
+  // 📦 CARREGAR RECEITAS (Cache + Banco)
+  // ============================================
+  const loadReceipts = useCallback(async () => {
+    if (!user || !selectedCenter) {
+      setReceipts([]);
+      return;
+    }
+
+    const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
+
+    try {
+      console.log("[Financial] 📦 Tentando carregar receitas do cache...");
+      const cached = await cacheManager.get<Receipt[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        console.log(`[Financial] ✅ ${cached.length} receitas carregadas do cache`);
+        setReceipts(cached);
+      }
+
+      console.log("[Financial] 🌐 Carregando receitas do Supabase...");
       const { data, error } = await supabase
         .from("financial_transactions")
         .select(
@@ -491,6 +570,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         `
         )
         .eq("type", "RECEITA")
+        .eq("cost_center_id", selectedCenter)
         .order("date", { ascending: false });
 
       if (error) {
@@ -502,10 +582,80 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         mapRowToReceipt(row)
       );
       setReceipts(mapped);
-    };
+      await cacheManager.set(cacheKey, mapped);
+      console.log("[Financial] 💾 Cache de receitas atualizado");
+    } catch (e) {
+      console.error("[Financial] ❌ Erro ao carregar receitas:", e);
+    }
+  }, [user, selectedCenter]);
 
+  useEffect(() => {
     loadReceipts();
-  }, []);
+  }, [loadReceipts]);
+
+  // ============================================
+  // 🔄 REALTIME SYNC - RECEITAS
+  // ============================================
+  useRealtimeSync<any>({
+    table: "financial_transactions",
+    filters:
+      user && selectedCenter
+        ? [
+            { column: "type", value: "RECEITA" },
+            { column: "cost_center_id", value: selectedCenter },
+          ]
+        : [],
+    onInsert: (row) => {
+      if (row.type !== "RECEITA") return;
+      console.log("[Financial] 📥 INSERT RECEITA via Realtime:", row.description);
+
+      const receipt = mapRowToReceipt(row);
+      setReceipts((prev) => {
+        if (prev.some((r) => r.id === receipt.id)) return prev;
+        return [receipt, ...prev];
+      });
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
+        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+          const base = current ?? [];
+          const merged = [receipt, ...base.filter((r) => r.id !== receipt.id)];
+          cacheManager.set(cacheKey, merged);
+        });
+      }
+    },
+    onUpdate: (row) => {
+      if (row.type !== "RECEITA") return;
+      console.log("[Financial] 📝 UPDATE RECEITA via Realtime:", row.description);
+
+      const receipt = mapRowToReceipt(row);
+      setReceipts((prev) => prev.map((r) => (r.id === receipt.id ? receipt : r)));
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
+        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+          const list = current ?? [];
+          const merged = list.map((r) => (r.id === receipt.id ? receipt : r));
+          cacheManager.set(cacheKey, merged);
+        });
+      }
+    },
+    onDelete: (row) => {
+      if (row.type !== "RECEITA") return;
+      console.log("[Financial] 🗑️ DELETE RECEITA via Realtime:", row.description);
+
+      setReceipts((prev) => prev.filter((r) => r.id !== row.id));
+
+      if (user && selectedCenter) {
+        const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
+        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+          const list = current ?? [];
+          const next = list.filter((r) => r.id !== row.id);
+          cacheManager.set(cacheKey, next);
+        });
+      }
+    },
+  });
 
   // ========================
   // RECEITAS — CRUD
@@ -1149,14 +1299,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 fileName: doc.fileName,
                 mimeType: doc.mimeType,
               })),
-              "documentos"
+              "expense-documents"
             );
 
             const documentsPayload = expense.documents.map((doc, index) => {
               const storageUrl = uploadResults[index];
               return {
-                transaction_id: data.id,
-                type: doc.type,
+                expense_id: data.id,
+                type: doc.type ?? "recibo",
                 file_name: doc.fileName,
                 file_url: storageUrl || doc.fileUri,
                 mime_type: doc.mimeType ?? null,
@@ -1878,7 +2028,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 await supabase
                   .from("expense_documents")
                   .select("id, file_url, file_name, mime_type, type")
-                  .eq("transaction_id", expense.id);
+                  .eq("expense_id", expense.id);
 
               if (existingDocsError) {
                 if (
@@ -1895,6 +2045,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                   );
                 }
               } else if (existingDocs) {
+                // 1) Descobre quais docs remover
                 const docsToDelete = existingDocs.filter(
                   (doc) =>
                     !desiredDocs.some(
@@ -1906,7 +2057,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                   const { error: deleteError } = await supabase
                     .from("expense_documents")
                     .delete()
-                    .eq("transaction_id", expense.id)
+                    .eq("expense_id", expense.id)
                     .in(
                       "file_url",
                       docsToDelete
@@ -1922,6 +2073,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                   }
                 }
 
+                // 2) Descobre quais docs adicionar
                 const docsToAdd = desiredDocs.filter(
                   (doc) =>
                     !existingDocs.some(
@@ -1941,13 +2093,12 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                       doc.fileUri,
                       doc.fileName,
                       doc.mimeType,
-                      "documentos",
-                      "expenses"
+                      "expense-documents"
                     );
 
                     if (!uploadedUrl) {
                       console.warn(
-                        "⚠️ Não foi possível fazer upload do documento ao editar a despesa."
+                        "⚠️ Falha ao fazer upload de documento adicional da despesa"
                       );
                       continue;
                     }
@@ -1958,7 +2109,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                   const { error: insertError } = await supabase
                     .from("expense_documents")
                     .insert({
-                      transaction_id: expense.id,
+                      expense_id: expense.id,
                       type: doc.type ?? "recibo",
                       file_name: doc.fileName,
                       file_url: fileUrl,
@@ -2080,7 +2231,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const { error: docsError } = await supabase
           .from("expense_documents")
           .delete()
-          .eq("transaction_id", id);
+          .eq("expense_id", id);
 
         if (docsError && docsError.code !== "PGRST205") {
           console.warn("⚠️ Erro ao deletar documentos da despesa:", docsError);
@@ -2111,7 +2262,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           document.fileUri,
           document.fileName,
           document.mimeType,
-          "documentos",
+          "expense-documents",
           "expenses"
         );
 
@@ -2123,7 +2274,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const { data, error } = await supabase
           .from("expense_documents")
           .insert({
-            transaction_id: expenseId,
+            expense_id: expenseId,
             type: document.type,
             file_name: document.fileName,
             file_url: fileUrl,
@@ -2138,7 +2289,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Atualiza o estado local
         const newDocument: ExpenseDocument = {
-          type: data.type as "nota_fiscal" | "recibo" | "comprovante_pagamento",
+          type: (data.type ?? document.type) as "nota_fiscal" | "recibo" | "comprovante_pagamento",
           fileName: data.file_name,
           fileUri: data.file_url,
           mimeType: data.mime_type ?? null,
@@ -2172,7 +2323,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const { error } = await supabase
           .from("expense_documents")
           .delete()
-          .eq("transaction_id", expenseId)
+          .eq("expense_id", expenseId)
           .eq("file_url", documentUri);
 
         if (error) {

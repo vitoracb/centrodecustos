@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useContracts } from '../context/ContractContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2 } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
@@ -50,6 +51,7 @@ const formatCurrency = (value?: number): string => {
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
   const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
+  const { canCreate, canUploadFiles, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -122,6 +124,7 @@ export const ContratosScreen = () => {
   }, [contracts, filters]);
 
   const openAttachmentOptions = (contractId: string) => {
+    if (!canUploadFiles) return;
     setActiveContractId(contractId);
     setAttachmentModalVisible(true);
   };
@@ -177,6 +180,7 @@ export const ContratosScreen = () => {
   };
 
   const handleContractDocumentUpload = async () => {
+    if (!canUploadFiles) return;
     if (!activeContractId) return;
     try {
       setIsPickingFile(true);
@@ -205,6 +209,7 @@ export const ContratosScreen = () => {
   };
 
   const handleContractPhotoFromCamera = async () => {
+    if (!canUploadFiles) return;
     if (!activeContractId) {
       // Se não há contrato ativo, reabre o modal
       setAttachmentModalVisible(true);
@@ -258,6 +263,7 @@ export const ContratosScreen = () => {
   };
 
   const handleContractPhotoFromLibrary = async () => {
+    if (!canUploadFiles) return;
     if (!activeContractId) {
       // Se não há contrato ativo, reabre o modal
       setAttachmentModalVisible(true);
@@ -300,6 +306,7 @@ export const ContratosScreen = () => {
   };
 
   const handleContractPhotoUpload = () => {
+    if (!canUploadFiles) return;
     // Mostra um menu com as opções antes de abrir a câmera
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -354,21 +361,23 @@ export const ContratosScreen = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Contratos</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={[styles.filterButton, Object.keys(filters).length > 0 && styles.filterButtonActive]}
-                onPress={() => setFilterModalVisible(true)}
-              >
-                <Filter size={16} color={Object.keys(filters).length > 0 ? "#FFFFFF" : "#0A84FF"} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => setModalVisible(true)}
-              >
-                <FilePlus size={18} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>Novo Contrato</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={[styles.filterButton, Object.keys(filters).length > 0 && styles.filterButtonActive]}
+                  onPress={() => setFilterModalVisible(true)}
+                >
+                  <Filter size={16} color={Object.keys(filters).length > 0 ? "#FFFFFF" : "#0A84FF"} />
+                </TouchableOpacity>
+                {canCreate && (
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={() => setModalVisible(true)}
+                  >
+                    <FilePlus size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>Novo Contrato</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
           </View>
 
           {Object.keys(filters).length > 0 && (
@@ -385,13 +394,18 @@ export const ContratosScreen = () => {
             filteredContracts.map((contract) => (
             <View key={contract.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.cardHeaderLeft}>
                   <Text style={styles.cardTitle}>{contract.name}</Text>
                   <Text style={styles.cardSubtitle}>
                     Categoria: {categoryLabels[contract.category as keyof typeof categoryLabels] ?? 'Outros'}
                   </Text>
                 </View>
-                <ChevronRight size={18} color="#C7C7CC" />
+                <View style={styles.cardHeaderRight}>
+                  <View style={styles.cardIconWrapper}>
+                    <FileText size={18} color="#0A84FF" />
+                  </View>
+                  <ChevronRight size={18} color="#C7C7CC" />
+                </View>
               </View>
               <View style={styles.cardMeta}>
                 <View>
@@ -415,40 +429,44 @@ export const ContratosScreen = () => {
                   <FileText size={16} color="#0A84FF" />
                   <Text style={styles.actionText}>Ver documentos</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionPill}
-                  onPress={() => openAttachmentOptions(contract.id)}
-                >
-                  <FilePlus size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Adicionar documento</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() =>
-                    Alert.alert(
-                      'Excluir contrato',
-                      `Tem certeza que deseja excluir o contrato "${contract.name}"?`,
-                      [
-                        { text: 'Cancelar', style: 'cancel' },
-                        {
-                          text: 'Excluir',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await deleteContract(contract.id);
-                            } catch (error) {
-                              // Erro já foi tratado no contexto
-                              console.error('Erro ao excluir contrato:', error);
-                            }
+                {canUploadFiles && (
+                  <TouchableOpacity
+                    style={styles.actionPill}
+                    onPress={() => openAttachmentOptions(contract.id)}
+                  >
+                    <FilePlus size={16} color="#0A84FF" />
+                    <Text style={styles.actionText}>Adicionar documento</Text>
+                  </TouchableOpacity>
+                )}
+                {canDelete && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() =>
+                      Alert.alert(
+                        'Excluir contrato',
+                        `Tem certeza que deseja excluir o contrato "${contract.name}"?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          {
+                            text: 'Excluir',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await deleteContract(contract.id);
+                              } catch (error) {
+                                // Erro já foi tratado no contexto
+                                console.error('Erro ao excluir contrato:', error);
+                              }
+                            },
                           },
-                        },
-                      ]
-                    )
-                  }
-                >
-                  <Trash2 size={16} color="#FF3B30" />
-                  <Text style={styles.deleteText}>Excluir</Text>
-                </TouchableOpacity>
+                        ]
+                      )
+                    }
+                  >
+                    <Trash2 size={16} color="#FF3B30" />
+                    <Text style={styles.deleteText}>Excluir</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ))
@@ -461,25 +479,27 @@ export const ContratosScreen = () => {
           )}
         </View>
         </ScrollView>
-      <ContractFormModal
-        visible={isModalVisible}
-        onClose={() => setModalVisible(false)}
-        onSubmit={async (data) => {
-          try {
-            await addContract({
-              name: data.name,
-              category: data.category,
-              date: data.date,
-              value: data.value,
-              center: selectedCenter,
-              documents: data.documents,
-            });
-            setModalVisible(false);
-          } catch (error) {
-            console.error('Erro ao adicionar contrato:', error);
-          }
-        }}
-      />
+      {canCreate && (
+        <ContractFormModal
+          visible={isModalVisible}
+          onClose={() => setModalVisible(false)}
+          onSubmit={async (data) => {
+            try {
+              await addContract({
+                name: data.name,
+                category: data.category,
+                date: data.date,
+                value: data.value,
+                center: selectedCenter,
+                documents: data.documents,
+              });
+              setModalVisible(false);
+            } catch (error) {
+              console.error('Erro ao adicionar contrato:', error);
+            }
+          }}
+        />
+      )}
       <ContractFilterModal
         visible={isFilterModalVisible}
         onClose={() => setFilterModalVisible(false)}
@@ -547,36 +567,38 @@ export const ContratosScreen = () => {
                       </View>
                       <ChevronRight size={18} color="#C7C7CC" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deleteDocumentButton}
-                      onPress={() => {
-                        Alert.alert(
-                          'Excluir documento',
-                          `Tem certeza que deseja excluir "${doc.fileName}"?`,
-                          [
-                            { text: 'Cancelar', style: 'cancel' },
-                            {
-                              text: 'Excluir',
-                              style: 'destructive',
-                              onPress: async () => {
-                                if (!activeContractId || !doc.id) return;
-                                try {
-                                  await deleteDocumentFromContract(activeContractId, doc.id);
-                                  // Atualiza a lista local de documentos
-                                  setSelectedContractDocuments((prev) =>
-                                    prev.filter((d) => d.id !== doc.id)
-                                  );
-                                } catch (error) {
-                                  Alert.alert('Erro', 'Não foi possível excluir o documento.');
-                                }
+                    {canDelete && (
+                      <TouchableOpacity
+                        style={styles.deleteDocumentButton}
+                        onPress={() => {
+                          Alert.alert(
+                            'Excluir documento',
+                            `Tem certeza que deseja excluir "${doc.fileName}"?`,
+                            [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Excluir',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  if (!activeContractId || !doc.id) return;
+                                  try {
+                                    await deleteDocumentFromContract(activeContractId, doc.id);
+                                    // Atualiza a lista local de documentos
+                                    setSelectedContractDocuments((prev) =>
+                                      prev.filter((d) => d.id !== doc.id)
+                                    );
+                                  } catch (error) {
+                                    Alert.alert('Erro', 'Não foi possível excluir o documento.');
+                                  }
+                                },
                               },
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <Trash2 size={18} color="#FF3B30" />
-                    </TouchableOpacity>
+                            ]
+                          );
+                        }}
+                      >
+                        <Trash2 size={18} color="#FF3B30" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))
               ) : (
@@ -708,7 +730,24 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5F1FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
     fontSize: 16,

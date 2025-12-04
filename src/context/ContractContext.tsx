@@ -10,6 +10,8 @@ import { Alert } from 'react-native';
 import { CostCenter } from './CostCenterContext';
 import { supabase } from '@/src/lib/supabaseClient';
 import { uploadFileToStorage } from '@/src/lib/storageUtils';
+import { useAuth } from './AuthContext';
+import { cacheManager } from '@/src/lib/cacheManager';
 
 export type ContractCategory = 'principal' | 'terceirizados';
 
@@ -96,6 +98,7 @@ const mapRowToContract = (row: any, documents: ContractDocument[] = []): Contrac
 });
 
 export const ContractProvider = ({ children }: ContractProviderProps) => {
+  const { user } = useAuth();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +106,22 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   const loadContracts = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (!user) {
+      setContracts([]);
+      setLoading(false);
+      return;
+    }
+
+    const cacheKey = `contracts:${user.id}`;
 
     try {
+      console.log('[Contracts] 📦 Tentando carregar contratos do cache...');
+      const cached = await cacheManager.get<Contract[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        console.log(`[Contracts] ✅ ${cached.length} contratos carregados do cache`);
+        setContracts(cached);
+      }
+
       const { data: contractsData, error: contractsError } = await supabase
         .from('contracts')
         .select(`
@@ -122,7 +139,6 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       if (contractsError) {
         console.error('❌ Erro ao carregar contratos:', contractsError);
         setError(contractsError.message);
-        setLoading(false);
         return;
       }
 
@@ -154,13 +170,15 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
       );
 
       setContracts(mapped);
+      await cacheManager.set(cacheKey, mapped);
+      console.log('[Contracts] 💾 Cache de contratos atualizado');
     } catch (err: any) {
       console.error('❌ Erro inesperado ao carregar contratos:', err);
       setError(err.message ?? 'Erro inesperado ao carregar contratos');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadContracts();
@@ -169,6 +187,10 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
   const addContract = useCallback(
     async (contract: Omit<Contract, 'id' | 'docs'>) => {
       try {
+        if (!user) {
+          throw new Error('Usuário não autenticado');
+        }
+        const cacheKey = `contracts:${user.id}`;
 
         // Garante que a categoria está em minúsculas e é um valor válido
         const normalizedCategory = contract.category.toLowerCase() as ContractCategory;
@@ -213,7 +235,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
             doc.fileUri,
             doc.fileName,
             doc.mimeType,
-            'documentos',
+            'contract-documents',
             'contracts',
           );
 
@@ -249,7 +271,11 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         if (contract.value !== undefined && contract.value !== null) {
           newContract.value = contract.value;
         }
-        setContracts((prev) => [newContract, ...prev]);
+        setContracts((prev) => {
+          const next = [newContract, ...prev];
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
 
         // Envia notificação push sobre novo contrato
         try {
@@ -265,7 +291,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         throw err;
       }
     },
-    [],
+    [user],
   );
 
   const addDocumentToContract = useCallback(
@@ -275,7 +301,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           document.fileUri,
           document.fileName,
           document.mimeType,
-          'documentos',
+          'contract-documents',
           'contracts',
         );
 

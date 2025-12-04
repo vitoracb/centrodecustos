@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabaseClient';
 import { Alert } from 'react-native';
+import { cacheManager } from '@/src/lib/cacheManager';
 
 interface AuthContextType {
   session: Session | null;
@@ -73,6 +74,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      const currentUserId = user?.id;
+
+      // Limpa caches por usuário antes de sair
+      if (currentUserId) {
+        try {
+          await Promise.all([
+            cacheManager.clearByPrefix(`financial_transactions:${currentUserId}:`),
+            cacheManager.clearByPrefix(`equipments:${currentUserId}`),
+            cacheManager.clearByPrefix(`orders:${currentUserId}`),
+            cacheManager.clearByPrefix(`contracts:${currentUserId}`),
+          ]);
+          console.log('[Auth] 🧹 Cache limpo no logout para usuário', currentUserId);
+        } catch (cacheError) {
+          console.warn('[Auth] Erro ao limpar cache no logout:', cacheError);
+        }
+      }
+
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (error: any) {

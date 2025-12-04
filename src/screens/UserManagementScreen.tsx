@@ -9,13 +9,17 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { usePermissions, UserProfile } from '@/src/context/PermissionsContext';
 import { supabase } from '@/src/lib/supabaseClient';
-import { Users, Shield, Eye, Edit, Trash2, UserPlus, X } from 'lucide-react-native';
+import { Users, Shield, Eye, Edit, Trash2, UserPlus, X, ArrowLeft } from 'lucide-react-native';
 
 export default function UserManagementScreen() {
+  const router = useRouter();
   const { isAdmin } = usePermissions();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,47 +84,34 @@ export default function UserManagementScreen() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUserEmail || !newUserPassword) {
-      Alert.alert('Erro', 'Preencha email e senha');
-      return;
-    }
-
-    if (newUserPassword.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+    if (!newUserEmail) {
+      Alert.alert('Erro', 'Preencha o email do usuário');
       return;
     }
 
     setCreating(true);
     try {
-      // Criar usuário no Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUserEmail,
-        password: newUserPassword,
-        email_confirm: true,
-      });
+      const normalizedEmail = newUserEmail.trim().toLowerCase();
 
-      if (authError) throw authError;
-
-      // Criar perfil do usuário
-      const { error: profileError } = await supabase
-        .from('user_profiles')
+      const { error } = await supabase
+        .from('user_invitations')
         .insert({
-          id: authData.user.id,
-          email: newUserEmail,
+          email: normalizedEmail,
           role: newUserRole,
-          is_active: true,
         });
 
-      if (profileError) throw profileError;
+      if (error) throw error;
 
-      Alert.alert('Sucesso', 'Usuário criado com sucesso!');
+      Alert.alert(
+        'Convite registrado',
+        'O convite foi registrado com sucesso. Peça para o usuário se cadastrar pela tela de cadastro usando este email.'
+      );
       setIsCreateModalVisible(false);
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserRole('viewer');
-      loadUsers();
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Não foi possível criar usuário');
+      Alert.alert('Erro', error.message || 'Não foi possível registrar o convite');
     } finally {
       setCreating(false);
     }
@@ -144,7 +135,7 @@ export default function UserManagementScreen() {
       case 'admin':
         return 'Administrador';
       case 'editor':
-        return 'Editor';
+        return 'Gerente';
       case 'viewer':
         return 'Visualizador';
       default:
@@ -203,9 +194,17 @@ export default function UserManagementScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Gerenciar Usuários</Text>
-          <Text style={styles.subtitle}>{users.length} usuários cadastrados</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color="#1C1C1E" />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.title}>Gerenciar Usuários</Text>
+            <Text style={styles.subtitle}>{users.length} usuários cadastrados</Text>
+          </View>
         </View>
         <TouchableOpacity
           style={styles.addButton}
@@ -257,83 +256,103 @@ export default function UserManagementScreen() {
         animationType="slide"
         onRequestClose={() => setIsCreateModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo Usuário</Text>
-              <TouchableOpacity onPress={() => setIsCreateModalVisible(false)}>
-                <X size={24} color="#1C1C1E" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="usuario@email.com"
-                value={newUserEmail}
-                onChangeText={setNewUserEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.label}>Senha Temporária</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Mínimo 6 caracteres"
-                value={newUserPassword}
-                onChangeText={setNewUserPassword}
-                secureTextEntry
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.label}>Permissão</Text>
-              <View style={styles.roleButtons}>
-                <TouchableOpacity
-                  style={[styles.roleButton, newUserRole === 'viewer' && styles.roleButtonActive]}
-                  onPress={() => setNewUserRole('viewer')}
-                >
-                  <Eye size={16} color={newUserRole === 'viewer' ? '#0A84FF' : '#6C6C70'} />
-                  <Text style={[styles.roleButtonText, newUserRole === 'viewer' && styles.roleButtonTextActive]}>
-                    Visualizador
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.roleButton, newUserRole === 'editor' && styles.roleButtonActive]}
-                  onPress={() => setNewUserRole('editor')}
-                >
-                  <Edit size={16} color={newUserRole === 'editor' ? '#FF9500' : '#6C6C70'} />
-                  <Text style={[styles.roleButtonText, newUserRole === 'editor' && styles.roleButtonTextActive]}>
-                    Editor
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.roleButton, newUserRole === 'admin' && styles.roleButtonActive]}
-                  onPress={() => setNewUserRole('admin')}
-                >
-                  <Shield size={16} color={newUserRole === 'admin' ? '#FF3B30' : '#6C6C70'} />
-                  <Text style={[styles.roleButtonText, newUserRole === 'admin' && styles.roleButtonTextActive]}>
-                    Admin
-                  </Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Novo Usuário</Text>
+                <TouchableOpacity onPress={() => setIsCreateModalVisible(false)}>
+                  <X size={24} color="#1C1C1E" />
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={[styles.createButton, creating && styles.createButtonDisabled]}
-                onPress={handleCreateUser}
-                disabled={creating}
-              >
-                {creating ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.createButtonText}>Criar Usuário</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+              <View style={styles.modalBody}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="usuario@email.com"
+                  value={newUserEmail}
+                  onChangeText={setNewUserEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <Text style={styles.label}>Permissão</Text>
+                <View style={styles.roleButtons}>
+                  <TouchableOpacity
+                    style={[styles.roleButton, newUserRole === 'viewer' && styles.roleButtonActive]}
+                    onPress={() => setNewUserRole('viewer')}
+                  >
+                    <Eye
+                      size={16}
+                      color={newUserRole === 'viewer' ? '#0A84FF' : '#6C6C70'}
+                    />
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        newUserRole === 'viewer' && styles.roleButtonTextActive,
+                      ]}
+                    >
+                      Visualizador
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.roleButton, newUserRole === 'editor' && styles.roleButtonActive]}
+                    onPress={() => setNewUserRole('editor')}
+                  >
+                    <Edit
+                      size={16}
+                      color={newUserRole === 'editor' ? '#FF9500' : '#6C6C70'}
+                    />
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        newUserRole === 'editor' && styles.roleButtonTextActive,
+                      ]}
+                    >
+                      Gerente
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.roleButton, newUserRole === 'admin' && styles.roleButtonActive]}
+                    onPress={() => setNewUserRole('admin')}
+                  >
+                    <Shield
+                      size={16}
+                      color={newUserRole === 'admin' ? '#FF3B30' : '#6C6C70'}
+                    />
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        newUserRole === 'admin' && styles.roleButtonTextActive,
+                      ]}
+                    >
+                      Admin
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.createButton, creating && styles.createButtonDisabled]}
+                  onPress={handleCreateUser}
+                  disabled={creating}
+                >
+                  {creating ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.createButtonText}>Criar Usuário</Text>
+                  )}
+                </TouchableOpacity>
+              </View>{/* fecha modalBody */}
+            </View>{/* fecha modalContent */}
+          </View>{/* fecha modalOverlay */}
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -353,6 +372,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   addButton: {
     width: 44,

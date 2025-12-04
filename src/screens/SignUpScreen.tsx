@@ -8,8 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useAuth } from '@/src/context/AuthContext';
+import { supabase } from '@/src/lib/supabaseClient';
 import { useRouter } from 'expo-router';
 
 export default function SignUpScreen() {
@@ -17,7 +18,6 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
   const router = useRouter();
 
   const handleSignUp = async () => {
@@ -38,10 +38,63 @@ export default function SignUpScreen() {
 
     setLoading(true);
     try {
-      await signUp(email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // Verifica se há convite para este email
+      const { data: invitation, error: invitationError } = await supabase
+        .from('user_invitations')
+        .select('*')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (invitationError) {
+        throw invitationError;
+      }
+
+      if (!invitation) {
+        Alert.alert('Convite necessário', 'Seu email não está autorizado. Peça para um administrador enviar um convite.');
+        setLoading(false);
+        return;
+      }
+
+      // Realiza o cadastro no Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (error) throw error;
+
+      const userId = data.user?.id;
+
+      if (userId) {
+        // Cria perfil com a role do convite
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: userId,
+            email: normalizedEmail,
+            role: invitation.role,
+            is_active: true,
+          });
+
+        if (profileError) throw profileError;
+
+        // Remove convite após uso
+        await supabase
+          .from('user_invitations')
+          .delete()
+          .eq('email', normalizedEmail);
+      }
+
+      Alert.alert(
+        'Cadastro realizado!',
+        'Verifique seu email para confirmar o cadastro.'
+      );
+
       router.back();
-    } catch (error) {
-      // Erro já tratado no AuthContext
+    } catch (error: any) {
+      Alert.alert('Erro ao cadastrar', error.message || 'Não foi possível concluir o cadastro');
     } finally {
       setLoading(false);
     }

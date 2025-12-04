@@ -11,13 +11,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === '(tabs)';
+    const inTabsGroup = segments[0] === '(tabs)';
+    const isAuthScreen = segments[0] === 'login' || segments[0] === 'signup';
 
-    if (!user && inAuthGroup) {
-      // Redireciona para login se não estiver autenticado
+    if (!user && inTabsGroup) {
+      // Redireciona para login se não estiver autenticado e tentar acessar as tabs
       router.replace('/login' as any);
-    } else if (user && !inAuthGroup) {
-      // Redireciona para home se já estiver autenticado
+    } else if (user && isAuthScreen) {
+      // Redireciona para home se já estiver autenticado e tentar acessar telas de auth
       router.replace('/(tabs)' as any);
     }
   }, [user, loading, segments]);

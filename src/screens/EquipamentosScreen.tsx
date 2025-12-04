@@ -16,10 +16,12 @@ import {
   Edit3,
   Trash2,
   Filter,
+  Tractor,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { useRouter } from 'expo-router';
 import { EquipmentFormModal } from '../components/EquipmentFormModal';
 import { EquipmentFilterModal, EquipmentFilters } from '../components/EquipmentFilterModal';
@@ -45,6 +47,7 @@ export const EquipamentosScreen = () => {
     refresh,
     loading,
   } = useEquipment();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
   
   const onRefresh = useCallback(async () => {
@@ -201,14 +204,16 @@ export const EquipamentosScreen = () => {
             </Text>
           </View>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          activeOpacity={0.9}
-          onPress={() => setIsFormVisible(true)}
-        >
-          <Plus color="#FFFFFF" size={20} />
-          <Text style={styles.primaryButtonText}>Novo Equipamento</Text>
-        </TouchableOpacity>
+        {canCreate && (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            activeOpacity={0.9}
+            onPress={() => setIsFormVisible(true)}
+          >
+            <Plus color="#FFFFFF" size={20} />
+            <Text style={styles.primaryButtonText}>Novo Equipamento</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -262,6 +267,9 @@ export const EquipamentosScreen = () => {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <View style={styles.cardTitleRow}>
+                    <View style={styles.cardIconWrapper}>
+                      <Tractor size={18} color="#0A84FF" />
+                    </View>
                     <Text style={styles.cardTitle}>{equipment.name}</Text>
                     <TouchableOpacity
                       style={[
@@ -271,11 +279,12 @@ export const EquipamentosScreen = () => {
                           : styles.statusBadgeInactive,
                       ]}
                       onPress={(event) => {
+                        if (!canEdit) return;
                         event.stopPropagation();
                         const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
                         updateEquipment(equipment.id, { status: newStatus });
                       }}
-                      activeOpacity={0.7}
+                      activeOpacity={canEdit ? 0.7 : 1}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Text
@@ -295,20 +304,24 @@ export const EquipamentosScreen = () => {
                   </Text>
                 </View>
                 <View style={styles.cardHeaderRight}>
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={(event) => handleEdit(equipment, event)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Edit3 size={18} color="#0A84FF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={(event) => handleDelete(equipment, event)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Trash2 size={18} color="#FF3B30" />
-                  </TouchableOpacity>
+                  {canEdit && (
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={(event) => handleEdit(equipment, event)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Edit3 size={18} color="#0A84FF" />
+                    </TouchableOpacity>
+                  )}
+                  {canDelete && (
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={(event) => handleDelete(equipment, event)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Trash2 size={18} color="#FF3B30" />
+                    </TouchableOpacity>
+                  )}
                   <ChevronRight size={18} color="#C7C7CC" />
                 </View>
               </View>
@@ -370,44 +383,46 @@ export const EquipamentosScreen = () => {
           )}
         </View>
       </ScrollView>
-      <EquipmentFormModal
-        visible={isFormVisible}
-        onClose={() => {
-          setIsFormVisible(false);
-          setEditingEquipment(null);
-        }}
-        onSubmit={(data) => {
-          if (editingEquipment) {
-            updateEquipment(editingEquipment.id, {
-              name: data.name,
-              brand: data.brand,
-              year: Number(data.year) || new Date().getFullYear(),
-              purchaseDate: data.purchaseDate,
-              hoursUntilRevision: data.hoursUntilRevision,
-            });
-          } else {
-            addEquipment({
-              name: data.name,
-              brand: data.brand,
-              year: Number(data.year) || new Date().getFullYear(),
-              purchaseDate: data.purchaseDate,
-              center: selectedCenter,
-              status: 'ativo',
-              currentHours: 0,
-              hoursUntilRevision: data.hoursUntilRevision,
-            });
-          }
-          setIsFormVisible(false);
-          setEditingEquipment(null);
-        }}
-        initialData={editingEquipment ? {
-          name: editingEquipment.name,
-          brand: editingEquipment.brand,
-          year: String(editingEquipment.year),
-          purchaseDate: editingEquipment.purchaseDate,
-          hoursUntilRevision: editingEquipment.hoursUntilRevision,
-        } : undefined}
-      />
+      {canCreate && (
+        <EquipmentFormModal
+          visible={isFormVisible}
+          onClose={() => {
+            setIsFormVisible(false);
+            setEditingEquipment(null);
+          }}
+          onSubmit={(data) => {
+            if (editingEquipment) {
+              updateEquipment(editingEquipment.id, {
+                name: data.name,
+                brand: data.brand,
+                year: Number(data.year) || new Date().getFullYear(),
+                purchaseDate: data.purchaseDate,
+                hoursUntilRevision: data.hoursUntilRevision,
+              });
+            } else {
+              addEquipment({
+                name: data.name,
+                brand: data.brand,
+                year: Number(data.year) || new Date().getFullYear(),
+                purchaseDate: data.purchaseDate,
+                center: selectedCenter,
+                status: 'ativo',
+                currentHours: 0,
+                hoursUntilRevision: data.hoursUntilRevision,
+              });
+            }
+            setIsFormVisible(false);
+            setEditingEquipment(null);
+          }}
+          initialData={editingEquipment ? {
+            name: editingEquipment.name,
+            brand: editingEquipment.brand,
+            year: String(editingEquipment.year),
+            purchaseDate: editingEquipment.purchaseDate,
+            hoursUntilRevision: editingEquipment.hoursUntilRevision,
+          } : undefined}
+        />
+      )}
       <EquipmentFilterModal
         visible={isFilterModalVisible}
         onClose={() => setFilterModalVisible(false)}
@@ -566,6 +581,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  cardIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5F1FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
     fontSize: 16,

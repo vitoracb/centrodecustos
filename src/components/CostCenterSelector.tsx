@@ -83,7 +83,7 @@ export const CostCenterSelector = () => {
 
   const getRoleLabel = () => {
     if (isAdmin) return 'Administrador';
-    if (isEditor) return 'Editor';
+    if (isEditor) return 'Gerente';
     if (isViewer) return 'Visualizador';
     return 'Usuário';
   };
@@ -195,19 +195,35 @@ export const CostCenterSelector = () => {
             <View style={styles.divider} />
 
             {isAdmin && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsProfileMenuOpen(false);
-                  setTimeout(() => {
-                    router.push('/user-management' as any);
-                  }, 100);
-                }}
-                activeOpacity={0.7}
-              >
-                <Users size={20} color="#0A84FF" />
-                <Text style={styles.menuItemText}>Gerenciar Usuários</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsProfileMenuOpen(false);
+                    setTimeout(() => {
+                      router.push('/audit-logs' as any);
+                    }, 100);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Shield size={20} color="#0A84FF" />
+                  <Text style={styles.menuItemText}>Auditoria</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsProfileMenuOpen(false);
+                    setTimeout(() => {
+                      router.push('/user-management' as any);
+                    }, 100);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Users size={20} color="#0A84FF" />
+                  <Text style={styles.menuItemText}>Gerenciar Usuários</Text>
+                </TouchableOpacity>
+              </>
             )}
 
             <TouchableOpacity

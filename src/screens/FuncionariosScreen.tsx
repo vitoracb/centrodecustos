@@ -13,7 +13,8 @@ import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useEmployees, EmployeeDocument } from '../context/EmployeeContext';
-import { UserPlus, Trash2, FileText, ChevronDown, Edit3, Plus } from 'lucide-react-native';
+import { usePermissions } from '../context/PermissionsContext';
+import { UserPlus, Trash2, FileText, ChevronDown, Edit3, Plus, User } from 'lucide-react-native';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { CostCenter } from '../context/CostCenterContext';
@@ -30,6 +31,7 @@ export const FuncionariosScreen = () => {
     deleteEmployee,
     loadDocuments
   } = useEmployees();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   
   // Obtém o nome do centro de custo selecionado
   const selectedCenterName = costCenters.find(cc => cc.code === selectedCenter)?.name || selectedCenter;
@@ -170,19 +172,21 @@ export const FuncionariosScreen = () => {
           )}
         </View>
 
-        <View style={styles.buttonWrapper}>
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
-            ]}
-            onPress={() => setEmployeeModalVisible(true)}
-            disabled={!selectedEquipment || equipments.length === 0}
-          >
-            <UserPlus size={18} color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>Adicionar Funcionário</Text>
-          </TouchableOpacity>
-        </View>
+        {canCreate && (
+          <View style={styles.buttonWrapper}>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
+              ]}
+              onPress={() => setEmployeeModalVisible(true)}
+              disabled={!selectedEquipment || equipments.length === 0}
+            >
+              <UserPlus size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>Adicionar Funcionário</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -195,7 +199,7 @@ export const FuncionariosScreen = () => {
                 <View style={styles.employeeHeader}>
                   <View style={styles.employeeHeaderLeft}>
                     <View style={styles.iconCircle}>
-                      <FileText size={18} color="#0A84FF" />
+                      <User size={18} color="#0A84FF" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.employeeName}>{employeeName}</Text>
@@ -205,37 +209,41 @@ export const FuncionariosScreen = () => {
                     </View>
                   </View>
                   <View style={styles.employeeHeaderActions}>
-                    <TouchableOpacity
-                      style={styles.addDocButton}
-                      onPress={() => {
-                        setAddingDocumentForEmployee(employeeName);
-                        setEmployeeModalVisible(true);
-                      }}
-                    >
-                      <Plus size={16} color="#0A84FF" />
-                      <Text style={styles.addDocText}>Adicionar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deleteEmployeeButton}
-                      onPress={() => {
-                        if (!selectedEquipment) return;
-                        Alert.alert(
-                          'Excluir funcionário',
-                          `Tem certeza que deseja excluir o funcionário "${employeeName}"? Todos os documentos deste funcionário serão excluídos.`,
-                          [
-                            { text: 'Cancelar', style: 'cancel' },
-                            {
-                              text: 'Excluir',
-                              style: 'destructive',
-                              onPress: () => deleteEmployee(employeeName, selectedEquipment.id, selectedCenter),
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <Trash2 size={16} color="#FF3B30" />
-                      <Text style={styles.deleteEmployeeText}>Excluir</Text>
-                    </TouchableOpacity>
+                    {canCreate && (
+                      <TouchableOpacity
+                        style={styles.addDocButton}
+                        onPress={() => {
+                          setAddingDocumentForEmployee(employeeName);
+                          setEmployeeModalVisible(true);
+                        }}
+                      >
+                        <Plus size={16} color="#0A84FF" />
+                        <Text style={styles.addDocText}>Adicionar</Text>
+                      </TouchableOpacity>
+                    )}
+                    {canDelete && (
+                      <TouchableOpacity
+                        style={styles.deleteEmployeeButton}
+                        onPress={() => {
+                          if (!selectedEquipment) return;
+                          Alert.alert(
+                            'Excluir funcionário',
+                            `Tem certeza que deseja excluir o funcionário "${employeeName}"? Todos os documentos deste funcionário serão excluídos.`,
+                            [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Excluir',
+                                style: 'destructive',
+                                onPress: () => deleteEmployee(employeeName, selectedEquipment.id, selectedCenter),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Trash2 size={16} color="#FF3B30" />
+                        <Text style={styles.deleteEmployeeText}>Excluir</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
                 {employeeDocs.map((doc) => (
@@ -280,33 +288,37 @@ export const FuncionariosScreen = () => {
                       >
                         <Text style={styles.actionText}>Visualizar</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => {
-                          setEditingDocument(doc);
-                          setAddingDocumentForEmployee(null);
-                          setEmployeeModalVisible(true);
-                        }}
-                      >
-                        <Edit3 size={16} color="#0A84FF" />
-                        <Text style={styles.editText}>Editar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() =>
-                          Alert.alert(
-                            'Remover documento',
-                            'Tem certeza que deseja excluir este documento?',
-                            [
-                              { text: 'Cancelar', style: 'cancel' },
-                              { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
-                            ]
-                          )
-                        }
-                      >
-                        <Trash2 size={16} color="#FF3B30" />
-                        <Text style={styles.deleteText}>Excluir</Text>
-                      </TouchableOpacity>
+                      {canEdit && (
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={() => {
+                            setEditingDocument(doc);
+                            setAddingDocumentForEmployee(null);
+                            setEmployeeModalVisible(true);
+                          }}
+                        >
+                          <Edit3 size={16} color="#0A84FF" />
+                          <Text style={styles.editText}>Editar</Text>
+                        </TouchableOpacity>
+                      )}
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() =>
+                            Alert.alert(
+                              'Remover documento',
+                              'Tem certeza que deseja excluir este documento?',
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
+                              ]
+                            )
+                          }
+                        >
+                          <Trash2 size={16} color="#FF3B30" />
+                          <Text style={styles.deleteText}>Excluir</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 ))}
@@ -321,64 +333,66 @@ export const FuncionariosScreen = () => {
           )}
         </View>
         </ScrollView>
-      <EmployeeDocumentModal
-        visible={isEmployeeModalVisible}
-        onClose={() => {
-          setEmployeeModalVisible(false);
-          setEditingDocument(null);
-          setAddingDocumentForEmployee(null);
-        }}
-        onSubmit={(data) => {
-          if (!selectedEquipment) return;
-          
-          if (editingDocument) {
-            updateEmployeeDocument(editingDocument.id, {
-              employee: data.employeeName,
-              documentName: data.documentName,
-              date: data.date,
-              fileName: data.fileName,
-              fileUri: data.fileUri,
-              mimeType: data.mimeType,
-            });
-          } else {
-            addEmployeeDocument({
-              employee: data.employeeName,
-              documentName: data.documentName,
-              date: data.date,
-              fileName: data.fileName,
-              fileUri: data.fileUri,
-              mimeType: data.mimeType,
-              equipmentId: selectedEquipment.id,
-              center: selectedCenter,
-            });
+      {(canCreate || canEdit) && (
+        <EmployeeDocumentModal
+          visible={isEmployeeModalVisible}
+          onClose={() => {
+            setEmployeeModalVisible(false);
+            setEditingDocument(null);
+            setAddingDocumentForEmployee(null);
+          }}
+          onSubmit={(data) => {
+            if (!selectedEquipment) return;
+            
+            if (editingDocument) {
+              updateEmployeeDocument(editingDocument.id, {
+                employee: data.employeeName,
+                documentName: data.documentName,
+                date: data.date,
+                fileName: data.fileName,
+                fileUri: data.fileUri,
+                mimeType: data.mimeType,
+              });
+            } else {
+              addEmployeeDocument({
+                employee: data.employeeName,
+                documentName: data.documentName,
+                date: data.date,
+                fileName: data.fileName,
+                fileUri: data.fileUri,
+                mimeType: data.mimeType,
+                equipmentId: selectedEquipment.id,
+                center: selectedCenter,
+              });
+            }
+            
+            setEditingDocument(null);
+            setAddingDocumentForEmployee(null);
+          }}
+          initialData={
+            editingDocument
+              ? {
+                  employeeName: editingDocument.employee,
+                  documentName: editingDocument.documentName,
+                  date: editingDocument.date,
+                  fileName: editingDocument.fileName,
+                  fileUri: editingDocument.fileUri,
+                  mimeType: editingDocument.mimeType,
+                }
+              : addingDocumentForEmployee
+              ? {
+                  employeeName: addingDocumentForEmployee,
+                  documentName: '',
+                  date: '',
+                  fileName: '',
+                  fileUri: '',
+                  mimeType: null,
+                }
+              : undefined
           }
-          
-          setEditingDocument(null);
-          setAddingDocumentForEmployee(null);
-        }}
-        initialData={
-          editingDocument
-            ? {
-                employeeName: editingDocument.employee,
-                documentName: editingDocument.documentName,
-                date: editingDocument.date,
-                fileName: editingDocument.fileName,
-                fileUri: editingDocument.fileUri,
-                mimeType: editingDocument.mimeType,
-              }
-            : addingDocumentForEmployee
-            ? {
-                employeeName: addingDocumentForEmployee,
-                documentName: '',
-                date: '',
-                fileName: '',
-                fileUri: '',
-                mimeType: null,
-              }
-            : undefined
-        }
-        disableEmployeeName={!!addingDocumentForEmployee}
-      />
+          disableEmployeeName={!!addingDocumentForEmployee}
+        />
+      )}
       <FilePreviewModal
         visible={previewVisible}
         onClose={() => {

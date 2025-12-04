@@ -46,14 +46,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
  * @param fileUri URI local do arquivo (file:// ou content://)
  * @param fileName Nome do arquivo
  * @param mimeType Tipo MIME do arquivo (opcional)
- * @param bucket Nome do bucket no Supabase Storage (padrão: 'documentos')
+ * @param bucket Nome do bucket no Supabase Storage (padrão: 'expense-documents')
  * @returns URL pública do arquivo ou null em caso de erro
  */
 export async function uploadFileToStorage(
   fileUri: string,
   fileName: string,
   mimeType?: string | null,
-  bucket: string = 'documentos',
+  bucket: string = 'expense-documents',
   folder: string = 'expenses'
 ): Promise<string | null> {
   try {
@@ -97,10 +97,10 @@ export async function uploadFileToStorage(
       
       // Se o bucket não existir
       if (error.message?.includes('Bucket not found') || error.message?.includes('not found')) {
-        console.warn('⚠️ Bucket não encontrado. Certifique-se de criar o bucket "documentos" no Supabase Storage.');
+        console.warn('⚠️ Bucket não encontrado. Verifique se o bucket configurado existe no Supabase Storage.');
         Alert.alert(
           'Bucket não encontrado',
-          'Crie o bucket "documentos" no Supabase Storage antes de fazer upload de arquivos.'
+          'O bucket de arquivos não foi encontrado no Supabase Storage. Verifique o nome do bucket nas configurações.'
         );
         return null;
       }
@@ -142,7 +142,7 @@ export async function uploadFileToStorage(
  */
 export async function uploadMultipleFilesToStorage(
   files: Array<{ fileUri: string; fileName: string; mimeType?: string | null }>,
-  bucket: string = 'documentos',
+  bucket: string = 'expense-documents',
   folder: string = 'expenses'
 ): Promise<Array<string | null>> {
   const uploadPromises = files.map((file) =>

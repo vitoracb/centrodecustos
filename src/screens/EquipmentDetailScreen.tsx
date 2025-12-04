@@ -25,6 +25,7 @@ import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter, CostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useFinancial } from '../context/FinancialContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { UpdateHoursModal } from '../components/UpdateHoursModal';
 
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
@@ -133,6 +134,7 @@ export const EquipmentDetailScreen = () => {
   const { selectedCenter } = useCostCenter();
   const { getEquipmentById, updateEquipment, updateEquipmentHours } = useEquipment();
   const { addExpense, updateExpense, deleteExpense, deleteExpenseDocument, getAllExpenses } = useFinancial();
+  const { canCreate, canEdit, canDelete } = usePermissions();
 
   const [activeTab, setActiveTab] = useState<TabKey>('despesas');
 
@@ -323,6 +325,7 @@ export const EquipmentDetailScreen = () => {
   }, [equipment?.id]);
 
   const handleStatusToggle = () => {
+    if (!canEdit) return;
     const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
     updateEquipment(equipment.id, { status: newStatus }).catch(err => {
       console.log('❌ Erro ao alternar status:', err);
@@ -375,6 +378,7 @@ export const EquipmentDetailScreen = () => {
   };
 
   const handleAction = () => {
+    if (!canCreate) return;
     if (activeTab === 'documentos') {
       setEditingDocument(null);
       setDocumentModalVisible(true);
@@ -450,6 +454,7 @@ export const EquipmentDetailScreen = () => {
     item: (typeof tabData)[number],
     event: GestureResponderEvent,
   ) => {
+    if (!canEdit) return;
     event.stopPropagation();
     if (activeTab === 'documentos') {
       setEditingDocument(item as DocumentItem);
@@ -470,6 +475,7 @@ export const EquipmentDetailScreen = () => {
     item: (typeof tabData)[number],
     event: GestureResponderEvent,
   ) => {
+    if (!canDelete) return;
     event.stopPropagation();
 
     const confirmMessage = activeTab === 'despesas'
@@ -671,7 +677,7 @@ export const EquipmentDetailScreen = () => {
           </View>
 
           {/* Botão de Atualizar Horas - apenas na aba Revisões, abaixo das subabas e acima dos cards */}
-          {activeTab === 'revisoes' && (
+          {activeTab === 'revisoes' && canEdit && (
             <TouchableOpacity
               style={styles.updateHoursButton}
               onPress={() => setUpdateHoursModalVisible(true)}
@@ -685,25 +691,28 @@ export const EquipmentDetailScreen = () => {
               <Text style={styles.sectionTitle}>
                 {tabs.find(tab => tab.key === activeTab)?.label}
               </Text>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleAction}
-              >
-                <Plus size={18} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>{actionLabel()}</Text>
-              </TouchableOpacity>
+              {canCreate && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleAction}
+                >
+                  <Plus size={18} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>{actionLabel()}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {tabData.map(item => {
-              const allowActions =
+              const allowEditActions = canEdit && (
                 activeTab === 'documentos' ||
                 activeTab === 'fotos' ||
                 activeTab === 'revisoes' ||
-                activeTab === 'despesas';
+                activeTab === 'despesas'
+              );
 
               return (
                 <View key={item.id} style={styles.card}>
-                  {allowActions ? (
+                  {allowEditActions ? (
                     <TouchableOpacity
                       style={styles.editButtonTopRight}
                       onPress={event => handleEditCard(item, event)}
@@ -780,7 +789,7 @@ export const EquipmentDetailScreen = () => {
                       )}
                   </TouchableOpacity>
                   
-                  {allowActions ? (
+                  {canDelete && (
                     <TouchableOpacity
                       style={styles.deleteButtonBottomRight}
                       onPress={event => handleDeleteCard(item, event)}
@@ -793,7 +802,7 @@ export const EquipmentDetailScreen = () => {
                     >
                       <Trash2 size={16} color="#FF3B30" />
                     </TouchableOpacity>
-                  ) : null}
+                  )}
                 </View>
               );
             })}
@@ -834,7 +843,7 @@ export const EquipmentDetailScreen = () => {
                       data.fileUri,
                       data.fileName,
                       data.mimeType,
-                      'documentos',
+                      'expense-documents',
                       'equipment'
                     );
                     if (uploadedUrl) {
@@ -882,7 +891,7 @@ export const EquipmentDetailScreen = () => {
                     data.fileUri,
                     data.fileName,
                     data.mimeType,
-                    'documentos',
+                    'expense-documents',
                     'equipment'
                   );
 
@@ -1118,7 +1127,7 @@ export const EquipmentDetailScreen = () => {
                       data.uri,
                       data.fileName,
                       data.mimeType,
-                      'documentos',
+                      'expense-documents',
                       'equipment'
                     );
                     if (uploadedUrl) {
@@ -1169,7 +1178,7 @@ export const EquipmentDetailScreen = () => {
                     data.uri,
                     data.fileName,
                     data.mimeType,
-                    'documentos',
+                    'expense-documents',
                     'equipment'
                   );
 

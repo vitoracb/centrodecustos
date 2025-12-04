@@ -208,7 +208,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
             document.fileUri,
             document.fileName,
             document.mimeType,
-            'documentos',
+            'employee-documents',
             'employees',
           );
 
@@ -280,7 +280,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
               updates.fileUri,
               nextFileName,
               updates.mimeType ?? document.mimeType,
-              'documentos',
+              'employee-documents',
               'employees',
             );
             if (!uploaded) {

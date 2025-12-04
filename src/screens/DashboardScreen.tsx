@@ -16,6 +16,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useEmployees } from '../context/EmployeeContext';
 import { useContracts } from '../context/ContractContext';
 import { useOrders } from '../context/OrderContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { EquipmentFormModal } from '../components/EquipmentFormModal';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
@@ -207,6 +208,7 @@ export const DashboardScreen = () => {
     refresh: refreshOrders,
     loading: ordersLoading,
   } = useOrders();
+  const { canCreate, isViewer } = usePermissions();
 
   const [refreshing, setRefreshing] = useState(false);
   const [reportPreview, setReportPreview] = useState<{
@@ -800,38 +802,54 @@ export const DashboardScreen = () => {
     }
   }, [reportPreview]);
 
-  const quickActions = [
-    { 
-      label: 'Novo Equipamento', 
-      icon: Tractor,
-      onPress: () => setIsEquipmentModalVisible(true),
+  const quickActions = useMemo(
+    () => {
+      const actions: { label: string; icon: any; onPress: () => void }[] = [];
+
+      // Ações de criação só para quem pode criar (admin/editor)
+      if (canCreate && !isViewer) {
+        actions.push(
+          {
+            label: 'Novo Equipamento',
+            icon: Tractor,
+            onPress: () => setIsEquipmentModalVisible(true),
+          },
+          {
+            label: 'Registrar Despesa',
+            icon: DollarSign,
+            onPress: () => setExpenseModalVisible(true),
+          },
+          {
+            label: 'Novo Funcionário',
+            icon: Users,
+            onPress: () => setEmployeeModalVisible(true),
+          },
+          {
+            label: 'Criar Pedido',
+            icon: ShoppingCart,
+            onPress: () => setOrderModalVisible(true),
+          },
+        );
+      }
+
+      // Botões de relatório ficam visíveis para todos (incluindo viewer)
+      actions.push(
+        {
+          label: 'Gerar Relatório PDF',
+          icon: FileText,
+          onPress: () => handleOpenReportPreview('pdf'),
+        },
+        {
+          label: 'Gerar Relatório Excel',
+          icon: Download,
+          onPress: () => handleOpenReportPreview('excel'),
+        },
+      );
+
+      return actions;
     },
-    { 
-      label: 'Registrar Despesa', 
-      icon: DollarSign,
-      onPress: () => setExpenseModalVisible(true),
-    },
-    { 
-      label: 'Novo Funcionário', 
-      icon: Users,
-      onPress: () => setEmployeeModalVisible(true),
-    },
-    { 
-      label: 'Criar Pedido', 
-      icon: ShoppingCart,
-      onPress: () => setOrderModalVisible(true),
-    },
-    {
-      label: 'Gerar Relatório PDF',
-      icon: FileText,
-      onPress: () => handleOpenReportPreview('pdf'),
-    },
-    {
-      label: 'Gerar Relatório Excel',
-      icon: Download,
-      onPress: () => handleOpenReportPreview('excel'),
-    },
-  ];
+    [canCreate, isViewer, setIsEquipmentModalVisible, setExpenseModalVisible, setEmployeeModalVisible, setOrderModalVisible, handleOpenReportPreview],
+  );
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>

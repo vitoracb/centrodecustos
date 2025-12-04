@@ -11,6 +11,8 @@ import { logger } from '@/src/lib/logger';
 import { showSuccess, showError, showInfo } from '@/src/lib/toast';
 import { CostCenter } from './CostCenterContext';
 import { scheduleRevisionNotification } from '@/src/lib/revisionNotifications';
+import { useAuth } from './AuthContext';
+import { cacheManager } from '@/src/lib/cacheManager';
 
 /**
  * Status do equipamento
@@ -100,6 +102,7 @@ const brToIso = (br?: string | null): string | null => {
 };
 
 export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
+  const { user } = useAuth();
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +114,23 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     setLoading(true);
     setError(null);
 
+    if (!user) {
+      setEquipments([]);
+      setLoading(false);
+      return;
+    }
+
+    const cacheKey = `equipments:${user.id}`;
+
     try {
+      console.log('[Equipments] 📦 Tentando carregar equipamentos do cache...');
+      const cached = await cacheManager.get<Equipment[]>(cacheKey);
+      if (cached && cached.length > 0) {
+        console.log(`[Equipments] ✅ ${cached.length} equipamentos carregados do cache`);
+        setEquipments(cached);
+      }
+
+      console.log('[Equipments] 🌐 Carregando equipamentos do Supabase...');
       const { data, error } = await supabase
         .from('equipments')
         .select(
@@ -130,20 +149,19 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           hours_until_revision
         `,
         )
-        .is('deleted_at', null) // Filtra apenas equipamentos não deletados
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) {
         logger.error('Erro ao carregar equipments:', error);
         setError(error.message);
-        setLoading(false);
         return;
       }
 
       const mapped: Equipment[] = (data ?? []).map((row: any) => {
         const currentHours = row.current_hours ?? 0;
         const hoursUntilRevision = row.hours_until_revision ?? 250;
-        
+
         const equipment = {
           id: row.id,
           name: row.name,
@@ -159,11 +177,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           deletedAt: row.deleted_at
             ? new Date(row.deleted_at).getTime()
             : undefined,
-          // ✅ NOVOS CAMPOS
           currentHours,
           hoursUntilRevision,
         };
-        
+
         console.log(`📦 Equipamento mapeado:`, {
           id: equipment.id,
           name: equipment.name,
@@ -171,29 +188,31 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           costCenterCode: row.costCenterCode,
           cost_center_id: row.cost_center_id,
           cost_centers_raw: row.cost_centers,
-          deletedAt: equipment.deletedAt
+          deletedAt: equipment.deletedAt,
         });
-        
+
         return equipment;
       });
 
       console.log(`📦 Total de equipamentos carregados do banco:`, data?.length || 0);
       console.log(`📦 Total de equipamentos mapeados:`, mapped.length);
       console.log(`📦 Equipamentos por centro:`, {
-        valenca: mapped.filter(eq => eq.center === 'valenca' && !eq.deletedAt).length,
-        cna: mapped.filter(eq => eq.center === 'cna' && !eq.deletedAt).length,
-        cabralia: mapped.filter(eq => eq.center === 'cabralia' && !eq.deletedAt).length,
-        deletados: mapped.filter(eq => eq.deletedAt).length,
+        valenca: mapped.filter((eq) => eq.center === 'valenca' && !eq.deletedAt).length,
+        cna: mapped.filter((eq) => eq.center === 'cna' && !eq.deletedAt).length,
+        cabralia: mapped.filter((eq) => eq.center === 'cabralia' && !eq.deletedAt).length,
+        deletados: mapped.filter((eq) => eq.deletedAt).length,
       });
 
       setEquipments(mapped);
+      await cacheManager.set(cacheKey, mapped);
+      console.log('[Equipments] 💾 Cache de equipamentos atualizado');
     } catch (err: any) {
       logger.error('Erro inesperado ao carregar equipments:', err);
       setError(err.message ?? 'Erro inesperado ao carregar equipamentos');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadEquipments();
@@ -205,6 +224,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const addEquipment = useCallback(
     async (equipment: Omit<Equipment, 'id'>) => {
       try {
+        if (!user) {
+          throw new Error('Usuário não autenticado');
+        }
+        const cacheKey = `equipments:${user.id}`;
         const costCenterCode = equipment.center;
 
         // Busca o cost_center.id pelo code
@@ -274,14 +297,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           hoursUntilRevision,
         };
 
-        setEquipments(prev => [newEquipment, ...prev]);
+        setEquipments(prev => {
+          const next = [newEquipment, ...prev];
+          cacheManager.set(cacheKey, next).catch(() => {
+            // erro de cache não deve quebrar fluxo de criação
+          });
+          return next;
+        });
         showSuccess('Equipamento adicionado', newEquipment.name);
       } catch (err: any) {
         logger.error('Erro em addEquipment:', err);
         throw err;
       }
     },
-    [],
+    [user],
   );
 
   /**
@@ -290,6 +319,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const updateEquipment = useCallback(
     async (id: string, updates: Partial<Equipment>) => {
       try {
+        if (!user) {
+          throw new Error('Usuário não autenticado');
+        }
+        const cacheKey = `equipments:${user.id}`;
         const existing = equipments.find(eq => eq.id === id);
         if (!existing) {
           throw new Error('Equipamento não encontrado para atualização');
@@ -327,8 +360,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         }
 
         const equipmentName = existing?.name || '';
-        setEquipments(prev =>
-          prev.map(eq => {
+        setEquipments(prev => {
+          const next = prev.map(eq => {
             if (eq.id !== id) return eq;
 
             const merged: Equipment = {
@@ -345,8 +378,14 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
             }
 
             return merged;
-          }),
-        );
+          });
+
+          cacheManager.set(cacheKey, next).catch(() => {
+            // erro de cache não deve quebrar fluxo de atualização
+          });
+
+          return next;
+        });
         
         // Só mostra mensagem se não for apenas mudança de status
         const isOnlyStatusChange = Object.keys(updates).length === 1 && 'status' in updates;
@@ -358,7 +397,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         throw err;
       }
     },
-    [equipments],
+    [equipments, user],
   );
 
   /**
@@ -420,6 +459,10 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const updateEquipmentHours = useCallback(
     async (equipmentId: string, newCurrentHours: number, newHoursUntilRevision?: number) => {
       try {
+        if (!user) {
+          throw new Error('Usuário não autenticado');
+        }
+        const cacheKey = `equipments:${user.id}`;
         const equipment = equipments.find(e => e.id === equipmentId);
         if (!equipment) {
           logger.error('Equipamento não encontrado');
@@ -501,7 +544,13 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           hoursUntilRevision,
         };
 
-        setEquipments(prev => prev.map(e => e.id === equipmentId ? updated : e));
+        setEquipments(prev => {
+          const next = prev.map(e => (e.id === equipmentId ? updated : e));
+          cacheManager.set(cacheKey, next).catch(() => {
+            // erro de cache não deve quebrar fluxo de atualização de horas
+          });
+          return next;
+        });
         
         logger.info(`✅ Horas atualizadas: ${equipment.name} - ${newCurrentHours}h`);
         showSuccess('Horas atualizadas', `${equipment.name}: ${newCurrentHours.toLocaleString()}h`);
@@ -514,7 +563,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         showError('Erro ao atualizar horas', e.message || 'Tente novamente');
       }
     },
-    [equipments],
+    [equipments, user],
   );
 
   /**
