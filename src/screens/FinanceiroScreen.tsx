@@ -1851,7 +1851,27 @@ export const FinanceiroScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Financeiro</Text>
+            <View style={styles.headerTop}>
+              <View style={styles.headerTitleContainer}>
+                <Text style={styles.title}>Financeiro</Text>
+              </View>
+              <View style={styles.headerNavButtons}>
+                <TouchableOpacity
+                  style={styles.headerNavButton}
+                  onPress={handlePreviousPeriod}
+                  activeOpacity={0.6}
+                >
+                  <ChevronLeft size={20} color="#0A84FF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.headerNavButton}
+                  onPress={handleNextPeriod}
+                  activeOpacity={0.6}
+                >
+                  <ChevronRight size={20} color="#0A84FF" />
+                </TouchableOpacity>
+              </View>
+            </View>
             <Text style={styles.subtitle}>
               Controle financeiro do centro {costCenters.find(cc => cc.code === selectedCenter)?.name || centerLabels[selectedCenter as keyof typeof centerLabels] || selectedCenter}
             </Text>
@@ -1874,24 +1894,6 @@ export const FinanceiroScreen = () => {
                 </TouchableOpacity>
               );
             })}
-          </View>
-
-          {/* Botões de navegação rápida de período */}
-          <View style={styles.quickNavContainer}>
-            <TouchableOpacity
-              style={styles.quickNavButton}
-              onPress={handlePreviousPeriod}
-              activeOpacity={0.6}
-            >
-              <ChevronLeft size={20} color="#0A84FF" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickNavButton}
-              onPress={handleNextPeriod}
-              activeOpacity={0.6}
-            >
-              <ChevronRight size={20} color="#0A84FF" />
-            </TouchableOpacity>
           </View>
 
           {renderContent()}
@@ -2725,26 +2727,23 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
   },
-  quickNavContainer: {
+  headerTop: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: 4,
   },
-  quickNavButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerTitleContainer: {
+    flex: 1,
+  },
+  headerNavButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: '#0A84FF',
