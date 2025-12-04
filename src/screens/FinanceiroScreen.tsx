@@ -2172,14 +2172,14 @@ export const FinanceiroScreen = () => {
         onPress={handlePreviousPeriod}
         activeOpacity={0.8}
       >
-        <ChevronLeft size={28} color="#FFFFFF" />
+        <ChevronLeft size={28} color="#0A84FF" />
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.floatingButton, styles.floatingButtonRight]}
         onPress={handleNextPeriod}
         activeOpacity={0.8}
       >
-        <ChevronRight size={28} color="#FFFFFF" />
+        <ChevronRight size={28} color="#0A84FF" />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -2729,14 +2729,16 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#0A84FF',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
     zIndex: 1000,
   },
   floatingButtonLeft: {
