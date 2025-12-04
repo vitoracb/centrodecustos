@@ -2,8 +2,16 @@ import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as readline from 'readline';
+import * as fs from 'fs';
 
+// Carrega .env (banco atual)
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+// Carrega .env.migration (novo banco)
+const migrationEnvPath = path.resolve(__dirname, '../.env.migration');
+if (fs.existsSync(migrationEnvPath)) {
+  dotenv.config({ path: migrationEnvPath });
+}
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -29,15 +37,25 @@ async function main() {
   console.log('📊 Banco ATUAL (origem):');
   console.log(`   URL: ${CURRENT_URL}\n`);
   
-  // Banco NOVO (destino)
-  console.log('🆕 Configure o banco NOVO (destino):\n');
-  const NEW_URL = await question('   URL do novo Supabase: ');
-  const NEW_KEY = await question('   Anon Key do novo Supabase: ');
+  // Banco NOVO (destino) - lê do .env.migration
+  let NEW_URL = process.env.NEW_SUPABASE_URL || '';
+  let NEW_KEY = process.env.NEW_SUPABASE_ANON_KEY || '';
   
+  // Se não encontrou no .env.migration, pergunta
   if (!NEW_URL || !NEW_KEY) {
-    console.error('❌ Erro: Credenciais do novo banco não fornecidas');
-    rl.close();
-    process.exit(1);
+    console.log('🆕 Configure o banco NOVO (destino):\n');
+    NEW_URL = await question('   URL do novo Supabase: ');
+    NEW_KEY = await question('   Anon Key do novo Supabase: ');
+    
+    if (!NEW_URL || !NEW_KEY) {
+      console.error('❌ Erro: Credenciais do novo banco não fornecidas');
+      rl.close();
+      process.exit(1);
+    }
+  } else {
+    console.log('🆕 Banco NOVO (destino):');
+    console.log(`   URL: ${NEW_URL}`);
+    console.log('   (Credenciais carregadas de .env.migration)\n');
   }
   
   console.log('\n⚠️  ATENÇÃO: Esta operação irá:');
