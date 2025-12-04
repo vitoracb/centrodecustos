@@ -1,0 +1,4 @@
+id,equipment_id,type,description,date,next_date,cost,created_at
+1f042666-50c9-4c82-94bf-c5d85e4f9b60,7d4cf85c-baa6-44cd-af51-4c7e8abf3358,Revisão geral,Revisão das 1000h,2025-11-27,2030-11-27,,2025-11-27 19:40:52.160399+00
+3a8ccb1d-f442-4e26-9a08-a5b47f0b0dd3,509f4c76-3601-4e80-a6f8-e3159ba9c5d2,Revisão 50000,Revisão da 5000 horas realizada com sucesso,2025-11-27,,,2025-11-27 10:37:16.395787+00
+c3642988-585b-4ace-b214-ab9c6a10fddf,a4a5edef-2841-4e08-8da1-ae951e47351e,Jajaja,Lllll,2025-11-26,,,2025-11-26 21:59:21.89435+00

@@ -1,0 +1,3 @@
+id,name,description,order_date,status,created_at,updated_at,quote_file_url,quote_file_name,quote_file_mime_type,equipment_id,cost_center_id
+8813db74-a930-499b-870e-94146cdbb45e,Hghvv,Vcjfbb,2025-12-02,orcamento_enviado,2025-12-02 09:08:03.787833+00,2025-12-02 09:08:03.787833+00,,,,c4ffceac-4dd7-4951-b478-6cb7f143416f,cabralia
+e8ae1e27-99f9-4b03-a0f8-390288d176d7,Lâmina,Kkkk,2025-11-30,orcamento_pendente,2025-11-30 21:04:39.695803+00,2025-11-30 21:04:39.695803+00,,,,c4588d89-1ca6-4a93-8dc7-416569bf940e,valenca
