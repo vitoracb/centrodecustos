@@ -544,6 +544,39 @@ export const buildReportHTML = (data: ReportData): string => {
   })()}
   ` : ''}
 
+  <h2>Detalhamento de Despesas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Descrição</th>
+        <th>Categoria</th>
+        <th>Status</th>
+        <th>Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${expenses
+        .sort((a, b) => {
+          // Ordena por data (mais recente primeiro)
+          const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+          const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+          if (!dateA.isValid() || !dateB.isValid()) return 0;
+          return dateB.valueOf() - dateA.valueOf();
+        })
+        .map((expense) => `
+          <tr>
+            <td>${formatDate(expense.date)}</td>
+            <td>${expense.name || ''}</td>
+            <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
+            <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
+            <td>${formatCurrency(expense.value)}</td>
+          </tr>
+        `)
+        .join('')}
+    </tbody>
+  </table>
+
   <h2>Detalhamento de Recebimentos</h2>
   <table>
     <thead>
