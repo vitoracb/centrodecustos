@@ -763,72 +763,81 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             .eq("type", "RECEITA")
             .single();
 
-          if (templateError || !currentTemplate) {
-            console.error("❌ Erro ao buscar template do recebimento fixo:", templateError);
-            throw new Error("Erro ao buscar template do recebimento fixo");
+          if (templateError) {
+            // Caso especial: nenhum template encontrado (PGRST116)
+            if ((templateError as any).code === "PGRST116") {
+              console.warn(
+                "⚠️ Nenhum template de recebimento fixo encontrado para este ID; tratando como recebimento pontual.",
+                templateError
+              );
+            } else {
+              console.error("❌ Erro ao buscar template do recebimento fixo:", templateError);
+              throw new Error("Erro ao buscar template do recebimento fixo");
+            }
           }
 
-          const oldDuration = currentTemplate.fixed_duration_months;
-          const newDuration = receipt.fixedDurationMonths;
+          if (currentTemplate) {
+            const oldDuration = currentTemplate.fixed_duration_months;
+            const newDuration = receipt.fixedDurationMonths;
 
-          // Busca todas as parcelas relacionadas (template + geradas)
-          const { data: allInstallments, error: installmentsError } = await supabase
-            .from("financial_transactions")
-            .select("*")
-            .eq("type", "RECEITA")
-            .eq("description", receipt.name)
-            .eq("cost_center_id", receipt.center)
-            .order("date", { ascending: true });
+            // Busca todas as parcelas relacionadas (template + geradas)
+            const { data: allInstallments, error: installmentsError } = await supabase
+              .from("financial_transactions")
+              .select("*")
+              .eq("type", "RECEITA")
+              .eq("description", receipt.name)
+              .eq("cost_center_id", receipt.center)
+              .order("date", { ascending: true });
 
-          if (installmentsError) {
-            console.error("❌ Erro ao buscar parcelas do recebimento fixo:", installmentsError);
-            throw new Error("Erro ao buscar parcelas do recebimento fixo");
-          }
+            if (installmentsError) {
+              console.error("❌ Erro ao buscar parcelas do recebimento fixo:", installmentsError);
+              throw new Error("Erro ao buscar parcelas do recebimento fixo");
+            }
 
-          // Atualiza o template
-          const templatePayload: any = {
-            cost_center_id: receipt.center,
-            value: receipt.value,
-            date: dbDate,
-            category: receipt.category ?? null,
-            description: receipt.name,
-            payment_method: receipt.method ?? null,
-            status: statusValue,
-            is_fixed: true,
-            fixed_duration_months: receipt.fixedDurationMonths ?? null,
-          };
-
-          const { error: templateUpdateError } = await supabase
-            .from("financial_transactions")
-            .update(templatePayload)
-            .eq("id", receipt.id)
-            .eq("type", "RECEITA");
-
-          if (templateUpdateError) {
-            console.error("❌ Erro ao atualizar template:", templateUpdateError);
-            throw new Error("Erro ao atualizar template");
-          }
-
-          // Atualiza todas as parcelas geradas existentes
-          const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
-          
-          for (const installment of generatedInstallments) {
-            const installmentPayload: any = {
+            // Atualiza o template
+            const templatePayload: any = {
+              cost_center_id: receipt.center,
               value: receipt.value,
+              date: dbDate,
               category: receipt.category ?? null,
               description: receipt.name,
               payment_method: receipt.method ?? null,
+              status: statusValue,
+              is_fixed: true,
+              fixed_duration_months: receipt.fixedDurationMonths ?? null,
             };
 
-            await supabase
+            const { error: templateUpdateError } = await supabase
               .from("financial_transactions")
-              .update(installmentPayload)
-              .eq("id", installment.id)
+              .update(templatePayload)
+              .eq("id", receipt.id)
               .eq("type", "RECEITA");
-          }
 
-          // Se a duração mudou, ajusta as parcelas
-          if (oldDuration !== newDuration && newDuration) {
+            if (templateUpdateError) {
+              console.error("❌ Erro ao atualizar template:", templateUpdateError);
+              throw new Error("Erro ao atualizar template");
+            }
+
+            // Atualiza todas as parcelas geradas existentes
+            const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
+            
+            for (const installment of generatedInstallments) {
+              const installmentPayload: any = {
+                value: receipt.value,
+                category: receipt.category ?? null,
+                description: receipt.name,
+                payment_method: receipt.method ?? null,
+              };
+
+              await supabase
+                .from("financial_transactions")
+                .update(installmentPayload)
+                .eq("id", installment.id)
+                .eq("type", "RECEITA");
+            }
+
+            // Se a duração mudou, ajusta as parcelas
+            if (oldDuration !== newDuration && newDuration) {
             const currentDate = new Date();
             const currentMonth = currentDate.getMonth() + 1;
             const currentYear = currentDate.getFullYear();
@@ -921,43 +930,44 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             }
           }
 
-          // Recarrega todas as receitas
-          const { data: reloadedReceipts, error: reloadError } = await supabase
-            .from("financial_transactions")
-            .select(
+            // Recarrega todas as receitas
+            const { data: reloadedReceipts, error: reloadError } = await supabase
+              .from("financial_transactions")
+              .select(
+                `
+                id,
+                type,
+                status,
+                date,
+                value,
+                category,
+                description,
+                payment_method,
+                reference,
+                is_fixed,
+                fixed_duration_months,
+                created_at,
+                cost_center_id
               `
-              id,
-              type,
-              status,
-              date,
-              value,
-              category,
-              description,
-              payment_method,
-              reference,
-              is_fixed,
-              fixed_duration_months,
-              created_at,
-              cost_center_id
-            `
-            )
-            .eq("type", "RECEITA")
-            .order("date", { ascending: false });
+              )
+              .eq("type", "RECEITA")
+              .order("date", { ascending: false });
 
-          if (!reloadError && reloadedReceipts) {
-            const mapped: Receipt[] = await Promise.all(
-              (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
-            );
-            setReceipts(mapped);
-            
-            // Retorna o template atualizado
-            const updatedTemplate = mapped.find((r) => r.id === receipt.id);
-            if (updatedTemplate) {
-              return updatedTemplate;
+            if (!reloadError && reloadedReceipts) {
+              const mapped: Receipt[] = await Promise.all(
+                (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
+              );
+              setReceipts(mapped);
+              
+              // Retorna o template atualizado
+              const updatedTemplate = mapped.find((r) => r.id === receipt.id);
+              if (updatedTemplate) {
+                return updatedTemplate;
+              }
             }
-          }
 
-          throw new Error("Erro ao recarregar receitas após atualização");
+            throw new Error("Erro ao recarregar receitas após atualização");
+          }
         }
 
         // Se não for fixo, atualiza apenas o registro específico
