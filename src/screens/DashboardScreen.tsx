@@ -24,7 +24,6 @@ import { showSuccess, showError } from '../lib/toast';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { DashboardOverviewSkeleton } from '../components/skeletons/DashboardOverviewSkeleton';
-import { ComparisonRow } from '../components/ComparisonRow';
 import {
   Tractor,
   DollarSign,
@@ -393,98 +392,6 @@ export const DashboardScreen = () => {
   const monthlyBalance = useMemo(() => {
     return monthlyReceipts - monthlyExpenses;
   }, [monthlyReceipts, monthlyExpenses]);
-
-  // Cálculos do mês anterior
-  const previousMonthData = useMemo(() => {
-    const prevMonth = dayjs().subtract(1, 'month');
-    const previousMonth = prevMonth.format('YYYY-MM');
-
-    // Despesas do mês anterior (com mesma lógica de filtro de duplicatas)
-    const allExpenses = getAllExpenses();
-    console.log('📊 Total de despesas no banco:', allExpenses.length);
-    console.log('📊 Primeiras 3 despesas:', allExpenses.slice(0, 3).map(e => ({ date: e.date, value: e.value, center: e.center })));
-    const centerExpenses = allExpenses.filter(exp => {
-      if (exp.center !== selectedCenter) return false;
-      
-      const dateParts = exp.date.split('/');
-      if (dateParts.length !== 3) return false;
-      
-      const expenseMonth = `${dateParts[2]}-${dateParts[1]}`;
-      return expenseMonth === previousMonth;
-    });
-    console.log('📊 Despesas do centro', selectedCenter, 'no mês', previousMonth, ':', centerExpenses.length);
-    console.log('📊 Despesas filtradas:', centerExpenses.slice(0, 3).map(e => ({ date: e.date, value: e.value })));
-
-    // Filtra para evitar duplicação de templates e parcelas
-    const filteredExpenses = centerExpenses.filter(exp => {
-      if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
-        return true;
-      }
-      
-      if (exp.isFixed) {
-        const expMonth = dayjs(exp.date, 'DD/MM/YYYY').format('YYYY-MM');
-        const hasGeneratedInstallmentsInSameMonth = centerExpenses.some(
-          other => 
-            other.id !== exp.id &&
-            other.name === exp.name &&
-            other.center === exp.center &&
-            dayjs(other.date, 'DD/MM/YYYY').format('YYYY-MM') === expMonth &&
-            other.installmentNumber !== undefined &&
-            other.installmentNumber !== null
-        );
-        return !hasGeneratedInstallmentsInSameMonth;
-      }
-      
-      return true;
-    });
-
-    // Receitas do mês anterior
-    const allReceipts = getAllReceipts();
-    const centerReceipts = allReceipts.filter(rec => {
-      if (rec.center !== selectedCenter) return false;
-      
-      const dateParts = rec.date.split('/');
-      if (dateParts.length !== 3) return false;
-      
-      const receiptMonth = `${dateParts[2]}-${dateParts[1]}`;
-      return receiptMonth === previousMonth;
-    });
-
-    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
-    const totalReceipts = centerReceipts.reduce((sum, rec) => sum + (rec.value || 0), 0);
-    const balance = totalReceipts - totalExpenses;
-
-    return {
-      expenses: totalExpenses,
-      receipts: totalReceipts,
-      balance,
-    };
-  }, [selectedCenter, getAllExpenses, getAllReceipts]);
-
-  // Comparação com mês anterior (percentual)
-  const comparison = useMemo(() => {
-    const calculatePercentage = (current: number, previous: number): number => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return ((current - previous) / previous) * 100;
-    };
-
-    // Debug
-    console.log('=== COMPARAÇÃO MÊS ANTERIOR ===');
-    console.log('Mês atual:', dayjs().format('YYYY-MM'));
-    console.log('Mês anterior:', dayjs().subtract(1, 'month').format('YYYY-MM'));
-    console.log('Receitas atual:', monthlyReceipts);
-    console.log('Receitas anterior:', previousMonthData.receipts);
-    console.log('Despesas atual:', monthlyExpenses);
-    console.log('Despesas anterior:', previousMonthData.expenses);
-    console.log('Saldo atual:', monthlyBalance);
-    console.log('Saldo anterior:', previousMonthData.balance);
-
-    return {
-      receipts: calculatePercentage(monthlyReceipts, previousMonthData.receipts),
-      expenses: calculatePercentage(monthlyExpenses, previousMonthData.expenses),
-      balance: calculatePercentage(monthlyBalance, previousMonthData.balance),
-    };
-  }, [monthlyReceipts, monthlyExpenses, monthlyBalance, previousMonthData]);
 
   // Calcula funcionários únicos (excluindo deletados e sem equipamento válido)
   const employeesCount = useMemo(() => {
@@ -1011,27 +918,6 @@ export const DashboardScreen = () => {
               ))}
             </View>
 
-            {/* Comparação com Mês Anterior */}
-            <View style={styles.comparisonCard}>
-              <Text style={styles.comparisonTitle}>Comparação com Mês Anterior</Text>
-              <View style={styles.divider} />
-              <ComparisonRow 
-                label="Receitas" 
-                value={Math.round(comparison.receipts)} 
-                isPositive={comparison.receipts >= 0} 
-              />
-              <ComparisonRow 
-                label="Despesas" 
-                value={Math.round(comparison.expenses)} 
-                isPositive={comparison.expenses <= 0} 
-              />
-              <ComparisonRow 
-                label="Saldo" 
-                value={Math.round(comparison.balance)} 
-                isPositive={comparison.balance >= 0} 
-              />
-            </View>
-
             <View style={styles.sectionsRow}>
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Atividades Recentes</Text>
@@ -1317,28 +1203,6 @@ const styles = StyleSheet.create({
   statChange: {
     fontSize: 10,
     color: '#34C759',
-  },
-  comparisonCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  comparisonTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 12,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginBottom: 8,
   },
   sectionsRow: {
     gap: 16,
