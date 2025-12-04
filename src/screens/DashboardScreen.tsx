@@ -845,7 +845,7 @@ export const DashboardScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Dashboard</Text>
+            <Text style={styles.title}>Painel de Gerenciamento</Text>
             <Text style={styles.subtitle}>
               Visão geral das operações do centro de custo{' '}
               {centerLabels[selectedCenter as keyof typeof centerLabels]}
