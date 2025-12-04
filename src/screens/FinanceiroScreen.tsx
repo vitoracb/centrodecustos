@@ -22,6 +22,8 @@ import {
   ChevronDown,
   Download,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -1792,6 +1794,51 @@ export const FinanceiroScreen = () => {
     }
   };
 
+  // Funções de navegação de período
+  const handlePreviousPeriod = () => {
+    if (activeTab === 'Recebimentos') {
+      if (receiptMode === 'mensal') {
+        setSelectedReceiptPeriod(prev => prev.subtract(1, 'month'));
+      } else {
+        setSelectedReceiptPeriod(prev => prev.subtract(1, 'year'));
+      }
+    } else if (activeTab === 'Despesas') {
+      if (expenseMode === 'mensal') {
+        setSelectedExpensePeriod(prev => prev.subtract(1, 'month'));
+      } else {
+        setSelectedExpensePeriod(prev => prev.subtract(1, 'year'));
+      }
+    } else if (activeTab === 'Fechamento') {
+      if (closureMode === 'mensal') {
+        setSelectedPeriod(prev => prev.subtract(1, 'month'));
+      } else {
+        setSelectedPeriod(prev => prev.subtract(1, 'year'));
+      }
+    }
+  };
+
+  const handleNextPeriod = () => {
+    if (activeTab === 'Recebimentos') {
+      if (receiptMode === 'mensal') {
+        setSelectedReceiptPeriod(prev => prev.add(1, 'month'));
+      } else {
+        setSelectedReceiptPeriod(prev => prev.add(1, 'year'));
+      }
+    } else if (activeTab === 'Despesas') {
+      if (expenseMode === 'mensal') {
+        setSelectedExpensePeriod(prev => prev.add(1, 'month'));
+      } else {
+        setSelectedExpensePeriod(prev => prev.add(1, 'year'));
+      }
+    } else if (activeTab === 'Fechamento') {
+      if (closureMode === 'mensal') {
+        setSelectedPeriod(prev => prev.add(1, 'month'));
+      } else {
+        setSelectedPeriod(prev => prev.add(1, 'year'));
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       <View style={styles.container}>
@@ -2118,6 +2165,24 @@ export const FinanceiroScreen = () => {
           }
         }}
       />
+      
+      {/* Botões flutuantes de navegação */}
+      <View style={styles.floatingNavigation}>
+        <TouchableOpacity
+          style={styles.floatingButton}
+          onPress={handlePreviousPeriod}
+          activeOpacity={0.8}
+        >
+          <ChevronLeft size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.floatingButton}
+          onPress={handleNextPeriod}
+          activeOpacity={0.8}
+        >
+          <ChevronRight size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -2658,5 +2723,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0A84FF',
     fontWeight: '600',
+  },
+  floatingNavigation: {
+    position: 'absolute',
+    right: 16,
+    bottom: 80,
+    flexDirection: 'column',
+    gap: 12,
+    zIndex: 1000,
+  },
+  floatingButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0A84FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
