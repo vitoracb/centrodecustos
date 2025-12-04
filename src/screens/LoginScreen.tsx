@@ -91,14 +91,6 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => router.push('/signup' as any)}
-          >
-            <Text style={styles.linkText}>
-              Não tem conta? <Text style={styles.linkTextBold}>Cadastre-se</Text>
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>

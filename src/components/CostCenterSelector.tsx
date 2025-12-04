@@ -9,7 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit } from 'lucide-react-native';
+import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit, Key } from 'lucide-react-native';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../context/PermissionsContext';
@@ -196,6 +196,18 @@ export const CostCenterSelector = () => {
 
             <TouchableOpacity
               style={styles.menuItem}
+              onPress={() => {
+                setIsProfileMenuOpen(false);
+                router.push('/change-password' as any);
+              }}
+              activeOpacity={0.7}
+            >
+              <Key size={20} color="#0A84FF" />
+              <Text style={styles.menuItemText}>Alterar Senha</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
               onPress={handleLogout}
               activeOpacity={0.7}
             >
@@ -371,6 +383,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 16,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#1C1C1E',
+    fontWeight: '500',
   },
   menuItemTextLogout: {
     fontSize: 15,
