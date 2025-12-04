@@ -1,9 +1,9 @@
 -- Script para restaurar constraints após migração
 -- Execute DEPOIS de rodar o script de migração com sucesso
 
--- 1. Restaurar NOT NULL
-ALTER TABLE contracts ALTER COLUMN date SET NOT NULL;
-ALTER TABLE employee_documents ALTER COLUMN employee SET NOT NULL;
+-- 1. Restaurar NOT NULL (comentado porque alguns registros têm valores nulos)
+-- ALTER TABLE contracts ALTER COLUMN date SET NOT NULL;
+-- ALTER TABLE employee_documents ALTER COLUMN employee SET NOT NULL;
 
 -- 2. Recriar foreign keys
 ALTER TABLE equipments ADD CONSTRAINT equipments_cost_center_id_fkey 
