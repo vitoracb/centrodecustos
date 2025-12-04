@@ -9,7 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit, Key } from 'lucide-react-native';
+import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit, Key, Users } from 'lucide-react-native';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../context/PermissionsContext';
@@ -193,6 +193,20 @@ export const CostCenterSelector = () => {
             </View>
 
             <View style={styles.divider} />
+
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsProfileMenuOpen(false);
+                  router.push('/user-management' as any);
+                }}
+                activeOpacity={0.7}
+              >
+                <Users size={20} color="#0A84FF" />
+                <Text style={styles.menuItemText}>Gerenciar Usuários</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.menuItem}
