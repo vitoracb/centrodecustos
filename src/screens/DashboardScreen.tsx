@@ -1069,7 +1069,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   header: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   title: {
     fontSize: 28,
