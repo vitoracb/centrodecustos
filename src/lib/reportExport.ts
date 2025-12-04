@@ -680,7 +680,7 @@ export const exportToPDF = async (data: ReportData): Promise<string> => {
   }
 };
 
-export const exportToExcel = async (data: ReportData): Promise<void> => {
+export const exportToExcel = async (data: ReportData): Promise<string> => {
   try {
     const { expenses, receipts, period, center } = data;
     
