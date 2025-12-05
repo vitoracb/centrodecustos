@@ -1026,16 +1026,34 @@ export const DashboardScreen = () => {
         onClose={() => setExpenseModalVisible(false)}
         onSubmit={async (data) => {
           try {
-            await addExpense({
-              name: data.name,
-              value: data.value,
-              date: data.date,
-              category: data.category,
-              center: selectedCenter,
-              equipmentId: data.equipmentId,
-              documents: data.documents || [],
-              debitAdjustment: data.debitAdjustment,
-            });
+            if (data.isInstallment && data.installments && data.installments.length > 0) {
+              for (const inst of data.installments) {
+                await addExpense({
+                  name: data.name,
+                  value: inst.value,
+                  date: inst.date,
+                  category: data.category,
+                  center: selectedCenter,
+                  equipmentId: data.equipmentId,
+                  documents: data.documents || [],
+                  debitAdjustment: data.debitAdjustment,
+                  method: data.method,
+                  installmentNumber: inst.installmentNumber,
+                });
+              }
+            } else {
+              await addExpense({
+                name: data.name,
+                value: data.value,
+                date: data.date,
+                category: data.category,
+                center: selectedCenter,
+                equipmentId: data.equipmentId,
+                documents: data.documents || [],
+                debitAdjustment: data.debitAdjustment,
+                method: data.method,
+              });
+            }
             setExpenseModalVisible(false);
             showSuccess('Despesa registrada', data.name);
           } catch (error) {

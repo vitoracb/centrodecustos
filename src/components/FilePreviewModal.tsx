@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
-import { X, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { X, Check, ChevronLeft, ChevronRight, Download, Share } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import { Image } from 'expo-image';
+import { shareFile } from '../lib/shareUtils';
 
 export interface FilePreviewItem {
   fileUri: string;
@@ -88,6 +90,24 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const handleNext = () => {
     if (canGoNext) {
       setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await shareFile(currentFile.fileUri, currentFile.mimeType || undefined);
+    } catch (error) {
+      Alert.alert('Erro ao compartilhar', 'Não foi possível compartilhar o arquivo.');
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      if (!currentFile.fileUri) return;
+      // Reutiliza o fluxo de compartilhamento, permitindo que o usuário escolha onde salvar
+      await shareFile(currentFile.fileUri, currentFile.mimeType || undefined);
+    } catch (error) {
+      Alert.alert('Erro ao baixar', 'Não foi possível baixar o arquivo.');
     }
   };
 
@@ -211,9 +231,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             )}
           </View>
 
-          {/* Botão de aprovar (para imagens e PDFs) */}
-          {showApproveButton && (isImage || isPdf) && canApprove && onApprove && (
-            <View style={styles.footer}>
+          <View style={styles.footer}>
+            {showApproveButton && (isImage || isPdf) && canApprove && onApprove ? (
               <TouchableOpacity
                 style={styles.approveButton}
                 onPress={() => onApprove(currentFile.fileUri, isMultiFile ? currentIndex : undefined)}
@@ -222,8 +241,34 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <Check size={20} color="#FFFFFF" />
                 <Text style={styles.approveButtonText}>Aprovar Orçamento</Text>
               </TouchableOpacity>
-            </View>
-          )}
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={onClose}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Fechar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.shareButton}
+                  onPress={handleShare}
+                  activeOpacity={0.8}
+                >
+                  <Share size={18} color="#FFFFFF" />
+                  <Text style={styles.shareText}>Compartilhar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.downloadButton}
+                  onPress={handleDownload}
+                  activeOpacity={0.8}
+                >
+                  <Download size={18} color="#FFFFFF" />
+                  <Text style={styles.downloadText}>Baixar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
@@ -339,6 +384,8 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E5EA',
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    gap: 10,
   },
   approveButton: {
     flexDirection: 'row',
@@ -353,6 +400,50 @@ const styles = StyleSheet.create({
   approveButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  shareButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#34C759',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  shareText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  downloadButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0A84FF',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  downloadText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
 });

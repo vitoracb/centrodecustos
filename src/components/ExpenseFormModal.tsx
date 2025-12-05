@@ -65,6 +65,13 @@ interface ExpenseFormData {
   sector?: ExpenseSector;
   fixedDurationMonths?: number;
   debitAdjustment?: ExpenseDebitAdjustment;
+  method?: string;
+  isInstallment?: boolean;
+  installments?: {
+    installmentNumber: number;
+    value: number;
+    date: string;
+  }[];
 }
 
 interface ExpenseFormModalProps {
@@ -104,6 +111,13 @@ export const ExpenseFormModal = ({
   const [debitValue, setDebitValue] = useState('');
   const [debitDescription, setDebitDescription] = useState('');
   const [isNegative, setIsNegative] = useState(false);
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installmentsCount, setInstallmentsCount] = useState<string>('');
+  const [installments, setInstallments] = useState<{ value: string; date: string }[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [paymentMethodDropdownVisible, setPaymentMethodDropdownVisible] = useState(false);
+  const [installmentPickerVisible, setInstallmentPickerVisible] = useState(false);
+  const [selectedInstallmentIndex, setSelectedInstallmentIndex] = useState<number | null>(null);
 
   const formatCurrency = (text: string, negative: boolean = false): string => {
     const numbers = text.replace(/\D/g, '');
@@ -183,6 +197,13 @@ export const ExpenseFormModal = ({
       setSectorDropdownVisible(false);
       setFixedDurationMonths('');
       setIsNegative(false);
+      setIsInstallment(false);
+      setInstallmentsCount('');
+      setInstallments([]);
+      setPaymentMethod(null);
+      setPaymentMethodDropdownVisible(false);
+      setInstallmentPickerVisible(false);
+      setSelectedInstallmentIndex(null);
     } else {
       // Sempre inicializa com initialData se fornecido, senão usa valores padrão
       if (initialData) {
@@ -248,11 +269,16 @@ export const ExpenseFormModal = ({
         setDebitValue('');
         setDebitDescription('');
         setIsNegative(false);
+        setIsInstallment(false);
+        setInstallmentsCount('');
+        setInstallments([]);
+        setPaymentMethod(null);
+        setPaymentMethodDropdownVisible(false);
       }
     }
   }, [visible, initialData]);
 
-  const handlePickDocument = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const handlePickDocument = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     const result = await DocumentPicker.getDocumentAsync({
       type: [
         'application/pdf',
@@ -306,7 +332,7 @@ export const ExpenseFormModal = ({
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante'],
+          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante', 'Boleto'],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
@@ -316,6 +342,8 @@ export const ExpenseFormModal = ({
             handlePickDocument('recibo');
           } else if (buttonIndex === 3) {
             handlePickDocument('comprovante_pagamento');
+          } else if (buttonIndex === 4) {
+            handlePickDocument('boleto');
           }
         }
       );
@@ -328,13 +356,14 @@ export const ExpenseFormModal = ({
           { text: 'Nota Fiscal', onPress: () => handlePickDocument('nota_fiscal') },
           { text: 'Recibo', onPress: () => handlePickDocument('recibo') },
           { text: 'Comprovante', onPress: () => handlePickDocument('comprovante_pagamento') },
+          { text: 'Boleto', onPress: () => handlePickDocument('boleto') },
         ],
         { cancelable: true }
       );
     }
   };
 
-  const handlePickPhotoFromCamera = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const handlePickPhotoFromCamera = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     if (!cameraPermission.granted) {
       Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
@@ -386,7 +415,7 @@ export const ExpenseFormModal = ({
     }
   };
 
-  const handlePickPhotoFromLibrary = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const handlePickPhotoFromLibrary = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
@@ -432,7 +461,7 @@ export const ExpenseFormModal = ({
     }
   };
 
-  const handleSelectPhotoType = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const handleSelectPhotoType = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     // Depois de selecionar o tipo, pergunta se é câmera ou álbum
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -467,7 +496,7 @@ export const ExpenseFormModal = ({
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante'],
+          options: ['Cancelar', 'Nota Fiscal', 'Recibo', 'Comprovante', 'Boleto'],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
@@ -477,6 +506,8 @@ export const ExpenseFormModal = ({
             handleSelectPhotoType('recibo');
           } else if (buttonIndex === 3) {
             handleSelectPhotoType('comprovante_pagamento');
+          } else if (buttonIndex === 4) {
+            handleSelectPhotoType('boleto');
           }
         }
       );
@@ -489,6 +520,7 @@ export const ExpenseFormModal = ({
           { text: 'Nota Fiscal', onPress: () => handleSelectPhotoType('nota_fiscal') },
           { text: 'Recibo', onPress: () => handleSelectPhotoType('recibo') },
           { text: 'Comprovante', onPress: () => handleSelectPhotoType('comprovante_pagamento') },
+          { text: 'Boleto', onPress: () => handleSelectPhotoType('boleto') },
         ],
         { cancelable: true }
       );
@@ -525,9 +557,11 @@ export const ExpenseFormModal = ({
     const parsedDebit = parseCurrency(debitValue);
     const hasValidDebit = addDebit && parsedDebit > 0;
     
-    if (!value || (parsedValue === 0 && !isNegative && !hasValidDebit)) {
-      Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero se houver abatimento).');
-      return;
+    if (!isInstallment) {
+      if (!value || (parsedValue === 0 && !isNegative && !hasValidDebit)) {
+        Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero se houver abatimento).');
+        return;
+      }
     }
     
     // Validações específicas por categoria
@@ -543,9 +577,9 @@ export const ExpenseFormModal = ({
       return;
     }
     
-    // Validação: se for despesa fixa, setor é obrigatório
-    if (isFixed && !sector) {
-      Alert.alert('Campo obrigatório', 'Por favor, selecione um setor para a despesa fixa.');
+    // Validação: setor é obrigatório para todas as despesas
+    if (!sector) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione um setor.');
       return;
     }
 
@@ -565,9 +599,40 @@ export const ExpenseFormModal = ({
     }
 
     // Validação: se débito está marcado, valor do débito é obrigatório
-    if (addDebit && !debitValue) {
+    if (!isInstallment && addDebit && !debitValue) {
       Alert.alert('Campo obrigatório', 'Por favor, informe o valor do débito.');
       return;
+    }
+
+    // Validações específicas de parcelas
+    if (isInstallment) {
+      const count = Number(installmentsCount || '0');
+      if (!count || count <= 0) {
+        Alert.alert('Campo obrigatório', 'Informe o número de parcelas.');
+        return;
+      }
+      if (installments.length !== count) {
+        Alert.alert('Erro nas parcelas', 'Número de parcelas não corresponde aos campos gerados.');
+        return;
+      }
+      for (let i = 0; i < installments.length; i++) {
+        const inst = installments[i];
+        const parsedInstValue = parseCurrency(inst.value);
+        if (!inst.value || parsedInstValue === 0) {
+          Alert.alert(
+            'Campo obrigatório',
+            `Preencha o valor da parcela ${i + 1}.`
+          );
+          return;
+        }
+        if (!inst.date || !validateDate(inst.date)) {
+          Alert.alert(
+            'Data inválida',
+            `Preencha uma data válida (DD/MM/AAAA) para a parcela ${i + 1}.`
+          );
+          return;
+        }
+      }
     }
 
     // Calcula valor final (valor base - débito)
@@ -576,7 +641,7 @@ export const ExpenseFormModal = ({
     
     // Se o checkbox de débito está desmarcado, garante que não há débito
     let debitAmount = 0;
-    if (addDebit && debitValue) {
+    if (!isInstallment && addDebit && debitValue) {
       debitAmount = parseCurrency(debitValue, false); // Débito sempre positivo
     }
     
@@ -584,21 +649,21 @@ export const ExpenseFormModal = ({
 
     // Validação: se não for negativo e tiver débito, valor final não pode ser negativo
     // EXCETO quando o valor base for zero (permite débito maior que zero para criar abatimentos)
-    if (!isNegative && addDebit && finalValue < 0 && baseValue !== 0) {
+    if (!isInstallment && !isNegative && addDebit && finalValue < 0 && baseValue !== 0) {
       Alert.alert('Valor inválido', 'O valor do débito não pode ser maior que o valor da despesa.');
       return;
     }
 
     // Prepara debitAdjustment se houver débito
     // Se o checkbox está desmarcado, não deve haver debitAdjustment
-    const debitAdjustment: ExpenseDebitAdjustment | undefined = addDebit && debitAmount > 0
+    const debitAdjustment: ExpenseDebitAdjustment | undefined = !isInstallment && addDebit && debitAmount > 0
       ? {
           amount: debitAmount,
           description: debitDescription.trim() || undefined,
         }
       : undefined;
 
-    onSubmit({
+    const basePayload: ExpenseFormData = {
       name: name.trim(),
       category,
       date: dayjs(date).format('DD/MM/YYYY'),
@@ -610,10 +675,27 @@ export const ExpenseFormModal = ({
       gestaoSubcategory: category === 'gestor' ? gestaoSubcategory : undefined,
       observations: (category === 'diversos' || (category === 'gestor' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
       isFixed,
-      sector: isFixed && sector ? sector : undefined,
+      sector: sector || undefined,
       fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
       debitAdjustment,
-    });
+      method: paymentMethod || undefined,
+    };
+
+    if (isInstallment) {
+      const mappedInstallments = installments.map((inst, index) => ({
+        installmentNumber: index + 1,
+        value: parseCurrency(inst.value, false),
+        date: inst.date,
+      }));
+
+      onSubmit({
+        ...basePayload,
+        isInstallment: true,
+        installments: mappedInstallments,
+      });
+    } else {
+      onSubmit(basePayload);
+    }
     onClose();
   };
 
@@ -686,6 +768,46 @@ export const ExpenseFormModal = ({
                         ]}
                       >
                         {CATEGORY_LABELS[cat]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Setor *</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setSectorDropdownVisible(!sectorDropdownVisible)}
+              >
+                <Text style={styles.inputText}>
+                  {sector ? SECTOR_LABELS[sector] : 'Selecione um setor'}
+                </Text>
+                <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+              </TouchableOpacity>
+              {sectorDropdownVisible && (
+                <View style={styles.dropdownList}>
+                  {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec, index, array) => (
+                    <TouchableOpacity
+                      key={sec}
+                      style={[
+                        styles.dropdownItem,
+                        sector === sec && styles.dropdownItemSelected,
+                        index === array.length - 1 && styles.dropdownItemLast,
+                      ]}
+                      onPress={() => {
+                        setSector(sec);
+                        setSectorDropdownVisible(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          sector === sec && styles.dropdownItemTextSelected,
+                        ]}
+                      >
+                        {SECTOR_LABELS[sec]}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -879,59 +1001,197 @@ export const ExpenseFormModal = ({
               )}
             </View>
 
-            {/* Checkbox e campos de débito */}
             <View style={styles.field}>
               <TouchableOpacity
                 style={styles.checkboxContainer}
                 onPress={() => {
-                  const newAddDebit = !addDebit;
-                  setAddDebit(newAddDebit);
-                  // Se desmarcar o checkbox, limpa os campos de débito
-                  if (!newAddDebit) {
-                    setDebitValue('');
-                    setDebitDescription('');
+                  const newValue = !isInstallment;
+                  setIsInstallment(newValue);
+                  if (!newValue) {
+                    setInstallmentsCount('');
+                    setInstallments([]);
                   }
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.checkbox, addDebit && styles.checkboxChecked]}>
-                  {addDebit && <Text style={styles.checkboxCheckmark}>✓</Text>}
+                <View style={[styles.checkbox, isInstallment && styles.checkboxChecked]}>
+                  {isInstallment && <Text style={styles.checkboxCheckmark}>✓</Text>}
                 </View>
                 <View style={styles.checkboxLabelContainer}>
-                  <Text style={styles.checkboxLabel}>Adicionar débito</Text>
+                  <Text style={styles.checkboxLabel}>Valor parcelado</Text>
                   <Text style={styles.checkboxHint}>
-                    Abatimento aplicado à despesa (ex: abatimento de imposto)
+                    Cria uma despesa para cada parcela, com valores e vencimentos independentes.
                   </Text>
                 </View>
               </TouchableOpacity>
             </View>
 
-            {/* Campos de débito (aparecem quando checkbox está marcado) */}
-            {addDebit && (
+            {isInstallment && (
               <>
                 <View style={styles.field}>
-                  <Text style={styles.label}>Valor do débito *</Text>
+                  <Text style={styles.label}>Número de parcelas *</Text>
                   <TextInput
                     style={styles.input}
-                    value={debitValue}
-                    onChangeText={handleDebitValueChange}
-                    placeholder="R$ 0,00"
+                    value={installmentsCount}
+                    onChangeText={(text) => {
+                      const onlyNumbers = text.replace(/\D/g, '');
+                      setInstallmentsCount(onlyNumbers);
+                      const count = Number(onlyNumbers || '0');
+                      if (!count || count <= 0) {
+                        setInstallments([]);
+                        return;
+                      }
+                      setInstallments((prev) => {
+                        const next = [...prev];
+                        while (next.length < count) {
+                          next.push({ value: '', date: dayjs(date).format('DD/MM/YYYY') });
+                        }
+                        if (next.length > count) {
+                          next.length = count;
+                        }
+                        return next;
+                      });
+                    }}
+                    placeholder="Ex: 3, 5, 10..."
                     keyboardType="numeric"
                   />
                 </View>
 
+                {installments.map((inst, index) => (
+                  <View key={index} style={styles.field}>
+                    <Text style={styles.label}>
+                      Parcela {index + 1} - valor e vencimento *
+                    </Text>
+
+                    <View style={styles.valueInputContainer}>
+                      <TextInput
+                        style={[styles.input, styles.valueInput]}
+                        value={inst.value}
+                        onChangeText={(text) => {
+                          const formatted = formatCurrency(text, false);
+                          setInstallments((prev) => {
+                            const next = [...prev];
+                            next[index] = { ...next[index], value: formatted };
+                            return next;
+                          });
+                        }}
+                        placeholder="R$ 0,00"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.input}
+                      onPress={() => {
+                        setSelectedInstallmentIndex(index);
+                        setInstallmentPickerVisible(true);
+                      }}
+                    >
+                      <Text style={styles.inputText}>
+                        {inst.date || dayjs(date).format('DD/MM/YYYY')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
                 <View style={styles.field}>
-                  <Text style={styles.label}>Descrição do débito</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={debitDescription}
-                    onChangeText={setDebitDescription}
-                    placeholder="Ex: Abatimento de imposto, desconto aplicado..."
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
+                  <Text style={styles.label}>Meio de pagamento</Text>
+                  <TouchableOpacity
+                    style={styles.input}
+                    onPress={() => setPaymentMethodDropdownVisible(!paymentMethodDropdownVisible)}
+                  >
+                    <Text style={styles.inputText}>
+                      {paymentMethod === 'BOLETO'
+                        ? 'Boleto'
+                        : paymentMethod === 'TRANSFERENCIA'
+                        ? 'Transferência'
+                        : 'Selecione o meio de pagamento'}
+                    </Text>
+                    <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
+                  </TouchableOpacity>
+                  {paymentMethodDropdownVisible && (
+                    <View style={styles.dropdownList}>
+                      <TouchableOpacity
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setPaymentMethod('BOLETO');
+                          setPaymentMethodDropdownVisible(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>Boleto</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.dropdownItem, styles.dropdownItemLast]}
+                        onPress={() => {
+                          setPaymentMethod('TRANSFERENCIA');
+                          setPaymentMethodDropdownVisible(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>Transferência</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
+              </>
+            )}
+
+            {!isInstallment && (
+              <>
+                {/* Checkbox e campos de débito */}
+                <View style={styles.field}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => {
+                      const newAddDebit = !addDebit;
+                      setAddDebit(newAddDebit);
+                      // Se desmarcar o checkbox, limpa os campos de débito
+                      if (!newAddDebit) {
+                        setDebitValue('');
+                        setDebitDescription('');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.checkbox, addDebit && styles.checkboxChecked]}>
+                      {addDebit && <Text style={styles.checkboxCheckmark}>✓</Text>}
+                    </View>
+                    <View style={styles.checkboxLabelContainer}>
+                      <Text style={styles.checkboxLabel}>Adicionar débito</Text>
+                      <Text style={styles.checkboxHint}>
+                        Abatimento aplicado à despesa (ex: abatimento de imposto)
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Campos de débito (aparecem quando checkbox está marcado) */}
+                {addDebit && (
+                  <>
+                    <View style={styles.field}>
+                      <Text style={styles.label}>Valor do débito *</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={debitValue}
+                        onChangeText={handleDebitValueChange}
+                        placeholder="R$ 0,00"
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={styles.field}>
+                      <Text style={styles.label}>Descrição do débito</Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        value={debitDescription}
+                        onChangeText={setDebitDescription}
+                        placeholder="Ex: Abatimento de imposto, desconto aplicado..."
+                        multiline
+                        numberOfLines={3}
+                        textAlignVertical="top"
+                      />
+                    </View>
+                  </>
+                )}
               </>
             )}
 
@@ -953,49 +1213,8 @@ export const ExpenseFormModal = ({
               </TouchableOpacity>
             </View>
 
-            {/* Dropdown de Setor para Despesas Fixas */}
             {isFixed && (
               <>
-                <View style={styles.field}>
-                  <Text style={styles.label}>Setor *</Text>
-                  <TouchableOpacity
-                    style={styles.input}
-                    onPress={() => setSectorDropdownVisible(!sectorDropdownVisible)}
-                  >
-                    <Text style={styles.inputText}>
-                      {sector ? SECTOR_LABELS[sector] : 'Selecione um setor'}
-                    </Text>
-                    <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
-                  </TouchableOpacity>
-                  {sectorDropdownVisible && (
-                    <View style={styles.dropdownList}>
-                      {(Object.keys(SECTOR_LABELS) as ExpenseSector[]).map((sec, index, array) => (
-                        <TouchableOpacity
-                          key={sec}
-                          style={[
-                            styles.dropdownItem,
-                            sector === sec && styles.dropdownItemSelected,
-                            index === array.length - 1 && styles.dropdownItemLast,
-                          ]}
-                          onPress={() => {
-                            setSector(sec);
-                            setSectorDropdownVisible(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.dropdownItemText,
-                              sector === sec && styles.dropdownItemTextSelected,
-                            ]}
-                          >
-                            {SECTOR_LABELS[sec]}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
                 <View style={styles.field}>
                   <Text style={styles.label}>Duração (meses) *</Text>
                   <Text style={styles.hint}>
@@ -1044,11 +1263,15 @@ export const ExpenseFormModal = ({
                             {doc.fileName}
                           </Text>
                           <Text style={styles.documentItemType}>
-                            {doc.type === 'nota_fiscal' 
-                              ? 'Nota Fiscal' 
-                              : doc.type === 'recibo' 
-                              ? 'Recibo' 
-                              : 'Comprovante de Pagamento'}
+                            {doc.type === 'nota_fiscal'
+                              ? 'Nota Fiscal'
+                              : doc.type === 'recibo'
+                              ? 'Recibo'
+                              : doc.type === 'comprovante_pagamento'
+                              ? 'Comprovante de Pagamento'
+                              : doc.type === 'boleto'
+                              ? 'Boleto'
+                              : doc.type}
                           </Text>
                         </View>
                       </View>
@@ -1070,20 +1293,24 @@ export const ExpenseFormModal = ({
               style={[
                 styles.primaryButton,
                 (!name.trim() ||
-                  !value ||
-                  (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
+                  (!isInstallment && (
+                    !value ||
+                    (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0))
+                  )) ||
                   ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                   (category === 'gestor' && !gestaoSubcategory) ||
-                  (isFixed && !sector)) &&
+                  !sector) &&
                   styles.disabledButton,
               ]}
               disabled={
                 !name.trim() ||
-                !value ||
-                (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0)) ||
+                (!isInstallment && (
+                  !value ||
+                  (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0))
+                )) ||
                 ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
                 (category === 'gestor' && !gestaoSubcategory) ||
-                (isFixed && !sector) ||
+                !sector ||
                 (isFixed && !fixedDurationMonths)
               }
               onPress={handleSave}
@@ -1106,6 +1333,40 @@ export const ExpenseFormModal = ({
               onChange={(_, selectedDate) => {
                 setPickerVisible(false);
                 if (selectedDate) setDate(selectedDate);
+              }}
+            />
+          </View>
+        </View>
+      )}
+
+      {installmentPickerVisible && selectedInstallmentIndex !== null && (
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContainer}>
+            <DateTimePicker
+              mode="date"
+              display="spinner"
+              value={(() => {
+                const inst = installments[selectedInstallmentIndex];
+                const base = inst?.date || dayjs(date).format('DD/MM/YYYY');
+                const parsed = dayjs(base, 'DD/MM/YYYY');
+                return parsed.isValid() ? parsed.toDate() : date;
+              })()}
+              onChange={(_, selectedDate) => {
+                setInstallmentPickerVisible(false);
+                if (selectedDate && selectedInstallmentIndex !== null) {
+                  const formatted = dayjs(selectedDate).format('DD/MM/YYYY');
+                  setInstallments((prev) => {
+                    const next = [...prev];
+                    if (next[selectedInstallmentIndex]) {
+                      next[selectedInstallmentIndex] = {
+                        ...next[selectedInstallmentIndex],
+                        date: formatted,
+                      };
+                    }
+                    return next;
+                  });
+                }
+                setSelectedInstallmentIndex(null);
               }}
             />
           </View>

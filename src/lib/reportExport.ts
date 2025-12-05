@@ -99,10 +99,34 @@ export const buildReportHTML = (data: ReportData): string => {
   const totalReceipts = receipts.reduce((sum, r) => sum + r.value, 0);
   const balance = totalReceipts - totalExpenses;
 
+  // Agrupar recebimentos por origem (nome) para gráfico de pizza
+  const receiptsBySource: Record<string, number> = {};
+  receipts.forEach((receipt) => {
+    const source = receipt.name && receipt.name.trim() !== '' ? receipt.name : 'Sem descrição';
+    receiptsBySource[source] = (receiptsBySource[source] || 0) + receipt.value;
+  });
+
+  let receiptsGradientStops = '';
+  let receiptsCurrentPercent = 0;
+  const totalReceiptsForPie = Object.values(receiptsBySource).reduce((sum, value) => sum + value, 0);
+  Object.entries(receiptsBySource).forEach(([_, value], index) => {
+    const percent = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
+    const nextPercent = receiptsCurrentPercent + percent;
+    const color = CHART_COLORS[index % CHART_COLORS.length];
+    receiptsGradientStops += `${color} ${receiptsCurrentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
+    receiptsCurrentPercent = nextPercent;
+  });
+  if (!receiptsGradientStops) {
+    receiptsGradientStops = '#E5E5EA 0% 100%, ';
+  }
+  receiptsGradientStops = receiptsGradientStops.slice(0, -2);
+
   // Agrupar despesas por categoria
   const expensesByCategory: Record<string, number> = {};
   expenses.forEach((expense) => {
-    const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
+    // Garante que categorias desconhecidas (ex: 'teste') sejam tratadas como 'Diversos'
+    const rawCategory = expense.category && CATEGORY_LABELS[expense.category] ? expense.category : 'diversos';
+    const category = CATEGORY_LABELS[rawCategory] || 'Diversos';
     expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.value;
   });
 
@@ -339,7 +363,47 @@ export const buildReportHTML = (data: ReportData): string => {
     </div>
   </div>
 
+  <h2>Detalhamento de Recebimentos</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Descrição</th>
+        <th>Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${receipts
+        .map((receipt) => `
+          <tr>
+            <td>${formatDate(receipt.date)}</td>
+            <td>${receipt.name || ''}</td>
+            <td>${formatCurrency(receipt.value)}</td>
+          </tr>
+        `)
+        .join('')}
+    </tbody>
+  </table>
+
+  ${Object.keys(receiptsBySource).length > 1 ? `
+  <h2>Recebimentos</h2>
+  <div class="chart-section">
+    <div class="pie-chart" style="background: conic-gradient(${receiptsGradientStops});"></div>
+    <ul class="chart-legend">
+      ${Object.entries(receiptsBySource)
+        .map(([source, value], index) => `
+          <li>
+            <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+            <span>${source} — ${formatCurrency(value)}</span>
+          </li>
+        `)
+        .join('')}
+    </ul>
+  </div>
+  ` : ''}
+
   <h2>Despesas por Categoria</h2>
+  ${Object.keys(expensesByCategory).length > 1 ? `
   <div class="chart-section">
     <div class="pie-chart" style="background: conic-gradient(${categoryGradientStops});"></div>
     <ul class="chart-legend">
@@ -353,6 +417,7 @@ export const buildReportHTML = (data: ReportData): string => {
         .join('')}
     </ul>
   </div>
+  ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -373,6 +438,7 @@ export const buildReportHTML = (data: ReportData): string => {
   </table>
 
   <h2>Despesas por Status</h2>
+  ${Object.keys(expensesByStatus).length > 1 ? `
   <div class="chart-section">
     <div class="pie-chart" style="background: conic-gradient(${statusGradientStops});"></div>
     <ul class="chart-legend">
@@ -386,6 +452,7 @@ export const buildReportHTML = (data: ReportData): string => {
         .join('')}
     </ul>
   </div>
+  ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -407,6 +474,7 @@ export const buildReportHTML = (data: ReportData): string => {
 
   ${Object.keys(expensesBySector).length > 0 ? `
   <h2>Despesas por Setor</h2>
+  ${Object.keys(expensesBySector).length > 1 ? `
   <div class="chart-section">
     <div class="pie-chart" style="background: conic-gradient(${sectorGradientStops});"></div>
     <ul class="chart-legend">
@@ -424,6 +492,7 @@ export const buildReportHTML = (data: ReportData): string => {
         .join('')}
     </ul>
   </div>
+  ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -465,11 +534,8 @@ export const buildReportHTML = (data: ReportData): string => {
   ${Object.keys(expensesBySector).length > 0 ? `
   <h2>Detalhamento por Setor de Despesas Fixas</h2>
   ${(() => {
-    // Agrupa despesas fixas por setor (apenas parcelas geradas, não templates)
     const expensesBySectorDetail: Record<string, Expense[]> = {};
     expenses.forEach((expense) => {
-      // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
-      // Não inclui templates (is_fixed=true) para evitar duplicação
       if (expense.sector && expense.installmentNumber && !expense.isFixed) {
         const sector = SECTOR_LABELS[expense.sector] || expense.sector;
         if (!expensesBySectorDetail[sector]) {
@@ -479,7 +545,6 @@ export const buildReportHTML = (data: ReportData): string => {
       }
     });
 
-    // Ordena os setores pelo total de valor (decrescente)
     const sortedSectors = Object.keys(expensesBySectorDetail).sort((a, b) => {
       const totalA = expensesBySectorDetail[a].reduce((sum, exp) => sum + exp.value, 0);
       const totalB = expensesBySectorDetail[b].reduce((sum, exp) => sum + exp.value, 0);
@@ -490,18 +555,17 @@ export const buildReportHTML = (data: ReportData): string => {
       const sectorExpenses = expensesBySectorDetail[sector];
       const sectorTotal = sectorExpenses.reduce((sum, exp) => sum + exp.value, 0);
       
-      // Agrupa despesas deste setor por categoria
-      const expensesByCategory: Record<string, Expense[]> = {};
+      const expensesByCategoryFixed: Record<string, Expense[]> = {};
       sectorExpenses.forEach((expense) => {
-        const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
-        if (!expensesByCategory[category]) {
-          expensesByCategory[category] = [];
+        const rawCategory = expense.category && CATEGORY_LABELS[expense.category] ? expense.category : 'diversos';
+        const category = CATEGORY_LABELS[rawCategory] || 'Diversos';
+        if (!expensesByCategoryFixed[category]) {
+          expensesByCategoryFixed[category] = [];
         }
-        expensesByCategory[category].push(expense);
+        expensesByCategoryFixed[category].push(expense);
       });
 
-      // Ordena categorias por nome
-      const sortedCategories = Object.keys(expensesByCategory).sort();
+      const sortedCategoriesFixed = Object.keys(expensesByCategoryFixed).sort();
       
       return `
         <div style="margin-bottom: 30px;">
@@ -519,11 +583,10 @@ export const buildReportHTML = (data: ReportData): string => {
               </tr>
             </thead>
             <tbody>
-              ${sortedCategories.map((category) => {
-                const categoryExpenses = expensesByCategory[category];
+              ${sortedCategoriesFixed.map((category) => {
+                const categoryExpenses = expensesByCategoryFixed[category];
                 return categoryExpenses
                   .sort((a, b) => {
-                    // Ordena por data (mais recente primeiro)
                     const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
                     const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
                     if (!dateA.isValid() || !dateB.isValid()) return 0;
@@ -533,7 +596,7 @@ export const buildReportHTML = (data: ReportData): string => {
                     <tr>
                       <td>${formatDate(expense.date)}</td>
                       <td>${expense.name || ''}</td>
-                      <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
+                      <td>${category}</td>
                       <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
                       <td>${formatCurrency(expense.value)}</td>
                     </tr>
@@ -547,110 +610,6 @@ export const buildReportHTML = (data: ReportData): string => {
     }).join('');
   })()}
   ` : ''}
-
-  <h2>Detalhamento de Despesas por Setor</h2>
-  ${(() => {
-    // Agrupa todas as despesas por setor
-    const allExpensesBySector: Record<string, Expense[]> = {};
-    expenses.forEach((expense) => {
-      if (expense.sector) {
-        const sector = SECTOR_LABELS[expense.sector] || expense.sector;
-        if (!allExpensesBySector[sector]) {
-          allExpensesBySector[sector] = [];
-        }
-        allExpensesBySector[sector].push(expense);
-      }
-    });
-
-    // Ordena setores por total de valor (decrescente)
-    const sortedSectors = Object.keys(allExpensesBySector).sort((a, b) => {
-      const totalA = allExpensesBySector[a].reduce((sum, exp) => sum + exp.value, 0);
-      const totalB = allExpensesBySector[b].reduce((sum, exp) => sum + exp.value, 0);
-      return totalB - totalA;
-    });
-
-    return sortedSectors.map((sector) => {
-      const sectorExpenses = allExpensesBySector[sector];
-      const sectorTotal = sectorExpenses.reduce((sum, exp) => sum + exp.value, 0);
-      
-      // Agrupa despesas deste setor por categoria
-      const expensesByCategory: Record<string, Expense[]> = {};
-      sectorExpenses.forEach((expense) => {
-        const category = expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : 'Sem categoria';
-        if (!expensesByCategory[category]) {
-          expensesByCategory[category] = [];
-        }
-        expensesByCategory[category].push(expense);
-      });
-
-      // Ordena categorias por nome
-      const sortedCategories = Object.keys(expensesByCategory).sort();
-      
-      return `
-        <div style="margin-bottom: 30px;">
-          <h3 style="color: #0A84FF; margin-bottom: 10px; border-bottom: 2px solid #E5E5EA; padding-bottom: 5px;">
-            ${sector} — Total: ${formatCurrency(sectorTotal)}
-          </h3>
-          <table class="category-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Descrição</th>
-                <th>Categoria</th>
-                <th>Status</th>
-                <th>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sortedCategories.map((category) => {
-                const categoryExpenses = expensesByCategory[category];
-                return categoryExpenses
-                  .sort((a, b) => {
-                    // Ordena por data (mais recente primeiro)
-                    const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
-                    const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
-                    if (!dateA.isValid() || !dateB.isValid()) return 0;
-                    return dateB.valueOf() - dateA.valueOf();
-                  })
-                  .map((expense) => `
-                    <tr>
-                      <td>${formatDate(expense.date)}</td>
-                      <td>${expense.name || ''}</td>
-                      <td>${expense.category ? (CATEGORY_LABELS[expense.category] || expense.category) : ''}</td>
-                      <td>${expense.status ? (STATUS_LABELS[expense.status] || expense.status) : ''}</td>
-                      <td>${formatCurrency(expense.value)}</td>
-                    </tr>
-                  `)
-                  .join('');
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }).join('');
-  })()}
-
-  <h2>Detalhamento de Recebimentos</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Data</th>
-        <th>Descrição</th>
-        <th>Valor</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${receipts
-        .map((receipt) => `
-          <tr>
-            <td>${formatDate(receipt.date)}</td>
-            <td>${receipt.name || ''}</td>
-            <td>${formatCurrency(receipt.value)}</td>
-          </tr>
-        `)
-        .join('')}
-    </tbody>
-  </table>
 
   <p style="margin-top: 40px; color: #6C6C70; font-size: 12px;">
     Relatório gerado em ${dayjs().format('DD/MM/YYYY [às] HH:mm')}
@@ -714,12 +673,15 @@ export const exportToExcel = async (data: ReportData): Promise<string> => {
     // Despesas por Categoria
     const expensesByCategory: Record<string, number> = {};
     expenses.forEach((expense) => {
-      expensesByCategory[expense.category] = (expensesByCategory[expense.category] || 0) + expense.value;
+      const rawCategory = expense.category && CATEGORY_LABELS[expense.category] ? expense.category : 'diversos';
+      const label = CATEGORY_LABELS[rawCategory] || 'Diversos';
+      expensesByCategory[label] = (expensesByCategory[label] || 0) + expense.value;
     });
     csv += 'DESPESAS POR CATEGORIA\n';
     csv += 'Categoria,Valor\n';
     Object.entries(expensesByCategory).forEach(([category, value]) => {
-      csv += `${CATEGORY_LABELS[category] || category},${value.toFixed(2)}\n`;
+      const label = CATEGORY_LABELS[category] || CATEGORY_LABELS['diversos'] || category;
+      csv += `${label},${value.toFixed(2)}\n`;
     });
     csv += '\n';
 

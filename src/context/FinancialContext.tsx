@@ -74,7 +74,7 @@ export type ExpenseSector =
   | "imposto";
 
 export interface ExpenseDocument {
-  type: "nota_fiscal" | "recibo" | "comprovante_pagamento";
+  type: "nota_fiscal" | "recibo" | "comprovante_pagamento" | "boleto";
   fileName: string;
   fileUri: string;
   mimeType?: string | null;
@@ -1128,7 +1128,12 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           is_fixed: expense.isFixed ?? false,
           sector: expense.sector ?? null,
           fixed_duration_months: expense.fixedDurationMonths ?? null,
-          installment_number: expense.isFixed ? 1 : null,
+          installment_number:
+            expense.installmentNumber != null
+              ? expense.installmentNumber
+              : expense.isFixed
+              ? 1
+              : null,
         };
 
         const { data, error } = await supabase

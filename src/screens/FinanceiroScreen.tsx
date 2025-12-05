@@ -25,7 +25,7 @@ import {
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
-import { useFinancial, Receipt, Expense, ExpenseCategory, ExpenseStatus } from '../context/FinancialContext';
+import { useFinancial, Receipt, Expense, ExpenseCategory, ExpenseStatus, ExpenseDocument } from '../context/FinancialContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
@@ -144,6 +144,68 @@ const getReceiptFixedInfo = (receipt: Receipt, allReceipts: Receipt[]): { isFixe
     isFixed: true,
     installment: `${installment}/${template.fixedDurationMonths}`,
   };
+};
+
+// Helper para calcular informações de despesa parcelada (não fixa)
+const getExpenseInstallmentInfo = (expense: Expense, allExpenses: Expense[]): { isInstallment: boolean; label?: string } => {
+  if (expense.installmentNumber == null) {
+    return { isInstallment: false };
+  }
+
+  // Considera todas as despesas com mesmo nome/centro que tenham número de parcela
+  const siblings = allExpenses.filter(
+    (e) =>
+      e.center === expense.center &&
+      e.name === expense.name &&
+      e.installmentNumber != null
+  );
+
+  if (siblings.length === 0) {
+    return { isInstallment: true, label: `${expense.installmentNumber}` };
+  }
+
+  const totalInstallments = siblings.reduce((max, e) => {
+    const n = e.installmentNumber ?? 0;
+    return n > max ? n : max;
+  }, 0);
+
+  if (!totalInstallments) {
+    return { isInstallment: true, label: `${expense.installmentNumber}` };
+  }
+
+  return {
+    isInstallment: true,
+    label: `${expense.installmentNumber}/${totalInstallments}`,
+  };
+};
+
+// Helper para obter documentos compartilhados entre parcelas da mesma despesa
+const getSharedExpenseDocuments = (expense: Expense, allExpenses: Expense[]): ExpenseDocument[] => {
+  // Se não é parcela, usa apenas os documentos da própria despesa
+  if (expense.installmentNumber == null) {
+    return expense.documents ?? [];
+  }
+
+  const siblings = allExpenses.filter(
+    (e) =>
+      e.center === expense.center &&
+      e.name === expense.name &&
+      e.installmentNumber != null
+  );
+
+  const docs: ExpenseDocument[] = [];
+  siblings.forEach((e) => {
+    if (e.documents && e.documents.length > 0) {
+      docs.push(...e.documents);
+    }
+  });
+
+  // Se por algum motivo não encontrou nada entre as parcelas, retorna os documentos da própria despesa
+  if (docs.length === 0) {
+    return expense.documents ?? [];
+  }
+
+  return docs;
 };
 
 // Helper para calcular informações de despesa fixa
@@ -1484,13 +1546,14 @@ export const FinanceiroScreen = () => {
                     <TouchableOpacity
                       style={styles.cardRow}
                       onPress={() => {
-                        if (item.documents && item.documents.length > 0) {
+                        const sharedDocs = getSharedExpenseDocuments(item, allExpenses);
+                        if (sharedDocs.length > 0) {
                           setSelectedExpenseForDocument(item);
-                          setSelectedExpenseDocuments(item.documents || []);
+                          setSelectedExpenseDocuments(sharedDocs);
                           setExpenseDocumentsModalVisible(true);
                         }
                       }}
-                      disabled={!item.documents || item.documents.length === 0}
+                      disabled={getSharedExpenseDocuments(item, allExpenses).length === 0}
                     >
                       <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
                         <ArrowUpCircle size={18} color="#FF3B30" />
@@ -1512,6 +1575,26 @@ export const FinanceiroScreen = () => {
                               <View style={styles.sectorBadge}>
                                 <Text style={styles.sectorText}>
                                   {SECTOR_LABELS[item.sector] || item.sector}
+                                </Text>
+                              </View>
+                            )}
+                            {(() => {
+                              const instInfo = getExpenseInstallmentInfo(item, allExpenses);
+                              if (!instInfo.isInstallment || !instInfo.label) return null;
+                              return (
+                                <View style={styles.sectorBadge}>
+                                  <Text style={styles.sectorText}>Parcela {instInfo.label}</Text>
+                                </View>
+                              );
+                            })()}
+                            {item.method && (
+                              <View style={styles.sectorBadge}>
+                                <Text style={styles.sectorText}>
+                                  {item.method === 'BOLETO'
+                                    ? 'Boleto'
+                                    : item.method === 'TRANSFERENCIA'
+                                    ? 'Transferência'
+                                    : item.method}
                                 </Text>
                               </View>
                             )}
@@ -1604,18 +1687,21 @@ export const FinanceiroScreen = () => {
                       </TouchableOpacity>
                     </View>
 
-                    {item.documents && item.documents.length > 0 && (
+                    {getSharedExpenseDocuments(item, allExpenses).length > 0 && (
                       <TouchableOpacity
                         style={styles.documentsIndicator}
                         onPress={() => {
-                          setSelectedExpenseForDocument(item);
-                          setSelectedExpenseDocuments(item.documents || []);
-                          setExpenseDocumentsModalVisible(true);
+                          const sharedDocs = getSharedExpenseDocuments(item, allExpenses);
+                          if (sharedDocs.length > 0) {
+                            setSelectedExpenseForDocument(item);
+                            setSelectedExpenseDocuments(sharedDocs);
+                            setExpenseDocumentsModalVisible(true);
+                          }
                         }}
                       >
                         <FileText size={14} color="#0A84FF" />
                         <Text style={styles.documentsIndicatorText}>
-                          {item.documents.length} documento(s) anexado(s)
+                          {getSharedExpenseDocuments(item, allExpenses).length} documento(s) anexado(s)
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1996,22 +2082,46 @@ export const FinanceiroScreen = () => {
               }
             }
           } else {
-            addExpense({
-              name: data.name,
-              category: data.category,
-              date: data.date,
-              value: data.value,
-              center: selectedCenter,
-              documents: data.documents,
-              equipmentId: data.equipmentId,
-              gestaoSubcategory: data.gestaoSubcategory,
-              observations: data.observations,
-              status: 'confirmar', // Status padrão para novas despesas
-              isFixed: data.isFixed,
-              sector: data.sector,
-              fixedDurationMonths: data.fixedDurationMonths,
-              debitAdjustment: data.debitAdjustment,
-            });
+            if (data.isInstallment && data.installments && data.installments.length > 0) {
+              data.installments.forEach((inst) => {
+                addExpense({
+                  name: data.name,
+                  category: data.category,
+                  date: inst.date,
+                  value: inst.value,
+                  center: selectedCenter,
+                  documents: data.documents,
+                  equipmentId: data.equipmentId,
+                  gestaoSubcategory: data.gestaoSubcategory,
+                  observations: data.observations,
+                  status: 'confirmar',
+                  isFixed: false,
+                  sector: undefined,
+                  fixedDurationMonths: undefined,
+                  debitAdjustment: data.debitAdjustment,
+                  method: data.method,
+                  installmentNumber: inst.installmentNumber,
+                });
+              });
+            } else {
+              addExpense({
+                name: data.name,
+                category: data.category,
+                date: data.date,
+                value: data.value,
+                center: selectedCenter,
+                documents: data.documents,
+                equipmentId: data.equipmentId,
+                gestaoSubcategory: data.gestaoSubcategory,
+                observations: data.observations,
+                status: 'confirmar', // Status padrão para novas despesas
+                isFixed: data.isFixed,
+                sector: data.sector,
+                fixedDurationMonths: data.fixedDurationMonths,
+                debitAdjustment: data.debitAdjustment,
+                method: data.method,
+              });
+            }
           }
           setEditingExpense(null);
         }}
