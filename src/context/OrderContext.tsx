@@ -137,6 +137,16 @@ const normalizeStatus = (status?: string | null): OrderStatus => {
 // MAPEAMENTO ROW -> ORDER
 // ============================
 
+// Helper para buscar nome do equipamento
+const fetchEquipmentName = async (equipmentId: string): Promise<string | undefined> => {
+  const { data } = await supabase
+    .from('equipments')
+    .select('name')
+    .eq('id', equipmentId)
+    .maybeSingle();
+  return data?.name;
+};
+
 const mapRowToOrder = (row: any): Order => {
   const orderDate = isoToBr(row.order_date);
   const normalizedStatus = normalizeStatus(row.status);
@@ -218,7 +228,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           equipment_id,
           created_at,
           cost_center_id,
-          equipment:equipment_id ( name ),
           order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
         `
         )
@@ -230,7 +239,24 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+      let mapped: Order[] = data?.map(mapRowToOrder) ?? [];
+
+      // Buscar nomes dos equipamentos para pedidos que têm equipment_id
+      const equipmentIds = [...new Set(mapped.map(o => o.equipmentId).filter(Boolean))];
+      if (equipmentIds.length > 0) {
+        const { data: equipmentsData } = await supabase
+          .from('equipments')
+          .select('id, name')
+          .in('id', equipmentIds);
+        
+        if (equipmentsData) {
+          const equipmentMap = new Map(equipmentsData.map(e => [e.id, e.name]));
+          mapped = mapped.map(order => ({
+            ...order,
+            equipmentName: order.equipmentId ? equipmentMap.get(order.equipmentId) : undefined
+          }));
+        }
+      }
 
       setOrders(mapped);
       await cacheManager.set(cacheKey, mapped);
@@ -288,7 +314,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -299,10 +324,17 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           throw error;
         }
 
-        const newOrder: Order = mapRowToOrder({
+        let newOrder: Order = mapRowToOrder({
           ...data,
           cost_center_id: data.cost_center_id ?? order.costCenter,
         });
+        
+        // Buscar nome do equipamento se houver equipment_id
+        if (newOrder.equipmentId && !newOrder.equipmentName) {
+          const equipmentName = await fetchEquipmentName(newOrder.equipmentId);
+          newOrder = { ...newOrder, equipmentName };
+        }
+        
         setOrders((prev) => {
           const next = [newOrder, ...prev];
           cacheManager.set(cacheKey, next).catch(() => {});
@@ -396,7 +428,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -504,7 +535,6 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
