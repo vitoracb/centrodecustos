@@ -552,6 +552,19 @@ export const ExpenseFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
       return;
     }
+
+    // Validação: categoria é obrigatória
+    if (!category) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione uma categoria.');
+      return;
+    }
+
+    // Validação: setor é obrigatório
+    if (!sector) {
+      Alert.alert('Campo obrigatório', 'Por favor, selecione um setor.');
+      return;
+    }
+
     // Permite valor zero se:
     // 1. For um valor negativo (isNegative marcado) OU
     // 2. Houver um débito/abatimento preenchido (addDebit marcado e debitValue > 0)
@@ -576,12 +589,6 @@ export const ExpenseFormModal = ({
     // Para "terceirizados" e "diversos", o equipamento é opcional
     if (category === 'gestor' && !gestaoSubcategory) {
       Alert.alert('Campo obrigatório', 'Por favor, selecione uma subcategoria de gestor.');
-      return;
-    }
-    
-    // Validação: setor é obrigatório para todas as despesas
-    if (!sector) {
-      Alert.alert('Campo obrigatório', 'Por favor, selecione um setor.');
       return;
     }
 
