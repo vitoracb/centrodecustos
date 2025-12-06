@@ -73,6 +73,7 @@ interface ExpenseFormData {
     value: number;
     date: string;
   }[];
+  installmentsCount?: number;
 }
 
 interface ExpenseFormModalProps {
@@ -254,6 +255,25 @@ export const ExpenseFormModal = ({
           setAddDebit(false);
           setDebitValue('');
           setDebitDescription('');
+        }
+
+        // Inicializa parcelas, se vierem do initialData (grupo parcelado manual)
+        if (initialData.isInstallment && initialData.installments && initialData.installments.length > 0) {
+          setIsInstallment(true);
+          setIsFixed(false); // parcelado e fixo são mutuamente exclusivos
+
+          const count = initialData.installmentsCount ?? initialData.installments.length;
+          setInstallmentsCount(String(count));
+
+          const mappedInstallments = initialData.installments.map((inst) => ({
+            value: formatCurrency(inst.value.toString(), false),
+            date: inst.date,
+          }));
+          setInstallments(mappedInstallments);
+        } else {
+          setIsInstallment(false);
+          setInstallmentsCount('');
+          setInstallments([]);
         }
       } else {
         // Valores padrão quando não há initialData

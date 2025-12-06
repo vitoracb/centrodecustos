@@ -2315,6 +2315,33 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Se não for fixa (ou se o template não foi encontrado), atualiza apenas o registro específico
         if (!isFixedExpense) {
+          // Se esta despesa faz parte de um grupo parcelado (não fixo),
+          // propaga categoria e setor para todas as parcelas irmãs
+          const isInstallmentGroup =
+            currentExpense.installment_number != null &&
+            currentExpense.is_fixed === false;
+
+          if (isInstallmentGroup) {
+            try {
+              await supabase
+                .from("financial_transactions")
+                .update({
+                  category: expense.category ?? "diversos",
+                  sector: expense.sector ?? null,
+                })
+                .eq("type", "DESPESA")
+                .eq("description", currentExpense.description)
+                .eq("cost_center_id", currentExpense.cost_center_id)
+                .eq("is_fixed", false)
+                .not("installment_number", "is", null);
+            } catch (propagateError) {
+              console.error(
+                "❌ Erro ao propagar categoria/setor para parcelas da despesa:",
+                propagateError
+              );
+            }
+          }
+
           // Sincroniza documentos (para despesas não fixas)
           if (Array.isArray(expense.documents)) {
             try {

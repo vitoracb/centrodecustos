@@ -2345,7 +2345,7 @@ export const FinanceiroScreen = () => {
                   observations: data.observations,
                   status: 'confirmar',
                   isFixed: false,
-                  sector: undefined,
+                  sector: data.sector,
                   fixedDurationMonths: undefined,
                   debitAdjustment: data.debitAdjustment,
                   method: data.method,
@@ -2377,13 +2377,14 @@ export const FinanceiroScreen = () => {
         initialData={
           editingExpense
             ? (() => {
-                // Se for uma despesa fixa (ou parcela de despesa fixa), busca o template
+                const allExpenses = getAllExpenses();
+
+                // Primeiro, trata o caso de despesa fixa (ou parcela de despesa fixa)
                 let expenseData = editingExpense;
-                const fixedInfo = getExpenseFixedInfo(editingExpense, getAllExpenses());
+                const fixedInfo = getExpenseFixedInfo(editingExpense, allExpenses);
                 
                 if (fixedInfo.isFixed) {
                   // Busca o template para obter isFixed e fixedDurationMonths corretos
-                  const allExpenses = getAllExpenses();
                   const template = allExpenses.find(
                     (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
                   );
@@ -2392,10 +2393,37 @@ export const FinanceiroScreen = () => {
                     // Usa os dados do template, mas mantém a data e documentos da despesa sendo editada
                     expenseData = {
                       ...template,
-                      date: editingExpense.date, // Mantém a data da parcela sendo editada
-                      documents: editingExpense.documents || [], // Mantém os documentos da parcela
-                      id: editingExpense.id, // Mantém o ID da parcela sendo editada
+                      date: editingExpense.date,
+                      documents: editingExpense.documents || [],
+                      id: editingExpense.id,
                     };
+                  }
+                }
+
+                // Depois, verifica se é um grupo parcelado manual (não fixo)
+                let isInstallment = false;
+                let installments: { installmentNumber: number; value: number; date: string }[] | undefined;
+                let installmentsCount: number | undefined;
+
+                const installmentInfo = getExpenseInstallmentInfo(editingExpense, allExpenses);
+                if (installmentInfo.isInstallment) {
+                  const siblings = allExpenses
+                    .filter((e) =>
+                      e.center === editingExpense.center &&
+                      e.name === editingExpense.name &&
+                      e.installmentNumber != null &&
+                      !e.isFixed
+                    )
+                    .sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
+
+                  if (siblings.length > 0) {
+                    isInstallment = true;
+                    installments = siblings.map((e) => ({
+                      installmentNumber: e.installmentNumber ?? 0,
+                      value: e.value,
+                      date: e.date,
+                    }));
+                    installmentsCount = siblings.length;
                   }
                 }
                 
@@ -2413,6 +2441,9 @@ export const FinanceiroScreen = () => {
                   fixedDurationMonths: expenseData.fixedDurationMonths,
                   id: expenseData.id,
                   debitAdjustment: expenseData.debitAdjustment,
+                  isInstallment,
+                  installments,
+                  installmentsCount,
                 };
               })()
             : undefined
