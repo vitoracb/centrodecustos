@@ -505,7 +505,6 @@ export const ContratosScreen = () => {
                   <View style={styles.cardIconWrapper}>
                     <FileText size={18} color="#0A84FF" />
                   </View>
-                  <ChevronRight size={18} color="#C7C7CC" />
                 </View>
               </View>
               <View style={styles.cardMeta}>
