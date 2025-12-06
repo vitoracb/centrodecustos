@@ -520,9 +520,14 @@ export const ContratosScreen = () => {
                   </Text>
                 </View>
                 <View style={styles.cardHeaderRight}>
-                  <View style={styles.cardIconWrapper}>
-                    <FileText size={18} color="#0A84FF" />
-                  </View>
+                  {canUploadFiles && (
+                    <TouchableOpacity
+                      style={styles.cardIconWrapper}
+                      onPress={() => openAttachmentOptions(contract.id)}
+                    >
+                      <FileText size={18} color="#0A84FF" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
               <View style={styles.cardMeta}>
@@ -694,17 +699,6 @@ export const ContratosScreen = () => {
           <View style={styles.documentsSheet}>
             <View style={styles.optionHandle} />
             <Text style={styles.optionTitle}>Documentos do Contrato</Text>
-            {canUploadFiles && (
-              <TouchableOpacity
-                style={styles.addDocumentButton}
-                onPress={() => {
-                  closeDocumentsList();
-                  setTimeout(() => openAttachmentOptions(activeContractId!), 300);
-                }}
-              >
-                <FilePlus size={18} color="#0A84FF" />
-              </TouchableOpacity>
-            )}
             <ScrollView style={styles.documentsList}>
               {selectedContractDocuments.length > 0 ? (
                 selectedContractDocuments.map((doc, index) => (

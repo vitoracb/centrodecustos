@@ -1389,6 +1389,41 @@ export const FinanceiroScreen = () => {
                           <Edit3 size={16} color="#0A84FF" />
                         </TouchableOpacity>
                       )}
+                    </View>
+                  </View>
+                  {(item.status || canDelete) && (
+                    <View style={styles.statusRow}>
+                      {item.status && (
+                        <TouchableOpacity
+                          style={[
+                            styles.statusPill,
+                            item.status === 'a_confirmar' && styles.statusPillAConfirmar,
+                            item.status === 'confirmado' && styles.statusPillConfirmado,
+                            item.status === 'a_receber' && styles.statusPillAReceber,
+                            item.status === 'recebido' && styles.statusPillRecebido,
+                          ]}
+                          onPress={() => {
+                            if (!canEdit) return;
+                            setSelectedReceiptForStatus(item);
+                            setReceiptStatusModalVisible(true);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              item.status === 'a_confirmar' && styles.statusTextAConfirmar,
+                              item.status === 'confirmado' && styles.statusTextConfirmado,
+                              item.status === 'a_receber' && styles.statusTextAReceber,
+                              item.status === 'recebido' && styles.statusTextRecebido,
+                            ]}
+                          >
+                            {item.status === 'a_confirmar' && 'A Confirmar'}
+                            {item.status === 'confirmado' && 'Confirmado'}
+                            {item.status === 'a_receber' && 'A Receber'}
+                            {item.status === 'recebido' && 'Recebido'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                       {canDelete && (
                         <TouchableOpacity
                           style={styles.deleteButton}
@@ -1411,37 +1446,6 @@ export const FinanceiroScreen = () => {
                         </TouchableOpacity>
                       )}
                     </View>
-                  </View>
-                  {item.status && (
-                    <TouchableOpacity
-                      style={[
-                        styles.statusPill,
-                        item.status === 'a_confirmar' && styles.statusPillAConfirmar,
-                        item.status === 'confirmado' && styles.statusPillConfirmado,
-                        item.status === 'a_receber' && styles.statusPillAReceber,
-                        item.status === 'recebido' && styles.statusPillRecebido,
-                      ]}
-                      onPress={() => {
-                        if (!canEdit) return;
-                        setSelectedReceiptForStatus(item);
-                        setReceiptStatusModalVisible(true);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          item.status === 'a_confirmar' && styles.statusTextAConfirmar,
-                          item.status === 'confirmado' && styles.statusTextConfirmado,
-                          item.status === 'a_receber' && styles.statusTextAReceber,
-                          item.status === 'recebido' && styles.statusTextRecebido,
-                        ]}
-                      >
-                        {item.status === 'a_confirmar' && 'A Confirmar'}
-                        {item.status === 'confirmado' && 'Confirmado'}
-                        {item.status === 'a_receber' && 'A Receber'}
-                        {item.status === 'recebido' && 'Recebido'}
-                      </Text>
-                    </TouchableOpacity>
                   )}
                 </View>
               ))
@@ -1852,6 +1856,45 @@ export const FinanceiroScreen = () => {
                             <Edit3 size={16} color="#0A84FF" />
                           </TouchableOpacity>
                         )}
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Status da despesa + lixeira alinhados na mesma linha */}
+                    {(item.status || canDelete) && (
+                      <View style={styles.statusRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.statusPill,
+                            item.status && STATUS_STYLES[item.status]
+                              ? { backgroundColor: STATUS_STYLES[item.status].backgroundColor }
+                              : { backgroundColor: '#FFF3D6' },
+                          ]}
+                          onPress={() => {
+                            if (!isAdmin) return;
+                            setStatusModalExpense(item);
+                          }}
+                          activeOpacity={isAdmin ? 0.7 : 1}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              item.status && STATUS_STYLES[item.status]
+                                ? { color: STATUS_STYLES[item.status].color }
+                                : { color: '#FF9500' },
+                            ]}
+                          >
+                            {item.status ? STATUS_LABELS[item.status] : 'A Confirmar'}
+                          </Text>
+                          <ChevronDown
+                            size={14}
+                            color={
+                              item.status && STATUS_STYLES[item.status]
+                                ? STATUS_STYLES[item.status].color
+                                : '#FF9500'
+                            }
+                          />
+                        </TouchableOpacity>
+
                         {canDelete && (
                           <TouchableOpacity
                             style={styles.deleteButton}
@@ -1875,34 +1918,7 @@ export const FinanceiroScreen = () => {
                           </TouchableOpacity>
                         )}
                       </View>
-                    </TouchableOpacity>
-                    
-                    {/* Status da despesa com botão para abrir modal */}
-                    <View style={styles.statusContainer}>
-                      <TouchableOpacity
-                        style={[
-                          styles.statusPill,
-                          item.status && STATUS_STYLES[item.status] 
-                            ? { backgroundColor: STATUS_STYLES[item.status].backgroundColor }
-                            : { backgroundColor: '#FFF3D6' }
-                        ]}
-                        onPress={() => {
-                          if (!isAdmin) return;
-                          setStatusModalExpense(item);
-                        }}
-                        activeOpacity={isAdmin ? 0.7 : 1}
-                      >
-                        <Text style={[
-                          styles.statusText,
-                          item.status && STATUS_STYLES[item.status]
-                            ? { color: STATUS_STYLES[item.status].color }
-                            : { color: '#FF9500' }
-                        ]}>
-                          {item.status ? STATUS_LABELS[item.status] : 'A Confirmar'}
-                        </Text>
-                        <ChevronDown size={14} color={item.status && STATUS_STYLES[item.status] ? STATUS_STYLES[item.status].color : '#FF9500'} />
-                      </TouchableOpacity>
-                    </View>
+                    )}
 
                     {getSharedExpenseDocuments(item, allExpenses).length > 0 && (
                       <TouchableOpacity
@@ -2849,8 +2865,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E5EA',
     borderRadius: 16,
-    padding: 12,
-    gap: 8,
+    padding: 10,
+    gap: 6,
   },
   cardRow: {
     flexDirection: 'row',
@@ -2940,11 +2956,31 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 2,
   },
+  statusRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardDeleteRow: {
+    marginTop: 4,
+    alignItems: 'flex-end',
+  },
   editButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: '#EAF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   deleteButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: '#FDECEC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusContainer: {
     marginTop: 8,

@@ -615,17 +615,7 @@ export default function PedidosScreen() {
                       <Text style={styles.metaValue}>{order.equipmentName || 'Não informado'}</Text>
                     </View>
 
-                    {/* Informações de orçamento antes dos botões */}
-                    {hasBudget && (
-                      <View style={styles.cardMeta}>
-                        <Text style={styles.metaLabel}>
-                          {order.status === 'orcamento_aprovado' ? 'Orçamento aprovado' : 'Orçamentos enviados'}
-                        </Text>
-                        <Text style={styles.metaValue}>
-                          {orcamentos.length} {orcamentos.length === 1 ? 'orçamento' : 'orçamentos'}
-                        </Text>
-                      </View>
-                    )}
+                    {/* Informações de orçamento removidas do card; contagem agora fica apenas no botão */}
                     {dataUltimoOrcamento && (
                       <View style={styles.cardMeta}>
                         <Text style={styles.metaLabel}>Data de envio do último orçamento</Text>
@@ -634,6 +624,38 @@ export default function PedidosScreen() {
                     )}
 
                     <View style={styles.actionsRow}>
+                      {canEdit && (order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
+                        <View style={styles.actionWithStatusContainer}>
+                          <View style={styles.actionButtonsRow}>
+                            <TouchableOpacity
+                              style={styles.actionPill}
+                              onPress={() => {
+                                setSelectedOrderForBudget(order);
+                                setBudgetModalVisible(true);
+                              }}
+                            >
+                              <UploadCloud size={16} color="#0A84FF" />
+                              <Text style={styles.actionText}>
+                                {order.status === 'orcamento_enviado' ? 'Enviar novo orçamento' : 'Enviar orçamento'}
+                              </Text>
+                            </TouchableOpacity>
+
+                            {/* Botão de Rejeitar - ao lado de Enviar novo orçamento */}
+                            {order.status === 'orcamento_enviado' && hasBudget && (
+                              <TouchableOpacity
+                                style={[styles.actionPill, styles.destructivePill]}
+                                onPress={() => handleRejectOrder(order)}
+                              >
+                                <X size={16} color="#FF3B30" />
+                                <Text style={[styles.actionText, styles.destructiveText]}>
+                                  Rejeitar
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
                       {hasBudget && (
                         <View style={styles.detailsContainer}>
                           <TouchableOpacity
@@ -654,7 +676,7 @@ export default function PedidosScreen() {
                             <Text style={styles.actionText}>
                               {order.status === 'orcamento_aprovado'
                                 ? 'Orçamento aprovado'
-                                : 'Orçamentos Enviados'}
+                                : `Orçamentos enviados (${orcamentos.length})`}
                             </Text>
                             {orcamentos.length > 1 && (
                               <ChevronDown
@@ -671,93 +693,38 @@ export default function PedidosScreen() {
                         </View>
                       )}
 
-                      {/* Botão de Rejeitar - aparece quando há orçamentos enviados */}
-                      {order.status === 'orcamento_enviado' && hasBudget && (
-                        <TouchableOpacity
-                          style={[styles.actionPill, styles.destructivePill]}
-                          onPress={() => handleRejectOrder(order)}
-                        >
-                          <X size={16} color="#FF3B30" />
-                          <Text style={[styles.actionText, styles.destructiveText]}>
-                            Rejeitar
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-
                       <TouchableOpacity
                         style={[styles.actionPill, styles.destructivePill, styles.deletePill]}
                         onPress={() => handleDeleteOrder(order)}
                       >
                         <Trash2 size={16} color="#FF3B30" />
                       </TouchableOpacity>
-
-                      {canEdit && (order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
-                        <View style={styles.actionWithStatusContainer}>
-                          <TouchableOpacity
-                            style={styles.actionPill}
-                            onPress={() => {
-                              setSelectedOrderForBudget(order);
-                              setBudgetModalVisible(true);
-                            }}
-                          >
-                            <UploadCloud size={16} color="#0A84FF" />
-                            <Text style={styles.actionText}>
-                              {order.status === 'orcamento_enviado' ? 'Enviar novo orçamento' : 'Enviar orçamento'}
-                            </Text>
-                          </TouchableOpacity>
-                          <View
-                            style={[
-                              styles.statusPill,
-                              styles.statusPillInline,
-                              (() => {
-                                const currentStyle =
-                                  statusStyles[order.status] ?? defaultStatusStyle;
-                                return { backgroundColor: currentStyle.backgroundColor };
-                              })(),
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.statusText,
-                                (() => {
-                                  const currentStyle =
-                                    statusStyles[order.status] ?? defaultStatusStyle;
-                                  return { color: currentStyle.color };
-                                })(),
-                              ]}
-                            >
-                              {statusLabels[order.status] ?? order.status}
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-                      
-                      {/* Status para outros casos (quando não tem botão de enviar) */}
-                      {order.status !== 'orcamento_pendente' && order.status !== 'orcamento_enviado' && (
-                        <View
+                    </View>
+                    {/* Badge de status sempre como última informação do card */}
+                    <View style={styles.cardStatusContainer}>
+                      <View
+                        style={[
+                          styles.statusPill,
+                          (() => {
+                            const currentStyle =
+                              statusStyles[order.status] ?? defaultStatusStyle;
+                            return { backgroundColor: currentStyle.backgroundColor };
+                          })(),
+                        ]}
+                      >
+                        <Text
                           style={[
-                            styles.statusPill,
+                            styles.statusText,
                             (() => {
                               const currentStyle =
                                 statusStyles[order.status] ?? defaultStatusStyle;
-                              return { backgroundColor: currentStyle.backgroundColor };
+                              return { color: currentStyle.color };
                             })(),
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.statusText,
-                              (() => {
-                                const currentStyle =
-                                  statusStyles[order.status] ?? defaultStatusStyle;
-                                return { color: currentStyle.color };
-                              })(),
-                            ]}
-                          >
-                            {statusLabels[order.status] ?? order.status}
-                          </Text>
-                        </View>
-                      )}
+                          {statusLabels[order.status] ?? order.status}
+                        </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -1088,10 +1055,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionWithStatusContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap',
+  },
+  cardStatusContainer: {
+    marginTop: 8,
+    alignItems: 'flex-start',
   },
   actionsRow: {
     flexDirection: 'row',

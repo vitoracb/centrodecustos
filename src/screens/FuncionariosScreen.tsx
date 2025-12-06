@@ -217,16 +217,13 @@ export const FuncionariosScreen = () => {
                   <View style={styles.employeeHeaderActions}>
                     {canCreate && (
                       <TouchableOpacity
-                        style={styles.iconButton}
+                        style={styles.addDocButton}
                         onPress={() => {
                           setAddingDocumentForEmployee(employeeName);
                           setEmployeeModalVisible(true);
                         }}
                       >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Plus size={14} color="#0A84FF" />
-                          <FileText size={16} color="#0A84FF" />
-                        </View>
+                        <FileText size={16} color="#0A84FF" />
                       </TouchableOpacity>
                     )}
                     {canDelete && (
@@ -538,8 +535,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editIconButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
