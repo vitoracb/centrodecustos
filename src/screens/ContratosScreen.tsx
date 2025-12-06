@@ -18,7 +18,7 @@ import { useCostCenter } from '../context/CostCenterContext';
 import { useContracts } from '../context/ContractContext';
 import type { Contract } from '../context/ContractContext';
 import { usePermissions } from '../context/PermissionsContext';
-import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2, Edit3, ChevronDown } from 'lucide-react-native';
+import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2, Edit3, ChevronDown, Plus } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
@@ -403,27 +403,28 @@ export const ContratosScreen = () => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Contratos</Text>
               <View style={styles.headerActions}>
+                {canCreate && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => setModalVisible(true)}
+                  >
+                    <Plus size={18} color="#0A84FF" />
+                  </TouchableOpacity>
+                )}
+                {canCreate && (
+                  <TouchableOpacity
+                  style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
+                  onPress={() => setFilterModalVisible(true)}
+                >
+                  <Filter size={16} color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'} />
+                </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.sortButton}
                   onPress={() => setIsContractsSortDropdownOpen(!isContractsSortDropdownOpen)}
                 >
                   <ChevronDown size={16} color="#0A84FF" />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
-                  onPress={() => setFilterModalVisible(true)}
-                >
-                  <Filter size={16} color={hasActiveFilters ? "#FFFFFF" : "#0A84FF"} />
-                </TouchableOpacity>
-                {canCreate && (
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={() => setModalVisible(true)}
-                  >
-                    <FilePlus size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryButtonText}>Novo Contrato</Text>
-                  </TouchableOpacity>
-                )}
               </View>
           </View>
 
@@ -879,19 +880,15 @@ const styles = StyleSheet.create({
     color: '#6C6C70',
     marginTop: -8,
   },
-  primaryButton: {
-    flexDirection: 'row',
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#0A84FF',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    justifyContent: 'center',
   },
   card: {
     borderWidth: 1,

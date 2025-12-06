@@ -462,21 +462,19 @@ export default function PedidosScreen() {
             </Text>
           </View>
 
-          {canCreate && (
-            <TouchableOpacity
-              style={styles.primaryButton}
-              activeOpacity={0.9}
-              onPress={() => setIsFormVisible(true)}
-            >
-              <Plus color="#FFFFFF" size={20} />
-              <Text style={styles.primaryButtonText}>Novo Pedido</Text>
-            </TouchableOpacity>
-          )}
-
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Lista de Pedidos</Text>
               <View style={styles.headerActions}>
+                {canCreate && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => setIsFormVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={18} color="#0A84FF" />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.sortButton}
                   onPress={() => setIsOrdersSortDropdownOpen(!isOrdersSortDropdownOpen)}
@@ -969,20 +967,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0A84FF',
-    borderRadius: 16,
-    paddingVertical: 14,
     gap: 8,
-    shadowColor: '#0A84FF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 3,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    color: '#0A84FF',
   },
   section: {
     backgroundColor: '#FFFFFF',
@@ -1018,6 +1013,16 @@ const styles = StyleSheet.create({
   filterButtonActive: {
     backgroundColor: '#0A84FF',
     borderColor: '#0A84FF',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     borderWidth: 1,

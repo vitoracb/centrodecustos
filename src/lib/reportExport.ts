@@ -78,6 +78,11 @@ const capitalize = (str: string): string => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
+const REPORT_LOGO_URL =
+  'https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logonoworiginal.png';
+
+const REPORT_LOGO_CACHE_PATH = `${FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? ''}report_logo_nowtranding_dataurl.txt`;
+
 export interface ReportData {
   expenses: Expense[];
   receipts: Receipt[];
@@ -85,7 +90,7 @@ export interface ReportData {
   center?: CostCenter;
 }
 
-export const buildReportHTML = (data: ReportData): string => {
+export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): string => {
   const { expenses, receipts, period, center } = data;
     
   const periodLabel = period.month !== undefined
@@ -251,6 +256,9 @@ export const buildReportHTML = (data: ReportData): string => {
   });
   const maxMonthlyExpense = Math.max(...expensesByMonth, 1);
 
+  // Define a origem do logo (padrão: URL remota, mas pode ser sobrescrita por data URL base64)
+  const logoSrc = logoSrcOverride || REPORT_LOGO_URL;
+
   // Gerar HTML
   return `
 <!DOCTYPE html>
@@ -407,7 +415,7 @@ export const buildReportHTML = (data: ReportData): string => {
 </head>
 <body>
   <div class="header">
-    <img src="https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logonoworiginal.png" alt="Now Tranding" class="logo">
+    <img src="${logoSrc}" alt="Now Tranding" class="logo">
     <div class="company-info">
       <h1 class="company-name">Now Tranding</h1>
       <p class="report-title">Relatório Financeiro</p>
@@ -709,9 +717,49 @@ export const buildReportHTML = (data: ReportData): string => {
   `;
 };
 
+// Obtém o logo em formato data URL (base64) para ser embutido no HTML compartilhado
+// Usa cache local para evitar baixar/recodificar a cada exportação
+const getReportLogoDataUrl = async (): Promise<string | null> => {
+  try {
+    // 1) Tenta ler do cache
+    const info = await FileSystem.getInfoAsync(REPORT_LOGO_CACHE_PATH);
+    if (info.exists) {
+      const cached = await FileSystem.readAsStringAsync(REPORT_LOGO_CACHE_PATH, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (cached && cached.startsWith('data:image/')) {
+        return cached;
+      }
+    }
+
+    // 2) Baixa o arquivo de imagem do Supabase
+    const downloadDest = `${FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? ''}report_logo_nowtranding.png`;
+    const downloadResult = await FileSystem.downloadAsync(REPORT_LOGO_URL, downloadDest);
+
+    // 3) Lê como base64
+    const base64 = await FileSystem.readAsStringAsync(downloadResult.uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const dataUrl = `data:image/png;base64,${base64}`;
+
+    // 4) Salva no cache para próximas vezes
+    await FileSystem.writeAsStringAsync(REPORT_LOGO_CACHE_PATH, dataUrl, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    return dataUrl;
+  } catch (error) {
+    console.warn('⚠️ Não foi possível gerar data URL do logo do relatório, usando URL remota como fallback:', error);
+    return null;
+  }
+};
+
 export const exportToPDF = async (data: ReportData): Promise<string> => {
   try {
-    const html = buildReportHTML(data);
+    // Tenta embutir o logo como data URL para evitar problemas de carregamento em visualizadores externos
+    const logoDataUrl = await getReportLogoDataUrl();
+    const html = buildReportHTML(data, logoDataUrl ?? undefined);
     const timestamp = Date.now();
     const periodLabel = data.period.month !== undefined
       ? `${capitalize(dayjs().month(data.period.month).format('MMMM'))}_${data.period.year}`

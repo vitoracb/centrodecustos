@@ -179,25 +179,24 @@ export const FuncionariosScreen = () => {
           )}
         </View>
 
-        {canCreate && (
-          <View style={styles.buttonWrapper}>
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
-              ]}
-              onPress={() => setEmployeeModalVisible(true)}
-              disabled={!selectedEquipment || equipments.length === 0}
-            >
-              <UserPlus size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Adicionar Funcionário</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Funcionários</Text>
+            {canCreate && (
+              <TouchableOpacity
+                style={[
+                  styles.iconButton,
+                  (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
+                ]}
+                onPress={() => {
+                  setAddingDocumentForEmployee(null);
+                  setEmployeeModalVisible(true);
+                }}
+                disabled={!selectedEquipment || equipments.length === 0}
+              >
+                <UserPlus size={18} color="#0A84FF" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {Object.keys(documentsByEmployee).length > 0 ? (
@@ -528,6 +527,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     borderWidth: 1,
