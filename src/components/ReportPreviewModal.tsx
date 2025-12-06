@@ -59,9 +59,6 @@ export const ReportPreviewModal = ({
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.8}>
-              <Text style={styles.closeButtonText}>Fechar</Text>
-            </TouchableOpacity>
             {onShare && (
               <TouchableOpacity
                 style={[styles.shareButton, isExporting && styles.buttonDisabled]}
@@ -77,29 +74,11 @@ export const ReportPreviewModal = ({
                 ) : (
                   <>
                     <Share size={18} color="#FFFFFF" />
-                    <Text style={styles.shareText}>Compartilhar</Text>
+                    <Text style={styles.shareText}>Compartilhar/Baixar PDF</Text>
                   </>
                 )}
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.downloadButton, isExporting && styles.buttonDisabled]}
-              onPress={onDownload}
-              activeOpacity={0.8}
-              disabled={isExporting}
-            >
-              {isExporting ? (
-                <>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.downloadText}>Gerando...</Text>
-                </>
-              ) : (
-                <>
-                  <Download size={18} color="#FFFFFF" />
-                  <Text style={styles.downloadText}>{downloadLabel}</Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -172,12 +151,11 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
   },
   shareButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#34C759',
+    backgroundColor: '#0A84FF',
     paddingVertical: 14,
     borderRadius: 14,
   },
