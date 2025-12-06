@@ -461,7 +461,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         `
         )
         .eq("type", "DESPESA")
-        .eq("cost_center_id", selectedCenter)
+        // Removido filtro por centro para carregar TODOS os centros (necessário para gráfico comparativo)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -585,7 +585,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         `
         )
         .eq("type", "RECEITA")
-        .eq("cost_center_id", selectedCenter)
+        // Removido filtro por centro para carregar TODOS os centros (necessário para gráfico comparativo)
         .order("date", { ascending: false });
 
       if (error) {
