@@ -137,7 +137,7 @@ export default function UserManagementScreen() {
       case 'editor':
         return 'Gerente';
       case 'viewer':
-        return 'Visualizador';
+        return 'Observador';
       default:
         return role;
     }
@@ -157,7 +157,7 @@ export default function UserManagementScreen() {
           onPress: () => changeUserRole(user.id, 'editor'),
         },
         {
-          text: 'Visualizador',
+          text: 'Observador',
           onPress: () => changeUserRole(user.id, 'viewer'),
         },
         {

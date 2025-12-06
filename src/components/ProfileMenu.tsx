@@ -47,7 +47,7 @@ export function ProfileMenu() {
   const getRoleLabel = () => {
     if (isAdmin) return 'Administrador';
     if (isEditor) return 'Editor';
-    if (isViewer) return 'Visualizador';
+    if (isViewer) return 'Observador';
     return 'Usuário';
   };
 

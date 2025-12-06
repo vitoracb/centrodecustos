@@ -84,7 +84,7 @@ export const CostCenterSelector = () => {
   const getRoleLabel = () => {
     if (isAdmin) return 'Administrador';
     if (isEditor) return 'Gerente';
-    if (isViewer) return 'Visualizador';
+    if (isViewer) return 'Observador';
     return 'Usuário';
   };
 
@@ -186,10 +186,12 @@ export const CostCenterSelector = () => {
                 <User size={24} color="#0A84FF" />
               </View>
               <Text style={styles.userEmail}>{user?.email}</Text>
-              <View style={styles.roleContainer}>
-                {getRoleIcon()}
-                <Text style={styles.roleText}>{getRoleLabel()}</Text>
-              </View>
+              {isAdmin && (
+                <View style={styles.roleContainer}>
+                  {getRoleIcon()}
+                  <Text style={styles.roleText}>{getRoleLabel()}</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.divider} />

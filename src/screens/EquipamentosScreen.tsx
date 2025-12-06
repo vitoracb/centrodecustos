@@ -8,6 +8,7 @@ import {
   Alert,
   GestureResponderEvent,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -198,7 +199,13 @@ export const EquipamentosScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Equipamentos</Text>
+            <View style={styles.headerTitleRow}>
+              <Image
+                source={require('../../icons/nowtranding_icon_1024.png')}
+                style={styles.headerLogo}
+              />
+              <Text style={styles.title}>Equipamentos</Text>
+            </View>
             <Text style={styles.subtitle}>
               Gestão completa dos ativos do centro {centerLabels[selectedCenter]}
             </Text>
@@ -449,13 +456,24 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    gap: 20,
+    gap: 16,
   },
   header: {
-    gap: 4,
+    marginBottom: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     color: '#1C1C1E',
   },

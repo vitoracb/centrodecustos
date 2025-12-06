@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  ActivityIndicator,
+  Image,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -2146,7 +2148,13 @@ export const FinanceiroScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Financeiro</Text>
+            <View style={styles.headerTitleRow}>
+              <Image
+                source={require('../../icons/nowtranding_icon_1024.png')}
+                style={styles.headerLogo}
+              />
+              <Text style={styles.title}>Financeiro</Text>
+            </View>
             <Text style={styles.subtitle}>
               Controle financeiro do centro {costCenters.find(cc => cc.code === selectedCenter)?.name || centerLabels[selectedCenter as keyof typeof centerLabels] || selectedCenter}
             </Text>
@@ -2661,10 +2669,21 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    gap: 20,
+    gap: 16,
   },
   header: {
-    gap: 4,
+    marginBottom: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
   },
   title: {
     fontSize: 26,

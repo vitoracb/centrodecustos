@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useFinancial } from '../context/FinancialContext';
+import { usePermissions } from '../context/PermissionsContext';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { GoalProgress } from '../components/GoalProgress';
 import { CircularGauge } from '../components/CircularGauge';
@@ -24,6 +25,7 @@ export default function DashboardGamificadoScreen() {
   const router = useRouter();
   const { selectedCenter } = useCostCenter();
   const { getAllExpenses, getAllReceipts } = useFinancial();
+  const { isAdmin } = usePermissions();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const onRefresh = React.useCallback(() => {
@@ -109,9 +111,11 @@ export default function DashboardGamificadoScreen() {
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>🏆 Dashboard</Text>
-              <View style={styles.levelBadge}>
-                <Text style={styles.levelText}>Nível {level}</Text>
-              </View>
+              {isAdmin && (
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelText}>Nível {level}</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.subtitle}>
               {centerLabels[selectedCenter]} • {xp} XP

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
@@ -123,7 +124,13 @@ export const FuncionariosScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Funcionários</Text>
+            <View style={styles.headerTitleRow}>
+              <Image
+                source={require('../../icons/nowtranding_icon_1024.png')}
+                style={styles.headerLogo}
+              />
+              <Text style={styles.title}>Funcionários</Text>
+            </View>
             <Text style={styles.subtitle}>
               Documentos vinculados ao centro {selectedCenterName}
             </Text>
@@ -425,10 +432,21 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    gap: 20,
+    gap: 16,
   },
   header: {
-    gap: 4,
+    marginBottom: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
   },
   title: {
     fontSize: 26,

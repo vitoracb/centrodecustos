@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -947,7 +948,13 @@ export const DashboardScreen = () => {
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Dashboard</Text>
+            <View style={styles.headerTitleRow}>
+              <Image
+                source={require('../../icons/nowtranding_icon_1024.png')}
+                style={styles.headerLogo}
+              />
+              <Text style={styles.title}>Painel de Controle</Text>
+            </View>
             <Text style={styles.subtitle}>
               Visão geral das operações do centro de custo{' '}
               {centerLabels[selectedCenter as keyof typeof centerLabels]}
@@ -1191,6 +1198,17 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 6,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
   },
   title: {
     fontSize: 28,
