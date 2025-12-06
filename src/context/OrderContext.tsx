@@ -217,6 +217,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           equipment_id,
           created_at,
           cost_center_id,
+          equipments ( name ),
           order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
         `
         )
@@ -286,6 +287,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
+            equipments ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -393,6 +395,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
+            equipments ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -500,6 +503,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
+            equipments ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
