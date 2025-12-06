@@ -407,19 +407,24 @@ export const buildReportHTML = (data: ReportData): string => {
 </head>
 <body>
   <div class="header">
-    <svg class="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <rect width="200" height="200" rx="30" fill="#0A84FF"/>
-      <!-- Logo NOW TRADING - Letra N estilizada -->
-      <g transform="translate(40, 50)">
-        <!-- Primeira perna do N (esquerda) -->
-        <rect x="0" y="0" width="18" height="100" rx="9" fill="white"/>
-        <!-- Diagonal do N -->
-        <rect x="30" y="20" width="18" height="80" rx="9" fill="white" transform="rotate(25 39 60)"/>
-        <!-- Segunda perna do N (direita) -->
-        <rect x="82" y="0" width="18" height="100" rx="9" fill="white"/>
+    <svg class="logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+      <rect width="240" height="240" rx="20" fill="#1a1a1a"/>
+      <!-- Logo NOW TRADING - Design original -->
+      <g transform="translate(30, 40)">
+        <!-- Primeira barra vertical esquerda do N -->
+        <path d="M 10 20 L 10 120 L 25 120 L 25 20 Z" fill="white" stroke="none"/>
+        <!-- Barra diagonal central -->
+        <path d="M 35 50 L 95 20 L 105 30 L 45 60 Z" fill="white" stroke="none"/>
+        <path d="M 45 60 L 105 90 L 95 100 L 35 70 Z" fill="white" stroke="none"/>
+        <!-- Segunda barra vertical direita do N -->
+        <path d="M 115 20 L 115 120 L 130 120 L 130 20 Z" fill="white" stroke="none"/>
         <!-- Detalhe curvo superior direito -->
-        <path d="M 100 15 Q 110 5, 120 15 L 120 35 Q 110 25, 100 35 Z" fill="white"/>
+        <path d="M 135 20 Q 155 15 165 30 L 165 50 Q 155 35 135 40 Z" fill="white" stroke="none"/>
+        <!-- Detalhe inferior direito -->
+        <path d="M 165 70 L 165 85 Q 155 95 145 85 L 145 70 Q 155 80 165 70 Z" fill="white" stroke="none"/>
       </g>
+      <!-- Texto NOW TRADING -->
+      <text x="120" y="190" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="2">NOW TRADING</text>
     </svg>
     <div class="company-info">
       <h1 class="company-name">Now Trading</h1>
