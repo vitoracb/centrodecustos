@@ -141,9 +141,10 @@ const mapRowToOrder = (row: any): Order => {
   const orderDate = isoToBr(row.order_date);
   const normalizedStatus = normalizeStatus(row.status);
 
-  const equipmentSource = Array.isArray(row.equipments)
+  // Suporta tanto 'equipment' (novo) quanto 'equipments' (antigo) para compatibilidade
+  const equipmentSource = row.equipment || (Array.isArray(row.equipments)
     ? row.equipments[0]
-    : row.equipments;
+    : row.equipments);
 
   const documents: OrderDocument[] =
     row.order_documents?.map((doc: any) => ({
@@ -217,7 +218,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           equipment_id,
           created_at,
           cost_center_id,
-          equipments ( name ),
+          equipment:equipment_id ( name ),
           order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
         `
         )
@@ -287,7 +288,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( name ),
+            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -395,7 +396,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( name ),
+            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
@@ -503,7 +504,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
             equipment_id,
             created_at,
             cost_center_id,
-            equipments ( name ),
+            equipment:equipment_id ( name ),
             order_documents ( id, type, file_url, file_name, mime_type, approved, created_at )
           `
           )
