@@ -2897,9 +2897,9 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
     marginTop: 4,
   },
   categoryBadge: {
@@ -2907,6 +2907,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    marginRight: 4,
+    marginBottom: 2,
   },
   categoryText: {
     fontSize: 11,
@@ -2918,6 +2920,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    marginRight: 4,
+    marginBottom: 2,
   },
   sectorText: {
     fontSize: 11,

@@ -696,10 +696,7 @@ export const EquipmentDetailScreen = () => {
                       onPress={handleAction}
                       activeOpacity={0.8}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Plus size={16} color="#0A84FF" />
-                        <History size={16} color="#0A84FF" />
-                      </View>
+                      <History size={18} color="#0A84FF" />
                     </TouchableOpacity>
                     {canEdit && (
                       <TouchableOpacity
@@ -718,17 +715,14 @@ export const EquipmentDetailScreen = () => {
                     activeOpacity={0.8}
                   >
                     {activeTab === 'documentos' ? (
+                      <FileText size={18} color="#0A84FF" />
+                    ) : activeTab === 'despesas' ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Plus size={16} color="#0A84FF" />
-                        <FileText size={16} color="#0A84FF" />
-                      </View>
-                    ) : activeTab === 'fotos' ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Plus size={16} color="#0A84FF" />
-                        <Camera size={16} color="#0A84FF" />
+                        <CreditCard size={16} color="#0A84FF" />
                       </View>
                     ) : (
-                      <Plus size={18} color="#0A84FF" />
+                      <Camera size={18} color="#0A84FF" />
                     )}
                   </TouchableOpacity>
                 ) : (
@@ -1632,9 +1626,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#0A84FF',
-    backgroundColor: '#FFFFFF',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
