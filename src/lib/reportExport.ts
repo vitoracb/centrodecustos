@@ -264,6 +264,36 @@ export const buildReportHTML = (data: ReportData): string => {
       margin: 20px;
       color: #1C1C1E;
     }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #0A84FF;
+    }
+    .logo {
+      width: 60px;
+      height: 60px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .company-info {
+      flex: 1;
+    }
+    .company-name {
+      font-size: 28px;
+      font-weight: bold;
+      color: #0A84FF;
+      margin: 0;
+      line-height: 1.2;
+    }
+    .report-title {
+      font-size: 16px;
+      color: #6C6C70;
+      margin: 5px 0 0 0;
+      font-weight: normal;
+    }
     h1 {
       color: #0A84FF;
       border-bottom: 2px solid #0A84FF;
@@ -376,7 +406,13 @@ export const buildReportHTML = (data: ReportData): string => {
   </style>
 </head>
 <body>
-  <h1>Relatório Financeiro</h1>
+  <div class="header">
+    <img src="https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logo.png" alt="Logo" class="logo" onerror="this.style.display='none'">
+    <div class="company-info">
+      <h1 class="company-name">Now Trading</h1>
+      <p class="report-title">Relatório Financeiro</p>
+    </div>
+  </div>
   
   <div class="summary">
     <div class="summary-item">
