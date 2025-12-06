@@ -2217,14 +2217,34 @@ export const FinanceiroScreen = () => {
         }}
         initialData={
           editingReceipt
-            ? {
-                name: editingReceipt.name,
-                date: editingReceipt.date,
-                value: editingReceipt.value,
-                isFixed: editingReceipt.isFixed ?? false,
-                fixedDurationMonths: editingReceipt.fixedDurationMonths,
-                id: editingReceipt.id,
-              }
+            ? (() => {
+                // Busca informações de receita fixa
+                const fixedInfo = getReceiptFixedInfo(editingReceipt, allReceipts);
+                
+                // Se for uma receita fixa (template ou parcela), busca o template
+                let isFixed = editingReceipt.isFixed ?? false;
+                let fixedDurationMonths = editingReceipt.fixedDurationMonths;
+                
+                if (fixedInfo.isFixed && !isFixed) {
+                  // É uma parcela de receita fixa, busca o template
+                  const template = allReceipts.find(
+                    (r) => r.isFixed && r.name === editingReceipt.name && r.center === editingReceipt.center
+                  );
+                  if (template) {
+                    isFixed = true;
+                    fixedDurationMonths = template.fixedDurationMonths;
+                  }
+                }
+                
+                return {
+                  name: editingReceipt.name,
+                  date: editingReceipt.date,
+                  value: editingReceipt.value,
+                  isFixed,
+                  fixedDurationMonths,
+                  id: editingReceipt.id,
+                };
+              })()
             : undefined
         }
       />
