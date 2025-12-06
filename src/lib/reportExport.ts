@@ -99,6 +99,11 @@ export const buildReportHTML = (data: ReportData): string => {
   const totalReceipts = receipts.reduce((sum, r) => sum + r.value, 0);
   const balance = totalReceipts - totalExpenses;
 
+  // Debug: Log dos valores
+  console.log('📊 [RELATÓRIO] Total de despesas:', totalExpenses);
+  console.log('📊 [RELATÓRIO] Número de despesas:', expenses.length);
+  console.log('📊 [RELATÓRIO] Primeiras 3 despesas:', expenses.slice(0, 3).map(e => ({ name: e.name, value: e.value })));
+
   // Helper para decidir se uma despesa deve ser considerada no agrupamento por setor
   const shouldIncludeExpenseInSector = (expense: Expense, allExpenses: Expense[]): boolean => {
     if (!expense.sector) return false;
