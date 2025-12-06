@@ -1025,7 +1025,12 @@ export const ExpenseFormModal = ({
                 onPress={() => {
                   const newValue = !isInstallment;
                   setIsInstallment(newValue);
-                  if (!newValue) {
+
+                  // Se marcar parcelado, desmarca despesa fixa
+                  if (newValue) {
+                    setIsFixed(false);
+                  } else {
+                    // Se desmarcar parcelado, limpa as parcelas
                     setInstallmentsCount('');
                     setInstallments([]);
                   }
@@ -1218,7 +1223,17 @@ export const ExpenseFormModal = ({
             <View style={styles.field}>
               <TouchableOpacity
                 style={styles.checkboxContainer}
-                onPress={() => setIsFixed(!isFixed)}
+                onPress={() => {
+                  const newValue = !isFixed;
+                  setIsFixed(newValue);
+
+                  // Se marcar despesa fixa, desmarca parcelado e limpa parcelas
+                  if (newValue) {
+                    setIsInstallment(false);
+                    setInstallmentsCount('');
+                    setInstallments([]);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.checkbox, isFixed && styles.checkboxChecked]}>

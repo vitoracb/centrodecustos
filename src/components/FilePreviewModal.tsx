@@ -52,7 +52,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   // Determina se está usando array de arquivos ou arquivo único (compatibilidade)
   // Só considera multi-arquivo se houver mais de 1 arquivo (para mostrar navegação)
   const isMultiFile = files && files.length > 1;
-  const currentFile = isMultiFile 
+  const currentFile = isMultiFile
     ? (files[currentIndex] || files[0] || { fileUri: fileUri || '', fileName: fileName || 'Arquivo', mimeType: mimeType || null })
     : { fileUri: fileUri || '', fileName: fileName || 'Arquivo', mimeType: mimeType || null };
 

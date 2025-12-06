@@ -582,7 +582,6 @@ export const ContratosScreen = () => {
                     }
                   >
                     <Trash2 size={16} color="#FF3B30" />
-                    <Text style={styles.deleteText}>Excluir</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -971,6 +970,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: '#FDECEC',
+    marginLeft: 'auto',
   },
   deleteText: {
     fontSize: 13,

@@ -693,10 +693,10 @@ export const DashboardScreen = () => {
 
       // Documentos de contratos (apenas se o contrato não foi deletado)
       if (contract.documents) {
-        contract.documents.forEach(doc => {
+        contract.documents.forEach((doc, index) => {
           // Usa o timestamp do contrato como aproximação, já que documentos não têm createdAt separado
           activities.push({
-            id: `contract-doc-${contract.id}-${doc.fileName}`,
+            id: `contract-doc-${contract.id}-${index}`,
             title: 'Documento de contrato adicionado',
             description: `${contract.name} - ${doc.fileName}`,
             timestamp: contract.createdAt || Date.now(),
@@ -1030,9 +1030,9 @@ export const DashboardScreen = () => {
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Ações Rápidas</Text>
                 <View style={styles.quickGrid}>
-                  {quickActions.map(action => (
+                  {quickActions.map((action, index) => (
                     <TouchableOpacity
-                      key={action.label}
+                      key={`${action.label}-${index}`}
                       style={styles.quickButton}
                       activeOpacity={0.8}
                       onPress={action.onPress}

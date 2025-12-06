@@ -683,29 +683,64 @@ export const EquipmentDetailScreen = () => {
             })}
           </View>
 
-          {/* Botão de Atualizar Horas - apenas na aba Revisões, abaixo das subabas e acima dos cards */}
-          {activeTab === 'revisoes' && canEdit && (
-            <TouchableOpacity
-              style={styles.updateHoursButton}
-              onPress={() => setUpdateHoursModalVisible(true)}
-            >
-              <Text style={styles.updateHoursButtonText}>Atualizar Horas</Text>
-            </TouchableOpacity>
-          )}
-
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
                 {tabs.find(tab => tab.key === activeTab)?.label}
               </Text>
               {canCreate && (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={handleAction}
-                >
-                  <Plus size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>{actionLabel()}</Text>
-                </TouchableOpacity>
+                activeTab === 'revisoes' ? (
+                  <View style={styles.headerActions}>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={handleAction}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Plus size={16} color="#0A84FF" />
+                        <History size={16} color="#0A84FF" />
+                      </View>
+                    </TouchableOpacity>
+                    {canEdit && (
+                      <TouchableOpacity
+                        style={styles.updateHoursButton}
+                        onPress={() => setUpdateHoursModalVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.updateHoursButtonText}>Atualizar Horas</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (activeTab === 'despesas' || activeTab === 'documentos' || activeTab === 'fotos') ? (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={handleAction}
+                    activeOpacity={0.8}
+                  >
+                    {activeTab === 'documentos' ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Plus size={16} color="#0A84FF" />
+                        <FileText size={16} color="#0A84FF" />
+                      </View>
+                    ) : activeTab === 'fotos' ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Plus size={16} color="#0A84FF" />
+                        <Camera size={16} color="#0A84FF" />
+                      </View>
+                    ) : (
+                      <Plus size={18} color="#0A84FF" />
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={handleAction}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={18} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>{actionLabel()}</Text>
+                  </TouchableOpacity>
+                )
               )}
             </View>
 
@@ -1462,20 +1497,20 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
   },
   updateHoursButton: {
-    marginBottom: 20,
-    backgroundColor: '#0A84FF',
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   updateHoursButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: '#0A84FF',
+    fontSize: 14,
     fontWeight: '600',
   },
   revisionAlert: {
@@ -1569,6 +1604,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -1587,6 +1627,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     borderWidth: 1,

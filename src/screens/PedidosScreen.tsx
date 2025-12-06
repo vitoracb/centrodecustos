@@ -634,43 +634,42 @@ export default function PedidosScreen() {
                     )}
 
                     <View style={styles.actionsRow}>
-                      <View style={styles.detailsContainer}>
-                        <TouchableOpacity
-                          style={styles.actionPill}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            if (!hasBudget) {
-                              Alert.alert(
-                                'Nenhum orçamento disponível',
-                                'Ainda não há um orçamento enviado para este pedido.',
-                              );
-                              return;
-                            }
-                            
-                            // Se há apenas 1 orçamento, abre diretamente
-                            // Se há múltiplos, mostra o dropdown
-                            if (orcamentos.length === 1) {
-                              handleBudgetSelect(order);
-                            } else {
-                              toggleBudgetDropdown(order.id);
-                            }
-                          }}
-                        >
-                          <FileText size={16} color="#0A84FF" />
-                          <Text style={styles.actionText}>Detalhes</Text>
-                          {hasBudget && orcamentos.length > 1 && (
-                            <ChevronDown
-                              size={14}
-                              color="#0A84FF"
-                              style={[
-                                styles.dropdownChevron,
-                                openDropdownOrderId === order.id && styles.dropdownChevronOpen
-                              ]}
-                            />
-                          )}
-                        </TouchableOpacity>
+                      {hasBudget && (
+                        <View style={styles.detailsContainer}>
+                          <TouchableOpacity
+                            style={styles.actionPill}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              
+                              // Se há apenas 1 orçamento, abre diretamente
+                              // Se há múltiplos, mostra o dropdown
+                              if (orcamentos.length === 1) {
+                                handleBudgetSelect(order);
+                              } else {
+                                toggleBudgetDropdown(order.id);
+                              }
+                            }}
+                          >
+                            <FileText size={16} color="#0A84FF" />
+                            <Text style={styles.actionText}>
+                              {order.status === 'orcamento_aprovado'
+                                ? 'Orçamento aprovado'
+                                : 'Orçamentos Enviados'}
+                            </Text>
+                            {orcamentos.length > 1 && (
+                              <ChevronDown
+                                size={14}
+                                color="#0A84FF"
+                                style={[
+                                  styles.dropdownChevron,
+                                  openDropdownOrderId === order.id && styles.dropdownChevronOpen
+                                ]}
+                              />
+                            )}
+                          </TouchableOpacity>
 
-                      </View>
+                        </View>
+                      )}
 
                       {/* Botão de Rejeitar - aparece quando há orçamentos enviados */}
                       {order.status === 'orcamento_enviado' && hasBudget && (
@@ -686,13 +685,10 @@ export default function PedidosScreen() {
                       )}
 
                       <TouchableOpacity
-                        style={[styles.actionPill, styles.destructivePill]}
+                        style={[styles.actionPill, styles.destructivePill, styles.deletePill]}
                         onPress={() => handleDeleteOrder(order)}
                       >
                         <Trash2 size={16} color="#FF3B30" />
-                        <Text style={[styles.actionText, styles.destructiveText]}>
-                          Excluir
-                        </Text>
                       </TouchableOpacity>
 
                       {canEdit && (order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
@@ -1117,6 +1113,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: '#F5F5F7',
+  },
+  deletePill: {
+    marginLeft: 'auto',
   },
   destructivePill: {
     backgroundColor: '#FDECEC',

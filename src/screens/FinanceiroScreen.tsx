@@ -172,6 +172,21 @@ const getExpenseInstallmentInfo = (expense: Expense, allExpenses: Expense[]): { 
     return { isInstallment: false };
   }
 
+  // Se existir um template de despesa fixa com mesmo nome/centro, tratamos este grupo como despesa fixa,
+  // não como parcelamento manual. Nesse caso, não exibimos o badge de "Parcela", apenas o de "Despesa fixa".
+  const hasFixedTemplate = allExpenses.some(
+    (e) =>
+      e.isFixed &&
+      e.name === expense.name &&
+      e.center === expense.center &&
+      e.fixedDurationMonths != null &&
+      e.fixedDurationMonths > 0
+  );
+
+  if (hasFixedTemplate) {
+    return { isInstallment: false };
+  }
+
   // Considera todas as despesas com mesmo nome/centro que tenham número de parcela
   const siblings = allExpenses.filter(
     (e) =>
@@ -1210,6 +1225,17 @@ export const FinanceiroScreen = () => {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recebimentos</Text>
               <View style={styles.headerActions}>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => {
+                      setEditingReceipt(null);
+                      setReceiptModalVisible(true);
+                    }}
+                  >
+                    <Plus size={18} color="#0A84FF" />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
                   onPress={() => setReceiptFilterVisible(true)}
@@ -1324,18 +1350,6 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            {canEdit && (
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => {
-                  setEditingReceipt(null);
-                  setReceiptModalVisible(true);
-                }}
-              >
-                <Plus size={18} color="#0A84FF" />
-                <Text style={styles.secondaryButtonText}>Novo Recebimento</Text>
-              </TouchableOpacity>
-            )}
             {filteredReceipts.length > 0 ? (
               filteredReceipts.map((item) => (
                 <View key={item.id} style={styles.card}>
@@ -1446,6 +1460,17 @@ export const FinanceiroScreen = () => {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Despesas</Text>
               <View style={styles.headerActions}>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => {
+                      setEditingExpense(null);
+                      setExpenseModalVisible(true);
+                    }}
+                  >
+                    <Plus size={18} color="#0A84FF" />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[styles.filterButton, hasActiveExpenseFilters && styles.filterButtonActive]}
                   onPress={() => setExpenseFilterVisible(true)}
@@ -1560,18 +1585,6 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            {canEdit && (
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => {
-                  setEditingExpense(null);
-                  setExpenseModalVisible(true);
-                }}
-              >
-                <Plus size={18} color="#0A84FF" />
-                <Text style={styles.secondaryButtonText}>Nova Despesa</Text>
-              </TouchableOpacity>
-            )}
             <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
             <ExpenseBarChart expenses={filteredExpenses} />
             <ExpenseSectorChart expenses={filteredExpenses} />
