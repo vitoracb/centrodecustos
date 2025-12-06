@@ -439,7 +439,13 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           throw error;
         }
 
-        const updated = mapRowToOrder(data);
+        let updated = mapRowToOrder(data);
+        
+        // Buscar nome do equipamento se houver equipment_id
+        if (updated.equipmentId && !updated.equipmentName) {
+          const equipmentName = await fetchEquipmentName(updated.equipmentId);
+          updated = { ...updated, equipmentName };
+        }
 
         setOrders((prev) => {
           const next = prev.map((o) => (o.id === order.id ? updated : o));
@@ -546,7 +552,13 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           throw loadError;
         }
 
-        const updated = mapRowToOrder(data);
+        let updated = mapRowToOrder(data);
+        
+        // Buscar nome do equipamento se houver equipment_id
+        if (updated.equipmentId && !updated.equipmentName) {
+          const equipmentName = await fetchEquipmentName(updated.equipmentId);
+          updated = { ...updated, equipmentName };
+        }
 
         setOrders((prev) => {
           const next = prev.map((o) => (o.id === orderId ? updated : o));
