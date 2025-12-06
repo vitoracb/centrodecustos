@@ -95,6 +95,16 @@ export const ContratosScreen = () => {
   >('date_desc');
   const [isContractsSortDropdownOpen, setIsContractsSortDropdownOpen] = useState(false);
 
+  // Helper para verificar se há filtros ativos
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      (filters.name && filters.name.trim() !== '') ||
+      filters.category ||
+      filters.month ||
+      filters.year
+    );
+  }, [filters]);
+
   const filteredContracts = useMemo(() => {
     let filtered = [...contracts];
 
@@ -393,10 +403,10 @@ export const ContratosScreen = () => {
                   <ChevronDown size={16} color="#0A84FF" />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.filterButton, Object.keys(filters).length > 0 && styles.filterButtonActive]}
+                  style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
                   onPress={() => setFilterModalVisible(true)}
                 >
-                  <Filter size={16} color={Object.keys(filters).length > 0 ? "#FFFFFF" : "#0A84FF"} />
+                  <Filter size={16} color={hasActiveFilters ? "#FFFFFF" : "#0A84FF"} />
                 </TouchableOpacity>
                 {canCreate && (
                   <TouchableOpacity
