@@ -1055,7 +1055,9 @@ export const ExpenseFormModal = ({
                       setInstallments((prev) => {
                         const next = [...prev];
                         while (next.length < count) {
-                          next.push({ value: '', date: dayjs(date).format('DD/MM/YYYY') });
+                          // Calcula a data de cada parcela: primeira parcela = data atual, segunda = +1 mês, terceira = +2 meses, etc
+                          const installmentDate = dayjs(date).add(next.length, 'month').format('DD/MM/YYYY');
+                          next.push({ value: '', date: installmentDate });
                         }
                         if (next.length > count) {
                           next.length = count;
