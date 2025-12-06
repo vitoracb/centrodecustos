@@ -103,14 +103,13 @@ export default function LoginScreen() {
             resizeMode="contain"
           />
         </View>
-        <Text style={styles.title}>Centro de Custos</Text>
+        <Text style={styles.title}>Now Tranding</Text>
         <Text style={styles.subtitle}>Faça login para continuar</Text>
 
         <View style={styles.form}>
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
-            placeholder="seu@email.com"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -121,7 +120,6 @@ export default function LoginScreen() {
           <Text style={styles.label}>Senha</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
