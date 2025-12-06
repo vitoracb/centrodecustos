@@ -604,12 +604,10 @@ export default function PedidosScreen() {
                       <Text style={styles.metaValue}>{order.date}</Text>
                     </View>
 
-                    {order.equipmentName && (
-                      <View style={styles.cardMeta}>
-                        <Text style={styles.metaLabel}>Equipamento</Text>
-                        <Text style={styles.metaValue}>{order.equipmentName}</Text>
-                      </View>
-                    )}
+                    <View style={styles.cardMeta}>
+                      <Text style={styles.metaLabel}>Equipamento</Text>
+                      <Text style={styles.metaValue}>{order.equipmentName || 'Não informado'}</Text>
+                    </View>
 
                     {/* Informações de orçamento antes dos botões */}
                     {hasBudget && (
@@ -624,7 +622,7 @@ export default function PedidosScreen() {
                     )}
                     {dataUltimoOrcamento && (
                       <View style={styles.cardMeta}>
-                        <Text style={styles.metaLabel}>Data do último orçamento</Text>
+                        <Text style={styles.metaLabel}>Data de envio do último orçamento</Text>
                         <Text style={styles.metaValue}>{dataUltimoOrcamento}</Text>
                       </View>
                     )}
