@@ -407,7 +407,20 @@ export const buildReportHTML = (data: ReportData): string => {
 </head>
 <body>
   <div class="header">
-    <img src="https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logo.png" alt="Logo" class="logo" onerror="this.style.display='none'">
+    <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#0A84FF;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#4AA6FF;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="20" fill="url(#logoGradient)"/>
+      <path d="M30 35 L70 35 L70 40 L30 40 Z" fill="white" opacity="0.9"/>
+      <path d="M30 50 L70 50 L70 55 L30 55 Z" fill="white" opacity="0.7"/>
+      <path d="M30 65 L55 65 L55 70 L30 70 Z" fill="white" opacity="0.5"/>
+      <circle cx="65" cy="67.5" r="7" fill="#34C759"/>
+      <path d="M62 67.5 L64 69.5 L68 65.5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     <div class="company-info">
       <h1 class="company-name">Now Trading</h1>
       <p class="report-title">Relatório Financeiro</p>
