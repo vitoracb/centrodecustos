@@ -270,12 +270,12 @@ export const buildReportHTML = (data: ReportData): string => {
       gap: 15px;
       margin-bottom: 30px;
       padding-bottom: 20px;
-      border-bottom: 3px solid #0A84FF;
+      border-bottom: 2px solid #000000;
     }
     .logo {
       width: 60px;
       height: 60px;
-      border-radius: 12px;
+      border-radius: 6px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     .company-info {
@@ -284,19 +284,19 @@ export const buildReportHTML = (data: ReportData): string => {
     .company-name {
       font-size: 28px;
       font-weight: bold;
-      color: #0A84FF;
+      color: #000000;
       margin: 0;
       line-height: 1.2;
     }
     .report-title {
       font-size: 16px;
-      color: #6C6C70;
+      color: #000000;
       margin: 5px 0 0 0;
       font-weight: normal;
     }
     h1 {
-      color: #0A84FF;
-      border-bottom: 2px solid #0A84FF;
+      color: #000000;
+      border-bottom: 2px solid #000000;
       padding-bottom: 10px;
     }
     h2 {
@@ -407,9 +407,9 @@ export const buildReportHTML = (data: ReportData): string => {
 </head>
 <body>
   <div class="header">
-    <img src="https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/now-trading-logo.png" alt="Now Trading" class="logo">
+    <img src="https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logonoworiginal.png" alt="Now Tranding" class="logo">
     <div class="company-info">
-      <h1 class="company-name">Now Trading</h1>
+      <h1 class="company-name">Now Tranding</h1>
       <p class="report-title">Relatório Financeiro</p>
     </div>
   </div>
