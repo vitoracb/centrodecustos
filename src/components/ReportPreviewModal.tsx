@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
     color: '#1C1C1E',
   },
   shareButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
