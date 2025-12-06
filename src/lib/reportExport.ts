@@ -99,6 +99,43 @@ export const buildReportHTML = (data: ReportData): string => {
   const totalReceipts = receipts.reduce((sum, r) => sum + r.value, 0);
   const balance = totalReceipts - totalExpenses;
 
+  // Helper para decidir se uma despesa deve ser considerada no agrupamento por setor
+  const shouldIncludeExpenseInSector = (expense: Expense, allExpenses: Expense[]): boolean => {
+    if (!expense.sector) return false;
+
+    // Parcelas geradas: sempre incluem (isFixed = false com installmentNumber)
+    if (expense.installmentNumber != null && !expense.isFixed) {
+      return true;
+    }
+
+    // Template fixo (isFixed = true): inclui apenas se NÃO houver parcelas geradas no mesmo mês/ano
+    if (expense.isFixed) {
+      const templateDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+      if (!templateDate.isValid()) return false;
+
+      const hasGeneratedInstallmentsInSameMonth = allExpenses.some((other) => {
+        if (other.id === expense.id) return false;
+        if (!other.sector) return false;
+        if (other.name !== expense.name) return false;
+        if (other.center !== expense.center) return false;
+        if (other.sector !== expense.sector) return false;
+        if (other.installmentNumber == null || other.isFixed) return false;
+
+        const otherDate = dayjs(other.date, 'DD/MM/YYYY', true);
+        if (!otherDate.isValid()) return false;
+
+        return (
+          otherDate.year() === templateDate.year() &&
+          otherDate.month() === templateDate.month()
+        );
+      });
+
+      return !hasGeneratedInstallmentsInSameMonth;
+    }
+
+    return false;
+  };
+
   // Agrupar recebimentos por origem (nome) para gráfico de pizza
   const receiptsBySource: Record<string, number> = {};
   receipts.forEach((receipt) => {
@@ -110,8 +147,8 @@ export const buildReportHTML = (data: ReportData): string => {
   let receiptsCurrentPercent = 0;
   const totalReceiptsForPie = Object.values(receiptsBySource).reduce((sum, value) => sum + value, 0);
   Object.entries(receiptsBySource).forEach(([_, value], index) => {
-    const percent = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
-    const nextPercent = receiptsCurrentPercent + percent;
+    const percentValue = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
+    const nextPercent = receiptsCurrentPercent + percentValue;
     const color = CHART_COLORS[index % CHART_COLORS.length];
     receiptsGradientStops += `${color} ${receiptsCurrentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
     receiptsCurrentPercent = nextPercent;
@@ -137,15 +174,15 @@ export const buildReportHTML = (data: ReportData): string => {
     expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
   });
 
-  // Agrupar despesas fixas por setor (apenas parcelas geradas, não templates)
+  // Agrupar despesas fixas por setor, alinhado com o gráfico do app
+  const expensesForSector = expenses.filter((expense) =>
+    shouldIncludeExpenseInSector(expense, expenses)
+  );
+
   const expensesBySector: Record<string, number> = {};
-  expenses.forEach((expense) => {
-    // Inclui apenas parcelas geradas (is_fixed=false e tem installmentNumber)
-    // Não inclui templates (is_fixed=true) para evitar duplicação
-    if (expense.sector && expense.installmentNumber && !expense.isFixed) {
-      const sector = SECTOR_LABELS[expense.sector] || expense.sector;
-      expensesBySector[sector] = (expensesBySector[sector] || 0) + expense.value;
-    }
+  expensesForSector.forEach((expense) => {
+    const sector = expense.sector ? (SECTOR_LABELS[expense.sector] || expense.sector) : 'Sem setor';
+    expensesBySector[sector] = (expensesBySector[sector] || 0) + expense.value;
   });
 
   // Dados para gráfico de pizza (categorias)
@@ -153,8 +190,8 @@ export const buildReportHTML = (data: ReportData): string => {
   let categoryGradientStops = '';
   let currentPercent = 0;
   Object.entries(expensesByCategory).forEach(([category, value], index) => {
-    const percent = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
-    const nextPercent = currentPercent + percent;
+    const percentValue = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
+    const nextPercent = currentPercent + percentValue;
     const color = CHART_COLORS[index % CHART_COLORS.length];
     categoryGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
     currentPercent = nextPercent;
@@ -169,8 +206,8 @@ export const buildReportHTML = (data: ReportData): string => {
   let statusGradientStops = '';
   currentPercent = 0;
   Object.entries(expensesByStatus).forEach(([status, value], index) => {
-    const percent = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
-    const nextPercent = currentPercent + percent;
+    const percentValue = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
+    const nextPercent = currentPercent + percentValue;
     const color = CHART_COLORS[index % CHART_COLORS.length];
     statusGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
     currentPercent = nextPercent;
@@ -185,8 +222,8 @@ export const buildReportHTML = (data: ReportData): string => {
   let sectorGradientStops = '';
   currentPercent = 0;
   Object.entries(expensesBySector).forEach(([sector, value]) => {
-    const percent = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
-    const nextPercent = currentPercent + percent;
+    const percentValue = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
+    const nextPercent = currentPercent + percentValue;
     // Usa a cor específica do setor se disponível, senão usa do array
     const sectorKey = Object.keys(SECTOR_LABELS).find(key => SECTOR_LABELS[key] === sector);
     const color = sectorKey && SECTOR_COLORS[sectorKey] ? SECTOR_COLORS[sectorKey] : CHART_COLORS[Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length];
@@ -391,12 +428,16 @@ export const buildReportHTML = (data: ReportData): string => {
     <div class="pie-chart" style="background: conic-gradient(${receiptsGradientStops});"></div>
     <ul class="chart-legend">
       ${Object.entries(receiptsBySource)
-        .map(([source, value], index) => `
+        .map(([source, value], index) => {
+          const percentValue = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
+          const percentLabel = percentValue > 0 && percentValue < 1 ? '&lt;1' : percentValue.toFixed(0);
+          return `
           <li>
             <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
-            <span>${source} — ${formatCurrency(value)}</span>
+            <span>${source} (${percentLabel}%) — ${formatCurrency(value)}</span>
           </li>
-        `)
+        `;
+        })
         .join('')}
     </ul>
   </div>
@@ -408,12 +449,16 @@ export const buildReportHTML = (data: ReportData): string => {
     <div class="pie-chart" style="background: conic-gradient(${categoryGradientStops});"></div>
     <ul class="chart-legend">
       ${Object.entries(expensesByCategory)
-        .map(([category, value], index) => `
+        .map(([category, value], index) => {
+          const percentValue = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
+          const percentLabel = percentValue > 0 && percentValue < 1 ? '&lt;1' : percentValue.toFixed(0);
+          return `
           <li>
             <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
-            <span>${category} — ${formatCurrency(value)}</span>
+            <span>${category} (${percentLabel}%) — ${formatCurrency(value)}</span>
           </li>
-        `)
+        `;
+        })
         .join('')}
     </ul>
   </div>
@@ -443,12 +488,16 @@ export const buildReportHTML = (data: ReportData): string => {
     <div class="pie-chart" style="background: conic-gradient(${statusGradientStops});"></div>
     <ul class="chart-legend">
       ${Object.entries(expensesByStatus)
-        .map(([status, value], index) => `
+        .map(([status, value], index) => {
+          const percentValue = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
+          const percentLabel = percentValue > 0 && percentValue < 1 ? '&lt;1' : percentValue.toFixed(0);
+          return `
           <li>
             <span class="legend-color" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
-            <span>${status} — ${formatCurrency(value)}</span>
+            <span>${status} (${percentLabel}%) — ${formatCurrency(value)}</span>
           </li>
-        `)
+        `;
+        })
         .join('')}
     </ul>
   </div>
@@ -480,12 +529,14 @@ export const buildReportHTML = (data: ReportData): string => {
     <ul class="chart-legend">
       ${Object.entries(expensesBySector)
         .map(([sector, value]) => {
+          const percentValue = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
+          const percentLabel = percentValue > 0 && percentValue < 1 ? '&lt;1' : percentValue.toFixed(0);
           const sectorKey = Object.keys(SECTOR_LABELS).find(key => SECTOR_LABELS[key] === sector);
           const color = sectorKey && SECTOR_COLORS[sectorKey] ? SECTOR_COLORS[sectorKey] : CHART_COLORS[Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length];
           return `
           <li>
             <span class="legend-color" style="background:${color}"></span>
-            <span>${sector} — ${formatCurrency(value)}</span>
+            <span>${sector} (${percentLabel}%) — ${formatCurrency(value)}</span>
           </li>
         `;
         })
@@ -535,14 +586,12 @@ export const buildReportHTML = (data: ReportData): string => {
   <h2>Detalhamento por Setor de Despesas Fixas</h2>
   ${(() => {
     const expensesBySectorDetail: Record<string, Expense[]> = {};
-    expenses.forEach((expense) => {
-      if (expense.sector && expense.installmentNumber && !expense.isFixed) {
-        const sector = SECTOR_LABELS[expense.sector] || expense.sector;
-        if (!expensesBySectorDetail[sector]) {
-          expensesBySectorDetail[sector] = [];
-        }
-        expensesBySectorDetail[sector].push(expense);
+    expensesForSector.forEach((expense) => {
+      const sector = expense.sector ? (SECTOR_LABELS[expense.sector] || expense.sector) : 'Sem setor';
+      if (!expensesBySectorDetail[sector]) {
+        expensesBySectorDetail[sector] = [];
       }
+      expensesBySectorDetail[sector].push(expense);
     });
 
     const sortedSectors = Object.keys(expensesBySectorDetail).sort((a, b) => {

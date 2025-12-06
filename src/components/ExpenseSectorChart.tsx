@@ -19,7 +19,7 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
   now: '#0A84FF', // Azul
   felipe_viatransportes: '#34C759', // Verde
   terceirizados: '#FF9500', // Laranja
-   // Roxo
+  gestao: '#AF52DE', // Roxo
   ronaldo: '#FF3B30', // Vermelho
   variavel: '#00C7BE', // Turquesa/Ciano
   parcela_patrol_ronaldo: '#FF2D55', // Rosa
@@ -208,12 +208,16 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
               }
               
               const path = getArcPath(item.startAngle, item.angle, radius);
-              
+
               // Calcula posição do label (meio do arco) - mesmo estilo do gráfico de categoria
               const labelAngle = (item.startAngle + item.angle / 2) * (Math.PI / 180);
               const labelRadius = radius * 0.65;
               const labelX = center + labelRadius * Math.cos(labelAngle);
               const labelY = center + labelRadius * Math.sin(labelAngle);
+
+              const percentLabel = item.percentage > 0 && item.percentage < 1
+                ? '<1'
+                : item.percentage.toFixed(0);
 
               return (
                 <G key={item.sector}>
@@ -232,7 +236,7 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
                       fill="#FFFFFF"
                       textAnchor="middle"
                     >
-                      {item.percentage.toFixed(0)}%
+                      {percentLabel}%
                     </SvgText>
                   )}
                 </G>
@@ -246,7 +250,16 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
           <View key={item.sector} style={styles.legendItem}>
             <View style={[styles.legendColor, { backgroundColor: item.color }]} />
             <View style={styles.legendText}>
-              <Text style={styles.legendLabel}>{item.label}</Text>
+              {(() => {
+                const percentLabel = item.percentage > 0 && item.percentage < 1
+                  ? '<1'
+                  : item.percentage.toFixed(0);
+                return (
+              <Text style={styles.legendLabel}>
+                {item.label} ({percentLabel}%)
+              </Text>
+                );
+              })()}
               <Text style={styles.legendValue}>{formatCurrency(item.value)}</Text>
             </View>
           </View>

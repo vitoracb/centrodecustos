@@ -10,11 +10,19 @@ import {
 } from 'lucide-react-native';
 import { useContext } from 'react';
 import { OrderContext } from '@/src/context/OrderContext';
+import { EquipmentContext } from '@/src/context/EquipmentContext';
+import { useCostCenter } from '@/src/context/CostCenterContext';
 
 export default function TabLayout() {
   // Usa useContext diretamente com fallback seguro
   const orderContext = useContext(OrderContext);
   const notificationCount = orderContext?.getUnreadNotificationsCount ? orderContext.getUnreadNotificationsCount() : 0;
+  const equipmentContext = useContext(EquipmentContext);
+  const { selectedCenter } = useCostCenter();
+
+  const revisionCount = equipmentContext?.getPendingRevisionAlertsCount
+    ? equipmentContext.getPendingRevisionAlertsCount(selectedCenter as any)
+    : 0;
 
   return (
     <Tabs
@@ -43,7 +51,16 @@ export default function TabLayout() {
         options={{
           title: 'Equipamentos',
           tabBarIcon: ({ size, color }) => (
-            <Tractor size={size} color={color} />
+            <View style={{ position: 'relative' }}>
+              <Tractor size={size} color={color} />
+              {revisionCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {revisionCount > 9 ? '9+' : revisionCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

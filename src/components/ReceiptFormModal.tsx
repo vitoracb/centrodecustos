@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
@@ -41,6 +42,7 @@ export const ReceiptFormModal = ({
   const [pickerVisible, setPickerVisible] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
   const [fixedDurationMonths, setFixedDurationMonths] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const formatCurrency = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -95,7 +97,7 @@ export const ReceiptFormModal = ({
     }
   }, [visible, initialData]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome do recebimento.');
       return;
@@ -117,14 +119,24 @@ export const ReceiptFormModal = ({
       return;
     }
     
-    onSubmit({
-      name: name.trim(),
-      date: formattedDate,
-      value: parseCurrency(value),
-      isFixed,
-      fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
-    });
-    onClose();
+    setIsSaving(true);
+    try {
+      await Promise.resolve(
+        onSubmit({
+          name: name.trim(),
+          date: formattedDate,
+          value: parseCurrency(value),
+          isFixed,
+          fixedDurationMonths:
+            isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
+        }),
+      );
+      onClose();
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível salvar o recebimento. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -213,13 +225,26 @@ export const ReceiptFormModal = ({
               <Text style={styles.secondaryText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.primaryButton, (!name.trim() || !value || parseCurrency(value) <= 0) && styles.disabledButton]}
-              disabled={!name.trim() || !value || parseCurrency(value) <= 0}
+              style={[
+                styles.primaryButton,
+                ((!name.trim() || !value || parseCurrency(value) <= 0) || isSaving) &&
+                  styles.disabledButton,
+              ]}
+              disabled={!name.trim() || !value || parseCurrency(value) <= 0 || isSaving}
               onPress={handleSave}
             >
-              <Text style={styles.primaryText}>
-                {initialData ? 'Salvar alterações' : 'Salvar'}
-              </Text>
+              {isSaving ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryText}>
+                    {initialData ? 'Salvando...' : 'Salvando...'}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.primaryText}>
+                  {initialData ? 'Salvar alterações' : 'Salvar'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

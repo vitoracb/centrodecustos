@@ -54,6 +54,8 @@ type ActivityType =
   | 'equipment_add'
   | 'equipment_remove'
   | 'equipment_activate'
+  | 'equipment_revision_upcoming'
+  | 'equipment_revision_overdue'
   | 'expense'
   | 'receipt'
   | 'order_pending'
@@ -114,6 +116,18 @@ const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; 
         icon: Tractor,
         color: '#34C759',
         backgroundColor: '#E9FAF0',
+      };
+    case 'equipment_revision_upcoming':
+      return {
+        icon: Tractor,
+        color: '#FF9500',
+        backgroundColor: '#FFF3D6',
+      };
+    case 'equipment_revision_overdue':
+      return {
+        icon: Tractor,
+        color: '#FF3B30',
+        backgroundColor: '#FDECEC',
       };
     case 'expense':
       return {
@@ -238,6 +252,7 @@ export const DashboardScreen = () => {
   const [isEmployeeModalVisible, setEmployeeModalVisible] = useState(false);
   const [isExpenseModalVisible, setExpenseModalVisible] = useState(false);
   const [isOrderModalVisible, setOrderModalVisible] = useState(false);
+  const [isExportingReport, setIsExportingReport] = useState(false);
 
   const isDashboardLoading =
     (equipmentLoading || contractLoading || ordersLoading) && !refreshing;
@@ -248,6 +263,8 @@ export const DashboardScreen = () => {
       case 'equipment_add':
       case 'equipment_remove':
       case 'equipment_activate':
+      case 'equipment_revision_upcoming':
+      case 'equipment_revision_overdue':
         if (activity.equipmentId) {
           // Busca o equipamento para obter os dados necessários
           const allEquipments = getAllEquipments();
@@ -488,23 +505,65 @@ export const DashboardScreen = () => {
           equipmentId: eq.id,
         });
       }
+
+      // Revisão próxima ou atrasada (baseado em horas)
+      if (eq.status === 'ativo') {
+        if (eq.hoursUntilRevision <= 0) {
+          activities.push({
+            id: `eq-revision-overdue-${eq.id}`,
+            title: 'Revisão atrasada',
+            description: `${eq.name} precisa de revisão urgente`,
+            timestamp: Date.now(),
+            timeAgo: 'agora',
+            type: 'equipment_revision_overdue',
+            equipmentId: eq.id,
+          });
+        } else if (eq.hoursUntilRevision <= 50) {
+          activities.push({
+            id: `eq-revision-upcoming-${eq.id}`,
+            title: 'Revisão próxima',
+            description: `${eq.name} falta ${eq.hoursUntilRevision.toFixed(0)}h para revisão`,
+            timestamp: Date.now(),
+            timeAgo: 'agora',
+            type: 'equipment_revision_upcoming',
+            equipmentId: eq.id,
+          });
+        }
+      }
     });
 
     // 2. Despesas e Receitas
+    // Para despesas fixas/parceladas, mostra apenas um card por grupo
     const allExpenses = getAllExpenses();
+    const expenseActivitiesByGroup = new Map<string, Activity>();
+
     allExpenses.forEach(exp => {
       if (exp.center !== selectedCenter) return;
       if (!exp.createdAt) return;
 
-      activities.push({
-        id: `expense-${exp.id}`,
-        title: 'Despesa registrada',
-        description: exp.name,
-        timestamp: exp.createdAt,
-        timeAgo: formatTimeAgo(exp.createdAt),
-        type: 'expense',
-        expenseId: exp.id,
-      });
+      const isGroupedExpense = !!exp.isFixed || exp.installmentNumber !== undefined && exp.installmentNumber !== null;
+      const groupKey = isGroupedExpense
+        ? `${exp.center}-${exp.name}`
+        : `single-${exp.id}`;
+
+      const existing = expenseActivitiesByGroup.get(groupKey);
+
+      // Mantém sempre a atividade mais recente para aquele grupo
+      if (!existing || existing.timestamp < exp.createdAt) {
+        expenseActivitiesByGroup.set(groupKey, {
+          id: `expense-${groupKey}`,
+          title: 'Despesa registrada',
+          description: exp.name,
+          timestamp: exp.createdAt,
+          timeAgo: formatTimeAgo(exp.createdAt),
+          type: 'expense',
+          expenseId: exp.id,
+        });
+      }
+    });
+
+    expenseActivitiesByGroup.forEach(activity => {
+      activities.push(activity);
     });
 
     const allReceipts = getAllReceipts();
@@ -768,6 +827,17 @@ export const DashboardScreen = () => {
 
   const handleDownloadReport = useCallback(async () => {
     if (!reportPreview) return;
+
+    const hasData =
+      (reportPreview.data.expenses && reportPreview.data.expenses.length > 0) ||
+      (reportPreview.data.receipts && reportPreview.data.receipts.length > 0);
+
+    if (!hasData) {
+      showError('Sem dados', 'Não há dados para gerar o relatório');
+      return;
+    }
+
+    setIsExportingReport(true);
     try {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
@@ -782,12 +852,24 @@ export const DashboardScreen = () => {
       setReportPreview(null);
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
+    } finally {
+      setIsExportingReport(false);
     }
   }, [reportPreview]);
 
   const handleShareReport = useCallback(async () => {
     if (!reportPreview) return;
-    
+
+    const hasData =
+      (reportPreview.data.expenses && reportPreview.data.expenses.length > 0) ||
+      (reportPreview.data.receipts && reportPreview.data.receipts.length > 0);
+
+    if (!hasData) {
+      showError('Sem dados', 'Não há dados para gerar o relatório');
+      return;
+    }
+
+    setIsExportingReport(true);
     try {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
@@ -799,6 +881,8 @@ export const DashboardScreen = () => {
       }
     } catch (error: any) {
       showError('Erro ao compartilhar', error.message || 'Tente novamente');
+    } finally {
+      setIsExportingReport(false);
     }
   }, [reportPreview]);
 
@@ -968,6 +1052,7 @@ export const DashboardScreen = () => {
           reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'
         }
         title="Prévia do Relatório"
+        isExporting={isExportingReport}
       />
 
       {/* Modal de Novo Equipamento */}

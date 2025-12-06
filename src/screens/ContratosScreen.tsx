@@ -15,8 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useContracts } from '../context/ContractContext';
+import type { Contract } from '../context/ContractContext';
 import { usePermissions } from '../context/PermissionsContext';
-import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2 } from 'lucide-react-native';
+import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2, Edit3, ChevronDown } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
@@ -28,7 +29,7 @@ import 'dayjs/locale/pt-br';
 
 dayjs.locale('pt-br');
 
-const centerLabels = {
+const centerLabels: Record<string, string> = {
   valenca: 'Valença',
   cna: 'CNA',
   cabralia: 'Cabrália',
@@ -50,7 +51,7 @@ const formatCurrency = (value?: number): string => {
 
 export const ContratosScreen = () => {
   const { selectedCenter } = useCostCenter();
-  const { getContractsByCenter, addContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
+  const { getContractsByCenter, addContract, updateContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
   const { canCreate, canUploadFiles, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
   
@@ -88,6 +89,11 @@ export const ContratosScreen = () => {
     }>;
     initialIndex?: number;
   } | null>(null);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [contractsSortOption, setContractsSortOption] = useState<
+    'name_asc' | 'category_asc' | 'date_desc' | 'date_asc' | 'value_desc' | 'value_asc'
+  >('date_desc');
+  const [isContractsSortDropdownOpen, setIsContractsSortDropdownOpen] = useState(false);
 
   const filteredContracts = useMemo(() => {
     let filtered = [...contracts];
@@ -116,12 +122,30 @@ export const ContratosScreen = () => {
       });
     }
 
-    // Ordenar do mais novo para o mais antigo
-    return filtered.sort(
-      (a, b) =>
-        dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
-    );
-  }, [contracts, filters]);
+    // Aplicar ordenação
+    switch (contractsSortOption) {
+      case 'name_asc':
+        return filtered.sort((a, b) => a.name.localeCompare(b.name));
+      case 'category_asc':
+        return filtered.sort((a, b) => a.category.localeCompare(b.category));
+      case 'date_desc':
+        return filtered.sort(
+          (a, b) => dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
+        );
+      case 'date_asc':
+        return filtered.sort(
+          (a, b) => dayjs(a.date, 'DD/MM/YYYY').valueOf() - dayjs(b.date, 'DD/MM/YYYY').valueOf()
+        );
+      case 'value_desc':
+        return filtered.sort((a, b) => (b.value || 0) - (a.value || 0));
+      case 'value_asc':
+        return filtered.sort((a, b) => (a.value || 0) - (b.value || 0));
+      default:
+        return filtered.sort(
+          (a, b) => dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
+        );
+    }
+  }, [contracts, filters, contractsSortOption]);
 
   const openAttachmentOptions = (contractId: string) => {
     if (!canUploadFiles) return;
@@ -363,6 +387,12 @@ export const ContratosScreen = () => {
             <Text style={styles.sectionTitle}>Contratos</Text>
               <View style={styles.headerActions}>
                 <TouchableOpacity
+                  style={styles.sortButton}
+                  onPress={() => setIsContractsSortDropdownOpen(!isContractsSortDropdownOpen)}
+                >
+                  <ChevronDown size={16} color="#0A84FF" />
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.filterButton, Object.keys(filters).length > 0 && styles.filterButtonActive]}
                   onPress={() => setFilterModalVisible(true)}
                 >
@@ -379,6 +409,77 @@ export const ContratosScreen = () => {
                 )}
               </View>
           </View>
+
+          {isContractsSortDropdownOpen && (
+            <View style={styles.sortDropdown}>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'name_asc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('name_asc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'name_asc' && styles.sortOptionTextActive]}>
+                  Nome (A-Z)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'category_asc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('category_asc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'category_asc' && styles.sortOptionTextActive]}>
+                  Categoria
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'date_desc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('date_desc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'date_desc' && styles.sortOptionTextActive]}>
+                  Data (Mais recente)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'date_asc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('date_asc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'date_asc' && styles.sortOptionTextActive]}>
+                  Data (Mais antiga)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'value_desc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('value_desc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'value_desc' && styles.sortOptionTextActive]}>
+                  Valor (Maior)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortOption, contractsSortOption === 'value_asc' && styles.sortOptionActive]}
+                onPress={() => {
+                  setContractsSortOption('value_asc');
+                  setIsContractsSortDropdownOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, contractsSortOption === 'value_asc' && styles.sortOptionTextActive]}>
+                  Valor (Menor)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {Object.keys(filters).length > 0 && (
             <Text style={styles.filterInfo}>
@@ -427,15 +528,15 @@ export const ContratosScreen = () => {
                   onPress={() => openDocumentsList(contract.id)}
                 >
                   <FileText size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Ver documentos</Text>
+                  <Text style={styles.actionText}>Documentos ({contract.docs})</Text>
                 </TouchableOpacity>
-                {canUploadFiles && (
+                {canCreate && (
                   <TouchableOpacity
                     style={styles.actionPill}
-                    onPress={() => openAttachmentOptions(contract.id)}
+                    onPress={() => setEditingContract(contract)}
                   >
-                    <FilePlus size={16} color="#0A84FF" />
-                    <Text style={styles.actionText}>Adicionar documento</Text>
+                    <Edit3 size={16} color="#0A84FF" />
+                    <Text style={styles.actionText}>Editar</Text>
                   </TouchableOpacity>
                 )}
                 {canDelete && (
@@ -500,6 +601,39 @@ export const ContratosScreen = () => {
           }}
         />
       )}
+      {canCreate && editingContract && (
+        <ContractFormModal
+          visible={!!editingContract}
+          onClose={() => setEditingContract(null)}
+          title="Editar Contrato"
+          initialData={{
+            name: editingContract.name,
+            category: editingContract.category,
+            date: editingContract.date,
+            value: editingContract.value,
+            documents: (editingContract.documents ?? []).map(doc => ({
+              fileName: doc.fileName,
+              fileUri: doc.fileUri,
+              mimeType: doc.mimeType ?? null,
+            })),
+            docs: editingContract.docs,
+          }}
+          onSubmit={async (data) => {
+            if (!editingContract) return;
+            try {
+              await updateContract(editingContract.id, {
+                name: data.name,
+                category: data.category,
+                date: data.date,
+                value: data.value,
+              });
+              setEditingContract(null);
+            } catch (error) {
+              console.error('Erro ao atualizar contrato:', error);
+            }
+          }}
+        />
+      )}
       <ContractFilterModal
         visible={isFilterModalVisible}
         onClose={() => setFilterModalVisible(false)}
@@ -548,6 +682,18 @@ export const ContratosScreen = () => {
           <View style={styles.documentsSheet}>
             <View style={styles.optionHandle} />
             <Text style={styles.optionTitle}>Documentos do Contrato</Text>
+            {canUploadFiles && (
+              <TouchableOpacity
+                style={styles.addDocumentButton}
+                onPress={() => {
+                  closeDocumentsList();
+                  setTimeout(() => openAttachmentOptions(activeContractId!), 300);
+                }}
+              >
+                <FilePlus size={18} color="#FFFFFF" />
+                <Text style={styles.addDocumentButtonText}>Adicionar Documento</Text>
+              </TouchableOpacity>
+            )}
             <ScrollView style={styles.documentsList}>
               {selectedContractDocuments.length > 0 ? (
                 selectedContractDocuments.map((doc, index) => (
@@ -925,5 +1071,61 @@ const styles = StyleSheet.create({
   deleteDocumentButton: {
     padding: 8,
     marginLeft: 8,
+    borderRadius: 8,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+  },
+  sortDropdown: {
+    marginTop: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  sortOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F2F2F7',
+  },
+  sortOptionActive: {
+    backgroundColor: '#E5F1FF',
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: '#1C1C1E',
+    fontWeight: '500',
+  },
+  sortOptionTextActive: {
+    color: '#0A84FF',
+    fontWeight: '600',
+  },
+  addDocumentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0A84FF',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  addDocumentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

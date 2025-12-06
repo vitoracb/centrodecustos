@@ -38,6 +38,7 @@ export interface Receipt {
   createdAt?: number; // timestamp
   isFixed?: boolean; // Indica se é um recebimento fixo/recorrente
   fixedDurationMonths?: number; // Número de meses de duração (null = indefinido)
+  installmentNumber?: number; // Número da parcela (1, 2, 3, etc)
 }
 
 export type ExpenseCategory =
@@ -134,7 +135,7 @@ interface FinancialContextType {
   addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
-  addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" }) => Promise<ExpenseDocument>;
+  addDocumentToExpense: (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" | "boleto" }) => Promise<ExpenseDocument>;
   deleteExpenseDocument: (expenseId: string, documentUri: string) => Promise<void>;
 
   getReceiptsByCenter: (center: CostCenter) => Receipt[];
@@ -373,7 +374,7 @@ function mapRowToReceipt(row: any): Receipt {
     }
   }
 
-  return {
+  const receipt = {
     id: row.id,
     name: row.description ?? "",
     date: fromDbDate(row.date),
@@ -387,7 +388,20 @@ function mapRowToReceipt(row: any): Receipt {
       : undefined,
     isFixed: row.is_fixed ?? false,
     fixedDurationMonths: row.fixed_duration_months ?? undefined,
+    installmentNumber: row.installment_number ?? undefined,
   };
+
+  // Log para debug
+  if (receipt.isFixed || receipt.installmentNumber) {
+    console.log('📦 [DEBUG] Receita mapeada:', {
+      name: receipt.name,
+      isFixed: receipt.isFixed,
+      installmentNumber: receipt.installmentNumber,
+      fixedDurationMonths: receipt.fixedDurationMonths,
+    });
+  }
+
+  return receipt;
 }
 
 // ========================
@@ -565,6 +579,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           reference,
           is_fixed,
           fixed_duration_months,
+          installment_number,
           created_at,
           cost_center_id
         `
@@ -670,6 +685,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           return;
         }
 
+        const isFixed = receipt.isFixed ?? false;
+        const fixedDurationMonths = receipt.fixedDurationMonths;
+
         const payload: any = {
           type: "RECEITA",
           status:
@@ -684,8 +702,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description: receipt.name,
           payment_method: receipt.method ?? null,
           reference: null,
-          is_fixed: receipt.isFixed ?? false,
-          fixed_duration_months: receipt.fixedDurationMonths ?? null,
+          is_fixed: isFixed,
+          fixed_duration_months: fixedDurationMonths ?? null,
+          installment_number: isFixed ? 1 : null,
         };
 
         const { data, error } = await supabase
@@ -702,6 +721,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             description,
             payment_method,
             reference,
+            is_fixed,
+            fixed_duration_months,
+            installment_number,
             created_at,
             cost_center_id
           `
@@ -710,11 +732,89 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         if (error || !data) {
           console.error("❌ Erro ao criar receita:", error);
+          
+          // Verifica se é erro de rede
+          if (error && (error.message?.includes('network') || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError'))) {
+            Alert.alert(
+              'Sem conexão',
+              'Não foi possível salvar a receita. Verifique sua conexão com a internet e tente novamente.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert(
+              'Erro',
+              'Não foi possível salvar a receita. Tente novamente.',
+              [{ text: 'OK' }]
+            );
+          }
           return;
         }
 
         const newReceipt = mapRowToReceipt(data);
         setReceipts((prev) => [newReceipt, ...prev]);
+
+        console.log('🔍 [DEBUG] Receita criada:', { isFixed, fixedDurationMonths, date: receipt.date });
+
+        // Se for receita fixa, gera as parcelas recorrentes
+        if (isFixed && fixedDurationMonths && fixedDurationMonths > 1) {
+          console.log('✅ [DEBUG] Iniciando geração de parcelas fixas...');
+          const dateParts = receipt.date.split("/");
+          if (dateParts.length === 3) {
+            const [day, month, year] = dateParts.map(Number);
+            const creationMonth = month;
+            const creationYear = year;
+            const creationDay = day;
+
+            for (let offset = 1; offset < fixedDurationMonths; offset++) {
+              const targetMonth = creationMonth + offset;
+              let targetYear = creationYear;
+              let actualMonth = targetMonth;
+
+              if (targetMonth > 12) {
+                const yearOffset = Math.floor((targetMonth - 1) / 12);
+                targetYear = creationYear + yearOffset;
+                actualMonth = ((targetMonth - 1) % 12) + 1;
+              }
+
+              const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+              const receiptDay = Math.min(creationDay, lastDayOfMonth);
+              const newReceiptDate = `${String(receiptDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+              const installmentDbDate = toDbDate(newReceiptDate);
+
+              if (installmentDbDate) {
+                const installmentPayload: any = {
+                  type: "RECEITA",
+                  status: "CONFIRMADO",
+                  cost_center_id: receipt.center,
+                  value: receipt.value,
+                  date: installmentDbDate,
+                  category: receipt.category ?? null,
+                  description: receipt.name,
+                  payment_method: receipt.method ?? null,
+                  reference: null,
+                  is_fixed: false,
+                  fixed_duration_months: null,
+                  installment_number: offset + 1,
+                };
+
+                const { data: installmentData, error: installmentError } = await supabase
+                  .from("financial_transactions")
+                  .insert(installmentPayload)
+                  .select()
+                  .single();
+
+                if (installmentError) {
+                  console.error('❌ [DEBUG] Erro ao criar parcela:', installmentError);
+                } else if (installmentData) {
+                  console.log('✅ [DEBUG] Parcela criada:', { offset, date: newReceiptDate });
+                  const installmentReceipt = mapRowToReceipt(installmentData);
+                  setReceipts((prev) => [installmentReceipt, ...prev]);
+                }
+              }
+            }
+          }
+        }
+        console.log('🎉 [DEBUG] Processo de criação de receita fixa concluído');
       } catch (e) {
         console.error("❌ Erro inesperado ao criar receita:", e);
       }
@@ -946,6 +1046,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 reference,
                 is_fixed,
                 fixed_duration_months,
+                installment_number,
                 created_at,
                 cost_center_id
               `
@@ -1001,6 +1102,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             reference,
             is_fixed,
             fixed_duration_months,
+            installment_number,
             created_at,
             cost_center_id
           `
@@ -1037,17 +1139,49 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const deleteReceipt = useCallback((id: string) => {
     (async () => {
       try {
+        // Primeiro, busca a receita alvo para entender se faz parte de um conjunto de parcelas
+        const { data: target, error: fetchError } = await supabase
+          .from("financial_transactions")
+          .select("id, description, cost_center_id, is_fixed, installment_number, type")
+          .eq("id", id)
+          .maybeSingle();
+
+        if (fetchError) {
+          console.warn("⚠️ Erro ao buscar receita antes de deletar:", fetchError);
+        }
+
+        // Por padrão, remove apenas o ID informado
+        let idsToDelete: string[] = [id];
+
+        // Se for uma RECEITA fixa ou fizer parte de uma série de parcelas, remove o grupo inteiro
+        if (target && target.type === "RECEITA" && (target.is_fixed || target.installment_number != null)) {
+          const { data: group, error: groupError } = await supabase
+            .from("financial_transactions")
+            .select("id")
+            .eq("type", "RECEITA")
+            .eq("description", target.description)
+            .eq("cost_center_id", target.cost_center_id);
+
+          if (groupError) {
+            console.warn("⚠️ Erro ao buscar grupo de parcelas para deletar:", groupError);
+          } else if (group && group.length > 0) {
+            idsToDelete = group.map((g: any) => g.id as string);
+            console.log(`🗑️ Deletando ${idsToDelete.length} parcelas de receita fixa`);
+          }
+        }
+
+        // Deleta as receitas
         const { error } = await supabase
           .from("financial_transactions")
           .delete()
-          .eq("id", id);
+          .in("id", idsToDelete);
 
         if (error) {
-          console.error("❌ Erro ao deletar receita:", error);
+          console.error("❌ Erro ao deletar receita(s):", error);
           return;
         }
 
-        setReceipts((prev) => prev.filter((r) => r.id !== id));
+        setReceipts((prev) => prev.filter((r) => !idsToDelete.includes(r.id)));
       } catch (e) {
         console.error("❌ Erro inesperado ao deletar receita:", e);
       }
@@ -1163,6 +1297,21 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         if (error || !data) {
           console.error("❌ Erro ao criar despesa:", error);
+          
+          // Verifica se é erro de rede
+          if (error && (error.message?.includes('network') || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError'))) {
+            Alert.alert(
+              'Sem conexão',
+              'Não foi possível salvar a despesa. Verifique sua conexão com a internet e tente novamente.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert(
+              'Erro',
+              'Não foi possível salvar a despesa. Tente novamente.',
+              [{ text: 'OK' }]
+            );
+          }
           return;
         }
 
@@ -2243,26 +2392,58 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const deleteExpense = useCallback((id: string) => {
     (async () => {
       try {
+        // Primeiro, busca a despesa alvo para entender se faz parte de um conjunto de parcelas
+        const { data: target, error: fetchError } = await supabase
+          .from("financial_transactions")
+          .select("id, description, cost_center_id, is_fixed, installment_number, type")
+          .eq("id", id)
+          .maybeSingle();
+
+        if (fetchError) {
+          console.warn("⚠️ Erro ao buscar despesa antes de deletar:", fetchError);
+        }
+
+        // Por padrão, remove apenas o ID informado
+        let idsToDelete: string[] = [id];
+
+        // Se for uma DESPESA fixa ou fizer parte de uma série de parcelas, remove o grupo inteiro
+        if (target && target.type === "DESPESA" && (target.is_fixed || target.installment_number != null)) {
+          const { data: group, error: groupError } = await supabase
+            .from("financial_transactions")
+            .select("id")
+            .eq("type", "DESPESA")
+            .eq("description", target.description)
+            .eq("cost_center_id", target.cost_center_id);
+
+          if (groupError) {
+            console.warn("⚠️ Erro ao buscar grupo de parcelas para deletar:", groupError);
+          } else if (group && group.length > 0) {
+            idsToDelete = group.map((g: any) => g.id as string);
+          }
+        }
+
+        // Deleta documentos de todas as despesas relacionadas
         const { error: docsError } = await supabase
           .from("expense_documents")
           .delete()
-          .eq("expense_id", id);
+          .in("expense_id", idsToDelete);
 
         if (docsError && docsError.code !== "PGRST205") {
-          console.warn("⚠️ Erro ao deletar documentos da despesa:", docsError);
+          console.warn("⚠️ Erro ao deletar documentos da(s) despesa(s):", docsError);
         }
 
+        // Deleta as próprias despesas
         const { error } = await supabase
           .from("financial_transactions")
           .delete()
-          .eq("id", id);
+          .in("id", idsToDelete);
 
         if (error) {
-          console.error("❌ Erro ao deletar despesa:", error);
+          console.error("❌ Erro ao deletar despesa(s):", error);
           return;
         }
 
-        setExpenses((prev) => prev.filter((e) => e.id !== id));
+        setExpenses((prev) => prev.filter((e) => !idsToDelete.includes(e.id)));
       } catch (e) {
         console.error("❌ Erro inesperado ao deletar despesa:", e);
       }
@@ -2270,7 +2451,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   }, []);
 
   const addDocumentToExpense = useCallback(
-    async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" }): Promise<ExpenseDocument> => {
+    async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" | "boleto" }): Promise<ExpenseDocument> => {
       try {
         // Faz upload do arquivo para o Supabase Storage
         const fileUrl = await uploadFileToStorage(
@@ -2304,7 +2485,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Atualiza o estado local
         const newDocument: ExpenseDocument = {
-          type: (data.type ?? document.type) as "nota_fiscal" | "recibo" | "comprovante_pagamento",
+          type: (data.type ?? document.type) as "nota_fiscal" | "recibo" | "comprovante_pagamento" | "boleto",
           fileName: data.file_name,
           fileUri: data.file_url,
           mimeType: data.mime_type ?? null,

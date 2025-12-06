@@ -18,6 +18,7 @@ interface ReportPreviewModalProps {
   onShare?: () => void;
   downloadLabel: string;
   title?: string;
+  isExporting?: boolean;
 }
 
 export const ReportPreviewModal = ({
@@ -28,6 +29,7 @@ export const ReportPreviewModal = ({
   onShare,
   downloadLabel,
   title = 'Prévia do Relatório',
+  isExporting = false,
 }: ReportPreviewModalProps) => {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -61,14 +63,42 @@ export const ReportPreviewModal = ({
               <Text style={styles.closeButtonText}>Fechar</Text>
             </TouchableOpacity>
             {onShare && (
-              <TouchableOpacity style={styles.shareButton} onPress={onShare} activeOpacity={0.8}>
-                <Share size={18} color="#FFFFFF" />
-                <Text style={styles.shareText}>Compartilhar</Text>
+              <TouchableOpacity
+                style={[styles.shareButton, isExporting && styles.buttonDisabled]}
+                onPress={onShare}
+                activeOpacity={0.8}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.shareText}>Gerando...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Share size={18} color="#FFFFFF" />
+                    <Text style={styles.shareText}>Compartilhar</Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.downloadButton} onPress={onDownload} activeOpacity={0.8}>
-              <Download size={18} color="#FFFFFF" />
-              <Text style={styles.downloadText}>{downloadLabel}</Text>
+            <TouchableOpacity
+              style={[styles.downloadButton, isExporting && styles.buttonDisabled]}
+              onPress={onDownload}
+              activeOpacity={0.8}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={styles.downloadText}>Gerando...</Text>
+                </>
+              ) : (
+                <>
+                  <Download size={18} color="#FFFFFF" />
+                  <Text style={styles.downloadText}>{downloadLabel}</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -150,6 +180,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#34C759',
     paddingVertical: 14,
     borderRadius: 14,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   shareText: {
     color: '#FFFFFF',

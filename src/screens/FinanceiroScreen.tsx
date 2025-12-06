@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -111,9 +112,26 @@ const getReceiptFixedInfo = (receipt: Receipt, allReceipts: Receipt[]): { isFixe
     (r) => r.isFixed && r.name === receipt.name && r.center === receipt.center
   );
 
+  console.log('🔍 [getReceiptFixedInfo]', {
+    receiptName: receipt.name,
+    receiptIsFixed: receipt.isFixed,
+    receiptInstallmentNumber: receipt.installmentNumber,
+    templateFound: !!template,
+    templateDuration: template?.fixedDurationMonths,
+  });
+
   // Se não encontrou template, não é fixo
   if (!template || !template.fixedDurationMonths) {
     return { isFixed: false };
+  }
+
+  // Se tem installmentNumber, usa ele diretamente
+  if (receipt.installmentNumber && template.fixedDurationMonths) {
+    console.log('✅ [getReceiptFixedInfo] Usando installmentNumber:', `${receipt.installmentNumber}/${template.fixedDurationMonths}`);
+    return {
+      isFixed: true,
+      installment: `${receipt.installmentNumber}/${template.fixedDurationMonths}`,
+    };
   }
 
   // Se este é o template, mostra como primeira parcela
@@ -319,6 +337,7 @@ export const FinanceiroScreen = () => {
   const [expenseDocumentsModalVisible, setExpenseDocumentsModalVisible] = useState(false);
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
   const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<Expense | null>(null);
+  const [documentTypeModalVisible, setDocumentTypeModalVisible] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [receiptStatusModalVisible, setReceiptStatusModalVisible] = useState(false);
   const [selectedReceiptForStatus, setSelectedReceiptForStatus] = useState<Receipt | null>(null);
@@ -335,6 +354,12 @@ export const FinanceiroScreen = () => {
   } | null>(null);
   const [statusModalExpense, setStatusModalExpense] = useState<Expense | null>(null);
   const [comparisonMode, setComparisonMode] = useState<'expenses' | 'receipts' | 'balance'>('expenses');
+  const [isExportingClosure, setIsExportingClosure] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [expenseSortOption, setExpenseSortOption] = useState<
+    'date_desc' | 'date_asc' | 'value_desc' | 'value_asc' | 'name_asc' | 'category_asc' | 'sector_asc'
+  >('date_desc');
+  const [isExpenseSortDropdownOpen, setIsExpenseSortDropdownOpen] = useState(false);
 
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
@@ -368,9 +393,10 @@ export const FinanceiroScreen = () => {
     }
   }, [activeTab, selectedPeriod, selectedReceiptPeriod, selectedExpensePeriod]);
 
-  const handleAddExpenseDocument = async () => {
-    if (!selectedExpenseForDocument) return;
+  const handlePickExpenseDocument = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
+    if (!selectedExpenseForDocument || isUploadingDocument) return;
 
+    setIsUploadingDocument(true);
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -411,15 +437,11 @@ export const FinanceiroScreen = () => {
         return;
       }
 
-      // Determina o tipo baseado no mimeType ou usa 'recibo' como padrão
-      const isPdf = asset.mimeType?.includes('pdf');
-      const documentType: 'nota_fiscal' | 'recibo' = isPdf ? 'nota_fiscal' : 'recibo';
-
       const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
         fileName: asset.name ?? 'Documento',
         fileUri: asset.uri,
         mimeType: asset.mimeType,
-        type: documentType,
+        type,
       });
 
       // Atualiza a lista de documentos imediatamente
@@ -436,12 +458,23 @@ export const FinanceiroScreen = () => {
     } catch (error: any) {
       console.error('Erro ao adicionar documento:', error);
       Alert.alert('Erro', 'Não foi possível adicionar o documento.');
+    } finally {
+      setIsUploadingDocument(false);
     }
   };
 
-  const handleAddExpensePhoto = async () => {
-    if (!selectedExpenseForDocument) return;
+  const handleAddExpenseDocument = () => {
+    if (!selectedExpenseForDocument || isUploadingDocument) return;
 
+    // Mostra modal customizado para selecionar tipo de documento
+    // (Alert.alert no Android só suporta 3 botões)
+    setDocumentTypeModalVisible(true);
+  };
+
+  const handleAddExpensePhoto = async () => {
+    if (!selectedExpenseForDocument || isUploadingDocument) return;
+
+    setIsUploadingDocument(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -501,12 +534,15 @@ export const FinanceiroScreen = () => {
     } catch (error: any) {
       console.error('Erro ao adicionar foto:', error);
       Alert.alert('Erro', 'Não foi possível adicionar a foto.');
+    } finally {
+      setIsUploadingDocument(false);
     }
   };
 
   const handleAddPaymentReceiptDocument = async () => {
-    if (!selectedExpenseForDocument) return;
+    if (!selectedExpenseForDocument || isUploadingDocument) return;
 
+    setIsUploadingDocument(true);
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -568,12 +604,15 @@ export const FinanceiroScreen = () => {
     } catch (error: any) {
       console.error('Erro ao adicionar comprovante de pagamento:', error);
       Alert.alert('Erro', 'Não foi possível adicionar o comprovante de pagamento.');
+    } finally {
+      setIsUploadingDocument(false);
     }
   };
 
   const handleAddPaymentReceiptPhoto = async () => {
-    if (!selectedExpenseForDocument) return;
+    if (!selectedExpenseForDocument || isUploadingDocument) return;
 
+    setIsUploadingDocument(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -633,6 +672,8 @@ export const FinanceiroScreen = () => {
     } catch (error: any) {
       console.error('Erro ao adicionar comprovante de pagamento:', error);
       Alert.alert('Erro', 'Não foi possível adicionar o comprovante de pagamento.');
+    } finally {
+      setIsUploadingDocument(false);
     }
   };
 
@@ -745,6 +786,17 @@ export const FinanceiroScreen = () => {
 
   const handleDownloadClosureReport = useCallback(async () => {
     if (!reportPreview) return;
+
+    const hasData =
+      (reportPreview.data.expenses && reportPreview.data.expenses.length > 0) ||
+      (reportPreview.data.receipts && reportPreview.data.receipts.length > 0);
+
+    if (!hasData) {
+      showError('Sem dados', 'Não há dados para gerar o relatório neste período');
+      return;
+    }
+
+    setIsExportingClosure(true);
     try {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
@@ -757,12 +809,24 @@ export const FinanceiroScreen = () => {
       }
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
+    } finally {
+      setIsExportingClosure(false);
     }
   }, [reportPreview]);
 
   const handleShareClosureReport = useCallback(async () => {
     if (!reportPreview) return;
-    
+
+    const hasData =
+      (reportPreview.data.expenses && reportPreview.data.expenses.length > 0) ||
+      (reportPreview.data.receipts && reportPreview.data.receipts.length > 0);
+
+    if (!hasData) {
+      showError('Sem dados', 'Não há dados para gerar o relatório neste período');
+      return;
+    }
+
+    setIsExportingClosure(true);
     try {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
@@ -774,6 +838,8 @@ export const FinanceiroScreen = () => {
       }
     } catch (error: any) {
       showError('Erro ao compartilhar', error.message || 'Tente novamente');
+    } finally {
+      setIsExportingClosure(false);
     }
   }, [reportPreview]);
 
@@ -854,15 +920,62 @@ export const FinanceiroScreen = () => {
       });
     }
 
-    return filtered.sort(
-      (a, b) => {
-        const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
-        const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
-        if (!dateA.isValid() || !dateB.isValid()) return 0;
-        return dateB.valueOf() - dateA.valueOf();
-      }
-    );
+    return filtered;
   }, [allExpensesForCenter, expenseFilters, expenseMode, selectedExpensePeriod]);
+
+  const sortedExpenses = useMemo(() => {
+    const expenses = [...filteredExpenses];
+
+    const compareDates = (a: Expense, b: Expense) => {
+      const dateA = dayjs(a.date, 'DD/MM/YYYY', true);
+      const dateB = dayjs(b.date, 'DD/MM/YYYY', true);
+      if (!dateA.isValid() || !dateB.isValid()) return 0;
+      return dateA.valueOf() - dateB.valueOf();
+    };
+
+    switch (expenseSortOption) {
+      case 'date_asc':
+        expenses.sort((a, b) => compareDates(a, b));
+        break;
+      case 'value_desc':
+        expenses.sort((a, b) => b.value - a.value || compareDates(b, a));
+        break;
+      case 'value_asc':
+        expenses.sort((a, b) => a.value - b.value || compareDates(b, a));
+        break;
+      case 'name_asc':
+        expenses.sort((a, b) => {
+          const nameCompare = a.name.localeCompare(b.name, 'pt-BR');
+          if (nameCompare !== 0) return nameCompare;
+          return compareDates(b, a);
+        });
+        break;
+      case 'category_asc':
+        expenses.sort((a, b) => {
+          const labelA = CATEGORY_LABELS[a.category] || a.category;
+          const labelB = CATEGORY_LABELS[b.category] || b.category;
+          const catCompare = labelA.localeCompare(labelB, 'pt-BR');
+          if (catCompare !== 0) return catCompare;
+          return compareDates(b, a);
+        });
+        break;
+      case 'sector_asc':
+        expenses.sort((a, b) => {
+          const labelA = a.sector ? (SECTOR_LABELS[a.sector] || a.sector) : '';
+          const labelB = b.sector ? (SECTOR_LABELS[b.sector] || b.sector) : '';
+          const secCompare = labelA.localeCompare(labelB, 'pt-BR');
+          if (secCompare !== 0) return secCompare;
+          return compareDates(b, a);
+        });
+        break;
+      case 'date_desc':
+      default:
+        expenses.sort((a, b) => compareDates(b, a));
+        break;
+    }
+
+    return expenses;
+  }, [filteredExpenses, expenseSortOption]);
 
   useEffect(() => {
     setExpensePage(1);
@@ -876,8 +989,8 @@ export const FinanceiroScreen = () => {
   ]);
 
   const paginatedExpenses = useMemo(
-    () => filteredExpenses.slice(0, expensePage * EXPENSES_PAGE_SIZE),
-    [filteredExpenses, expensePage],
+    () => sortedExpenses.slice(0, expensePage * EXPENSES_PAGE_SIZE),
+    [sortedExpenses, expensePage],
   );
 
   const hasMoreExpenses = paginatedExpenses.length < filteredExpenses.length;
@@ -1535,6 +1648,95 @@ export const FinanceiroScreen = () => {
                 )}
               </View>
             )}
+            {filteredExpenses.length > 0 && (
+              <View style={styles.sortContainer}>
+                <Text style={styles.sortLabel}>Ordenar despesas por</Text>
+                <View>
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => setIsExpenseSortDropdownOpen(prev => !prev)}
+                  >
+                    <Text style={styles.sortButtonText}>
+                      {expenseSortOption === 'date_desc' && 'Data (mais recente primeiro)'}
+                      {expenseSortOption === 'date_asc' && 'Data (mais antiga primeiro)'}
+                      {expenseSortOption === 'value_desc' && 'Valor (maior para menor)'}
+                      {expenseSortOption === 'value_asc' && 'Valor (menor para maior)'}
+                      {expenseSortOption === 'name_asc' && 'Nome (A-Z)'}
+                      {expenseSortOption === 'category_asc' && 'Categoria (A-Z)'}
+                      {expenseSortOption === 'sector_asc' && 'Setor (A-Z)'}
+                    </Text>
+                    <ChevronDown size={16} color="#0A84FF" />
+                  </TouchableOpacity>
+                  {isExpenseSortDropdownOpen && (
+                    <View style={styles.sortDropdown}>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('date_desc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Data (mais recente primeiro)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('date_asc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Data (mais antiga primeiro)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('value_desc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Valor (maior para menor)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('value_asc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Valor (menor para maior)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('name_asc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Nome (A-Z)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('category_asc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Categoria (A-Z)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sortDropdownItem}
+                        onPress={() => {
+                          setExpenseSortOption('sector_asc');
+                          setIsExpenseSortDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={styles.sortDropdownItemText}>Setor (A-Z)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
             
             {paginatedExpenses.length > 0 ? (
               <>
@@ -2048,7 +2250,13 @@ export const FinanceiroScreen = () => {
                 (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
               );
               if (template) {
-                templateExpense = template;
+                // Usa os dados do template, mas mantém a data e documentos da despesa sendo editada
+                templateExpense = {
+                  ...template,
+                  date: editingExpense.date, // Mantém a data da parcela sendo editada
+                  documents: editingExpense.documents || [], // Mantém os documentos da parcela
+                  id: editingExpense.id, // Mantém o ID da parcela sendo editada
+                };
               }
             }
             
@@ -2224,6 +2432,11 @@ export const FinanceiroScreen = () => {
             showError('Erro ao excluir', error.message || 'Não foi possível excluir o documento');
           }
         }}
+        onAddDocument={handleAddExpenseDocument}
+        onAddPhoto={handleAddExpensePhoto}
+        onAddPaymentReceiptDocument={handleAddPaymentReceiptDocument}
+        onAddPaymentReceiptPhoto={handleAddPaymentReceiptPhoto}
+        isUploading={isUploadingDocument}
       />
       <FilePreviewModal
         visible={previewVisible}
@@ -2245,6 +2458,7 @@ export const FinanceiroScreen = () => {
         onShare={handleShareClosureReport}
         downloadLabel={reportPreview?.type === 'pdf' ? 'Baixar PDF' : 'Baixar Excel'}
         title="Prévia do Relatório de Fechamento"
+        isExporting={isExportingClosure}
       />
       <ExpenseStatusModal
         visible={statusModalExpense !== null}
@@ -2282,6 +2496,131 @@ export const FinanceiroScreen = () => {
           }
         }}
       />
+
+      {/* Modal de seleção de tipo de documento */}
+      <Modal
+        visible={documentTypeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDocumentTypeModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          activeOpacity={1}
+          onPress={() => setDocumentTypeModalVisible(false)}
+        >
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 16,
+              padding: 24,
+              width: '85%',
+              maxWidth: 400,
+            }}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#1C1C1E', marginBottom: 8 }}>
+              Tipo de documento
+            </Text>
+            <Text style={{ fontSize: 15, color: '#6C6C70', marginBottom: 24 }}>
+              Selecione o tipo de documento
+            </Text>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 16,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: '#F5F5F7',
+                marginBottom: 12,
+              }}
+              onPress={() => {
+                setDocumentTypeModalVisible(false);
+                handlePickExpenseDocument('nota_fiscal');
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
+                Nota Fiscal
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 16,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: '#F5F5F7',
+                marginBottom: 12,
+              }}
+              onPress={() => {
+                setDocumentTypeModalVisible(false);
+                handlePickExpenseDocument('recibo');
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
+                Recibo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 16,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: '#F5F5F7',
+                marginBottom: 12,
+              }}
+              onPress={() => {
+                setDocumentTypeModalVisible(false);
+                handlePickExpenseDocument('comprovante_pagamento');
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
+                Comprovante de Pagamento
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 16,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: '#F5F5F7',
+                marginBottom: 20,
+              }}
+              onPress={() => {
+                setDocumentTypeModalVisible(false);
+                handlePickExpenseDocument('boleto');
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
+                Boleto
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#E5E5EA',
+                alignItems: 'center',
+              }}
+              onPress={() => setDocumentTypeModalVisible(false)}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#6C6C70' }}>
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       
     </SafeAreaView>
   );
@@ -2736,6 +3075,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6C6C70',
     marginTop: 4,
+  },
+  sortContainer: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  sortLabel: {
+    fontSize: 13,
+    color: '#6C6C70',
+    marginBottom: 4,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+  },
+  sortButtonText: {
+    fontSize: 14,
+    color: '#0A84FF',
+    fontWeight: '600',
+  },
+  sortDropdown: {
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  sortDropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
+  },
+  sortDropdownItemText: {
+    fontSize: 14,
+    color: '#1C1C1E',
   },
   documentsIndicator: {
     flexDirection: 'row',

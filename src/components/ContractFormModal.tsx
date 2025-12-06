@@ -37,12 +37,16 @@ interface ContractFormModalProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (data: ContractFormData) => void;
+  initialData?: Partial<ContractFormData>;
+  title?: string;
 }
 
 export const ContractFormModal = ({
   visible,
   onClose,
   onSubmit,
+  initialData,
+  title = 'Novo Contrato',
 }: ContractFormModalProps) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ContractCategory>('principal');
@@ -87,8 +91,31 @@ export const ContractFormModal = ({
       setValue('');
       setDocuments([]);
       setPickerVisible(false);
+      return;
     }
-  }, [visible]);
+
+    // Quando abrir em modo edição, preenche com dados iniciais
+    if (visible && initialData) {
+      if (initialData.name) setName(initialData.name);
+      if (initialData.category) setCategory(initialData.category);
+      if (initialData.date) {
+        const parsed = dayjs(initialData.date, 'DD/MM/YYYY');
+        if (parsed.isValid()) setDate(parsed.toDate());
+      }
+      if (typeof initialData.value === 'number') {
+        setValue(
+          new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+          }).format(initialData.value),
+        );
+      }
+      if (Array.isArray(initialData.documents)) {
+        setDocuments(initialData.documents);
+      }
+    }
+  }, [visible, initialData]);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -197,7 +224,7 @@ export const ContractFormModal = ({
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? 'Foto',
         allowedTypes,
         80
       );
@@ -243,7 +270,7 @@ export const ContractFormModal = ({
       const fileValidation = await validateFile(
         asset.uri,
         asset.mimeType ?? 'image/jpeg',
-        asset.fileName,
+        asset.fileName ?? 'Foto',
         allowedTypes,
         80
       );
@@ -307,7 +334,7 @@ export const ContractFormModal = ({
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Novo Contrato</Text>
+          <Text style={styles.title}>{title}</Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>Nome do contrato *</Text>

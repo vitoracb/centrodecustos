@@ -8,10 +8,10 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
-import { X, Check, ChevronLeft, ChevronRight, Download, Share } from 'lucide-react-native';
+import { X, Check, ChevronLeft, ChevronRight, Share } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
-import { Image } from 'expo-image';
 import { shareFile } from '../lib/shareUtils';
 
 export interface FilePreviewItem {
@@ -101,16 +101,6 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
   };
 
-  const handleDownload = async () => {
-    try {
-      if (!currentFile.fileUri) return;
-      // Reutiliza o fluxo de compartilhamento, permitindo que o usuário escolha onde salvar
-      await shareFile(currentFile.fileUri, currentFile.mimeType || undefined);
-    } catch (error) {
-      Alert.alert('Erro ao baixar', 'Não foi possível baixar o arquivo.');
-    }
-  };
-
   return (
     <Modal
       visible={visible}
@@ -160,23 +150,19 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
           <View style={styles.content}>
             {isImage && (
-              <>
-                <Image
-                  source={{ uri: currentFile.fileUri }}
-                  style={styles.image}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                  onLoadStart={() => {
-                    setLoading(true);
-                    setErrorLoading(null);
-                  }}
-                  onLoadEnd={() => setLoading(false)}
-                  onError={() => {
-                    setLoading(false);
-                    setErrorLoading('Não foi possível carregar a imagem.');
-                  }}
-                />
-              </>
+              <Image
+                source={{ uri: currentFile.fileUri }}
+                style={styles.image}
+                onLoadStart={() => {
+                  setLoading(true);
+                  setErrorLoading(null);
+                }}
+                onLoadEnd={() => setLoading(false)}
+                onError={() => {
+                  setLoading(false);
+                  setErrorLoading('Não foi possível carregar a imagem.');
+                }}
+              />
             )}
 
             {isPdf && (
@@ -233,23 +219,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
           <View style={styles.footer}>
             {showApproveButton && (isImage || isPdf) && canApprove && onApprove ? (
-              <TouchableOpacity
-                style={styles.approveButton}
-                onPress={() => onApprove(currentFile.fileUri, isMultiFile ? currentIndex : undefined)}
-                activeOpacity={0.8}
-              >
-                <Check size={20} color="#FFFFFF" />
-                <Text style={styles.approveButtonText}>Aprovar Orçamento</Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={onClose}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.secondaryButtonText}>Fechar</Text>
-                </TouchableOpacity>
+              <View style={styles.buttonRow}>
                 <TouchableOpacity
                   style={styles.shareButton}
                   onPress={handleShare}
@@ -259,14 +229,23 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   <Text style={styles.shareText}>Compartilhar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.downloadButton}
-                  onPress={handleDownload}
+                  style={styles.approveButton}
+                  onPress={() => onApprove(currentFile.fileUri, isMultiFile ? currentIndex : undefined)}
                   activeOpacity={0.8}
                 >
-                  <Download size={18} color="#FFFFFF" />
-                  <Text style={styles.downloadText}>Baixar</Text>
+                  <Check size={20} color="#FFFFFF" />
+                  <Text style={styles.approveButtonText}>Aprovar</Text>
                 </TouchableOpacity>
-              </>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.shareButtonFull}
+                onPress={handleShare}
+                activeOpacity={0.8}
+              >
+                <Share size={18} color="#FFFFFF" />
+                <Text style={styles.shareText}>Compartilhar / Baixar</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -384,10 +363,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E5EA',
     backgroundColor: '#FFFFFF',
+  },
+  buttonRow: {
     flexDirection: 'row',
     gap: 10,
   },
   approveButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -422,17 +404,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#34C759',
+    backgroundColor: '#0A84FF',
     paddingVertical: 14,
     borderRadius: 12,
   },
-  shareText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  downloadButton: {
-    flex: 1,
+  shareButtonFull: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -441,7 +418,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
   },
-  downloadText: {
+  shareText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',

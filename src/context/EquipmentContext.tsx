@@ -58,6 +58,10 @@ interface EquipmentContextType {
   getEquipmentsByCenter: (center: CostCenter) => Equipment[];
   getEquipmentById: (id: string) => Equipment | undefined;
   getAllEquipments: () => Equipment[];
+
+  // Notificações de revisão (badge / atividades)
+  getPendingRevisionAlertsCount: (center: CostCenter) => number;
+  markRevisionAlertSeen: (equipmentId: string) => void;
 }
 
 export const EquipmentContext = createContext<EquipmentContextType | undefined>(
@@ -106,6 +110,7 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [seenRevisionAlerts, setSeenRevisionAlerts] = useState<Record<string, boolean>>({});
 
   /**
    * Carrega equipamentos do Supabase
@@ -452,6 +457,26 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
 
   const getAllEquipments = useCallback(() => equipments, [equipments]);
 
+  const getPendingRevisionAlertsCount = useCallback(
+    (center: CostCenter) => {
+      return equipments.filter(eq =>
+        eq.center === center &&
+        !eq.deletedAt &&
+        eq.status === 'ativo' &&
+        eq.hoursUntilRevision <= 50 &&
+        !seenRevisionAlerts[eq.id]
+      ).length;
+    },
+    [equipments, seenRevisionAlerts],
+  );
+
+  const markRevisionAlertSeen = useCallback((equipmentId: string) => {
+    setSeenRevisionAlerts(prev => ({
+      ...prev,
+      [equipmentId]: true,
+    }));
+  }, []);
+
   /**
    * Atualiza as horas trabalhadas de um equipamento
    * Se newHoursUntilRevision não for fornecido, calcula automaticamente descontando as horas trabalhadas
@@ -598,6 +623,8 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
     getEquipmentsByCenter,
     getEquipmentById,
     getAllEquipments,
+    getPendingRevisionAlertsCount,
+    markRevisionAlertSeen,
   };
 
   return (

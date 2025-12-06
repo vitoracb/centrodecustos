@@ -136,6 +136,10 @@ export default function PedidosScreen() {
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [orderFilters, setOrderFilters] = useState<OrderFilters>({});
   const [orderPage, setOrderPage] = useState(1);
+  const [ordersSortOption, setOrdersSortOption] = useState<
+    'date_desc' | 'date_asc' | 'name_asc' | 'equipment_asc'
+  >('date_desc');
+  const [isOrdersSortDropdownOpen, setIsOrdersSortDropdownOpen] = useState(false);
 
   const hasActiveFilters = useMemo(
     () => Object.values(orderFilters).some(value => value && value !== ''),
@@ -154,7 +158,7 @@ export default function PedidosScreen() {
   const filteredOrders = useMemo(() => {
     const ordersByCenter = getOrdersByCenter(selectedCenter);
 
-    return ordersByCenter.filter(order => {
+    let filtered = ordersByCenter.filter(order => {
       if (orderFilters.name) {
         const nameMatch = order.name
           ?.toLowerCase()
@@ -188,7 +192,27 @@ export default function PedidosScreen() {
 
       return true;
     });
-  }, [getOrdersByCenter, selectedCenter, orderFilters]);
+
+    // Aplicar ordenação
+    switch (ordersSortOption) {
+      case 'name_asc':
+        return filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      case 'equipment_asc':
+        return filtered.sort((a, b) => (a.equipmentName || '').localeCompare(b.equipmentName || ''));
+      case 'date_desc':
+        return filtered.sort(
+          (a, b) => dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
+        );
+      case 'date_asc':
+        return filtered.sort(
+          (a, b) => dayjs(a.date, 'DD/MM/YYYY').valueOf() - dayjs(b.date, 'DD/MM/YYYY').valueOf()
+        );
+      default:
+        return filtered.sort(
+          (a, b) => dayjs(b.date, 'DD/MM/YYYY').valueOf() - dayjs(a.date, 'DD/MM/YYYY').valueOf()
+        );
+    }
+  }, [getOrdersByCenter, selectedCenter, orderFilters, ordersSortOption]);
   
   // Encontra o pedido com dropdown aberto
   const orderWithOpenDropdown = filteredOrders.find(order => order.id === openDropdownOrderId);
@@ -444,20 +468,78 @@ export default function PedidosScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Lista de Pedidos</Text>
-              <TouchableOpacity
-                style={[
-                  styles.filterButton,
-                  hasActiveFilters && styles.filterButtonActive,
-                ]}
-                onPress={() => setIsFilterModalVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Filter
-                  size={18}
-                  color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'}
-                />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.sortButton}
+                  onPress={() => setIsOrdersSortDropdownOpen(!isOrdersSortDropdownOpen)}
+                  activeOpacity={0.8}
+                >
+                  <ChevronDown size={16} color="#0A84FF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    hasActiveFilters && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setIsFilterModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Filter
+                    size={18}
+                    color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {isOrdersSortDropdownOpen && (
+              <View style={styles.sortDropdown}>
+                <TouchableOpacity
+                  style={[styles.sortOption, ordersSortOption === 'name_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setOrdersSortOption('name_asc');
+                    setIsOrdersSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, ordersSortOption === 'name_asc' && styles.sortOptionTextActive]}>
+                    Nome (A-Z)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, ordersSortOption === 'equipment_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setOrdersSortOption('equipment_asc');
+                    setIsOrdersSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, ordersSortOption === 'equipment_asc' && styles.sortOptionTextActive]}>
+                    Equipamento
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, ordersSortOption === 'date_desc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setOrdersSortOption('date_desc');
+                    setIsOrdersSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, ordersSortOption === 'date_desc' && styles.sortOptionTextActive]}>
+                    Data (Mais recente)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, ordersSortOption === 'date_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setOrdersSortOption('date_asc');
+                    setIsOrdersSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, ordersSortOption === 'date_asc' && styles.sortOptionTextActive]}>
+                    Data (Mais antiga)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {shouldShowSkeleton ? (
               <OrderListSkeleton />
@@ -936,9 +1018,6 @@ const styles = StyleSheet.create({
   cardHeaderLeft: {
     flex: 1,
   },
-  cardHeaderLeft: {
-    flex: 1,
-  },
   cardHeaderRight: {
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
@@ -1203,5 +1282,48 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
     fontWeight: '600',
     fontSize: 14,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+  },
+  sortDropdown: {
+    marginTop: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  sortOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F2F2F7',
+  },
+  sortOptionActive: {
+    backgroundColor: '#E5F1FF',
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: '#1C1C1E',
+    fontWeight: '500',
+  },
+  sortOptionTextActive: {
+    color: '#0A84FF',
+    fontWeight: '600',
   },
 });

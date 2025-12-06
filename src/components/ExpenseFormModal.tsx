@@ -11,6 +11,7 @@ import {
   Alert,
   ScrollView,
   ActionSheetIOS,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
@@ -118,6 +119,7 @@ export const ExpenseFormModal = ({
   const [paymentMethodDropdownVisible, setPaymentMethodDropdownVisible] = useState(false);
   const [installmentPickerVisible, setInstallmentPickerVisible] = useState(false);
   const [selectedInstallmentIndex, setSelectedInstallmentIndex] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const formatCurrency = (text: string, negative: boolean = false): string => {
     const numbers = text.replace(/\D/g, '');
@@ -545,7 +547,7 @@ export const ExpenseFormModal = ({
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome da despesa.');
       return;
@@ -681,22 +683,31 @@ export const ExpenseFormModal = ({
       method: paymentMethod || undefined,
     };
 
-    if (isInstallment) {
-      const mappedInstallments = installments.map((inst, index) => ({
-        installmentNumber: index + 1,
-        value: parseCurrency(inst.value, false),
-        date: inst.date,
-      }));
+    setIsSaving(true);
+    try {
+      if (isInstallment) {
+        const mappedInstallments = installments.map((inst, index) => ({
+          installmentNumber: index + 1,
+          value: parseCurrency(inst.value, false),
+          date: inst.date,
+        }));
 
-      onSubmit({
-        ...basePayload,
-        isInstallment: true,
-        installments: mappedInstallments,
-      });
-    } else {
-      onSubmit(basePayload);
+        await Promise.resolve(
+          onSubmit({
+            ...basePayload,
+            isInstallment: true,
+            installments: mappedInstallments,
+          }),
+        );
+      } else {
+        await Promise.resolve(onSubmit(basePayload));
+      }
+      onClose();
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível salvar a despesa. Tente novamente.');
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
   return (
@@ -1295,29 +1306,55 @@ export const ExpenseFormModal = ({
                 (!name.trim() ||
                   (!isInstallment && (
                     !value ||
-                    (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0))
+                    (parseCurrency(value) === 0 &&
+                      !isNegative &&
+                      !(addDebit && parseCurrency(debitValue) > 0))
                   )) ||
-                  ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
+                  ((category === 'manutencao' ||
+                    category === 'funcionario' ||
+                    category === 'equipamentos') &&
+                    (!selectedEquipmentId ||
+                      (selectedEquipmentId !== 'all' &&
+                        selectedEquipmentId === ''))) ||
                   (category === 'gestor' && !gestaoSubcategory) ||
-                  !sector) &&
+                  !sector ||
+                  (isFixed && !fixedDurationMonths) ||
+                  isSaving) &&
                   styles.disabledButton,
               ]}
               disabled={
                 !name.trim() ||
                 (!isInstallment && (
                   !value ||
-                  (parseCurrency(value) === 0 && !isNegative && !(addDebit && parseCurrency(debitValue) > 0))
+                  (parseCurrency(value) === 0 &&
+                    !isNegative &&
+                    !(addDebit && parseCurrency(debitValue) > 0))
                 )) ||
-                ((category === 'manutencao' || category === 'funcionario' || category === 'equipamentos') && (!selectedEquipmentId || (selectedEquipmentId !== 'all' && selectedEquipmentId === ''))) ||
+                ((category === 'manutencao' ||
+                  category === 'funcionario' ||
+                  category === 'equipamentos') &&
+                  (!selectedEquipmentId ||
+                    (selectedEquipmentId !== 'all' &&
+                      selectedEquipmentId === ''))) ||
                 (category === 'gestor' && !gestaoSubcategory) ||
                 !sector ||
-                (isFixed && !fixedDurationMonths)
+                (isFixed && !fixedDurationMonths) ||
+                isSaving
               }
               onPress={handleSave}
             >
-              <Text style={styles.primaryText}>
-                {initialData ? 'Salvar alterações' : 'Salvar'}
-              </Text>
+              {isSaving ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryText}>
+                    {initialData ? 'Salvando...' : 'Salvando...'}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.primaryText}>
+                  {initialData ? 'Salvar alterações' : 'Salvar'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

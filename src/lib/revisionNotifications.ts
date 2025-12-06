@@ -22,7 +22,7 @@ export const scheduleRevisionNotification = async (equipment: Equipment) => {
         trigger: null, // Notificação imediata
       });
       
-      logger.info(`🔔 Notificação agendada: ${equipment.name} - ${hoursUntilRevision.toFixed(0)}h até revisão`);
+      logger.info(`🔔 Notificação agendada: ${equipment.name} - ${equipment.hoursUntilRevision.toFixed(0)}h até revisão`);
     }
     
     // Alerta se já passou da revisão

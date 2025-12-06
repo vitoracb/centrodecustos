@@ -132,7 +132,7 @@ export const EquipmentDetailScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams<EquipmentParams>();
   const { selectedCenter } = useCostCenter();
-  const { getEquipmentById, updateEquipment, updateEquipmentHours } = useEquipment();
+  const { getEquipmentById, updateEquipment, updateEquipmentHours, markRevisionAlertSeen } = useEquipment();
   const { addExpense, updateExpense, deleteExpense, deleteExpenseDocument, getAllExpenses } = useFinancial();
   const { canCreate, canEdit, canDelete } = usePermissions();
 
@@ -199,6 +199,13 @@ export const EquipmentDetailScreen = () => {
       hoursUntilRevision: 250,
     };
   }, [params, selectedCenter, getEquipmentById]);
+
+  // Marca alerta de revisão como visto quando abrir o detalhe de um equipamento com revisão próxima/atrasada
+  useEffect(() => {
+    if (equipment && equipment.status === 'ativo' && equipment.hoursUntilRevision <= 50) {
+      markRevisionAlertSeen(equipment.id);
+    }
+  }, [equipment, markRevisionAlertSeen]);
 
   // Despesas reais ligadas a este equipamento
   const expenses: ExpenseItem[] = useMemo(() => {
@@ -1368,8 +1375,8 @@ export const EquipmentDetailScreen = () => {
             visible={isUpdateHoursModalVisible}
             equipment={equipment}
             onClose={() => setUpdateHoursModalVisible(false)}
-            onUpdate={async (equipmentId, newHours) => {
-              await updateEquipmentHours(equipmentId, newHours);
+            onUpdate={async (equipmentId, newHours, newHoursUntilRevision) => {
+              await updateEquipmentHours(equipmentId, newHours, newHoursUntilRevision);
             }}
           />
         </ScrollView>

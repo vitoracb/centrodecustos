@@ -22,7 +22,6 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
   funcionario: 'Funcionário',
   gestor: 'Gestor',
-  gestor: 'Gestor',
   terceirizados: 'Terceirizados',
   diversos: 'Diversos',
   equipamentos: 'Equipamentos',
@@ -272,6 +271,9 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
                 })}
                 {arcs.map((arc) => {
                   if (arc.percentage < 8 && arc.percentage < 100) return null; // Não mostrar label se muito pequeno (exceto 100%)
+                  const percentLabel = arc.percentage > 0 && arc.percentage < 1
+                    ? '<1'
+                    : arc.percentage.toFixed(0);
                   // Para 100%, centralizar o label no meio do círculo
                   const labelX = arc.percentage >= 100 ? center : arc.labelX;
                   const labelY = arc.percentage >= 100 ? center + 4 : arc.labelY + 4;
@@ -285,7 +287,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
                       fill="#FFFFFF"
                       textAnchor="middle"
                     >
-                      {arc.percentage.toFixed(0)}%
+                      {percentLabel}%
                     </SvgText>
                   );
                 })}
@@ -297,7 +299,13 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
               <View key={arc.category} style={styles.legendItem}>
                 <View style={[styles.legendColor, { backgroundColor: arc.color }]} />
                 <View style={styles.legendText}>
-                  <Text style={styles.legendLabel}>{CATEGORY_LABELS[arc.category]}</Text>
+                  <Text style={styles.legendLabel}>
+                    {CATEGORY_LABELS[arc.category]} (
+                    {arc.percentage > 0 && arc.percentage < 1
+                      ? '<1'
+                      : arc.percentage.toFixed(0)
+                    }%)
+                  </Text>
                   <Text style={styles.legendValue}>{formatCurrency(arc.value)}</Text>
                 </View>
               </View>

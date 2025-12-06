@@ -40,6 +40,7 @@ interface ContractContextType {
   loading: boolean;
   error: string | null;
   addContract: (contract: Omit<Contract, 'id' | 'docs'>) => Promise<void>;
+  updateContract: (id: string, updates: Pick<Contract, 'name' | 'category' | 'date' | 'value'>) => Promise<void>;
   deleteContract: (id: string) => Promise<void>;
   getContractsByCenter: (center: CostCenter) => Contract[];
   addDocumentToContract: (contractId: string, document: Omit<ContractDocument, 'id'>) => Promise<void>;
@@ -294,6 +295,64 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
     [user],
   );
 
+  const updateContract = useCallback(
+    async (id: string, updates: Pick<Contract, 'name' | 'category' | 'date' | 'value'>) => {
+      try {
+        if (!user) {
+          throw new Error('Usuário não autenticado');
+        }
+
+        const cacheKey = `contracts:${user.id}`;
+
+        // Normaliza categoria e data
+        const normalizedCategory = updates.category.toLowerCase() as ContractCategory;
+        if (normalizedCategory !== 'principal' && normalizedCategory !== 'terceirizados') {
+          throw new Error(`Categoria inválida: ${updates.category}. Use 'principal' ou 'terceirizados'.`);
+        }
+
+        const payload: any = {
+          name: updates.name,
+          category: normalizedCategory,
+          contract_date: brToIso(updates.date),
+        };
+
+        if (updates.value !== undefined && updates.value !== null) {
+          payload.value = updates.value;
+        }
+
+        const { error } = await supabase
+          .from('contracts')
+          .update(payload)
+          .eq('id', id);
+
+        if (error) {
+          throw error;
+        }
+
+        setContracts(prev => {
+          const next = prev.map(contract =>
+            contract.id === id
+              ? {
+                  ...contract,
+                  name: updates.name,
+                  category: normalizedCategory,
+                  date: updates.date,
+                  value: updates.value,
+                }
+              : contract,
+          );
+          cacheManager.set(cacheKey, next).catch(() => {});
+          return next;
+        });
+      } catch (err: any) {
+        console.error('❌ Erro em updateContract:', err);
+        Alert.alert('Erro', 'Não foi possível atualizar o contrato. Tente novamente.');
+        throw err;
+      }
+    },
+    [user],
+  );
+
   const addDocumentToContract = useCallback(
     async (contractId: string, document: Omit<ContractDocument, 'id'>) => {
       try {
@@ -465,6 +524,7 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         loading,
         error,
         addContract,
+        updateContract,
         deleteContract,
         getContractsByCenter,
         addDocumentToContract,

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpenseDocument } from '../context/FinancialContext';
@@ -22,6 +23,7 @@ interface ExpenseDocumentsModalProps {
   onAddPhoto?: () => void;
   onAddPaymentReceiptDocument?: () => void;
   onAddPaymentReceiptPhoto?: () => void;
+  isUploading?: boolean;
 }
 
 export const ExpenseDocumentsModal = ({
@@ -34,8 +36,9 @@ export const ExpenseDocumentsModal = ({
   onAddPhoto,
   onAddPaymentReceiptDocument,
   onAddPaymentReceiptPhoto,
+  isUploading = false,
 }: ExpenseDocumentsModalProps) => {
-  const getDocumentTypeLabel = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento') => {
+  const getDocumentTypeLabel = (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     switch (type) {
       case 'nota_fiscal':
         return 'Nota Fiscal';
@@ -43,6 +46,8 @@ export const ExpenseDocumentsModal = ({
         return 'Recibo';
       case 'comprovante_pagamento':
         return 'Comprovante de Pagamento';
+      case 'boleto':
+        return 'Boleto';
       default:
         return 'Documento';
     }
@@ -109,6 +114,66 @@ export const ExpenseDocumentsModal = ({
             ))
           )}
         </ScrollView>
+
+        <View style={styles.footer}>
+          {onAddDocument && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={onAddDocument}
+              disabled={isUploading}
+              activeOpacity={0.8}
+            >
+              {isUploading ? (
+                <>
+                  <ActivityIndicator size="small" color="#0A84FF" />
+                  <Text style={styles.addButtonText}>Enviando...</Text>
+                </>
+              ) : (
+                <>
+                  <Plus size={18} color="#0A84FF" />
+                  <Text style={styles.addButtonText}>Adicionar documento</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {onAddPhoto && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={onAddPhoto}
+              disabled={isUploading}
+              activeOpacity={0.8}
+            >
+              <ImageIcon size={18} color="#0A84FF" />
+              <Text style={styles.addButtonText}>Adicionar foto</Text>
+            </TouchableOpacity>
+          )}
+
+          {(onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto) && (
+            <TouchableOpacity
+              style={[styles.addButton, styles.paymentReceiptButton]}
+              onPress={onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto}
+              disabled={isUploading}
+              activeOpacity={0.8}
+            >
+              {isUploading ? (
+                <>
+                  <ActivityIndicator size="small" color="#34C759" />
+                  <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>
+                    Enviando comprovante...
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Plus size={18} color="#34C759" />
+                  <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>
+                    Adicionar comprovante de pagamento
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </SafeAreaView>
     </Modal>
   );

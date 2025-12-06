@@ -8,6 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { useAuth } from '@/src/context/AuthContext';
 import { useRouter } from 'expo-router';
@@ -17,18 +20,25 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signInDev } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      alert('Preencha todos os campos');
+      Alert.alert('Campos obrigatórios', 'Informe o e-mail e a senha para entrar.');
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('E-mail inválido', 'Digite um e-mail válido, por exemplo: nome@exemplo.com');
       return;
     }
 
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signIn(trimmedEmail, password);
       // Navegação será automática pelo AuthContext
     } catch (error) {
       // Erro já tratado no AuthContext
@@ -42,7 +52,18 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../icons/nowtranding_icon_1024.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
         <Text style={styles.title}>Centro de Custos</Text>
         <Text style={styles.subtitle}>Faça login para continuar</Text>
 
@@ -90,6 +111,14 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Entrar</Text>
             )}
           </TouchableOpacity>
+          {__DEV__ && signInDev && (
+            <TouchableOpacity
+              style={styles.devButton}
+              onPress={signInDev}
+            >
+              <Text style={styles.devButtonText}>Entrar em modo teste (dev)</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => router.push('/signup' as any)}
@@ -99,7 +128,7 @@ export default function LoginScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -110,9 +139,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 32,
@@ -200,5 +230,22 @@ const styles = StyleSheet.create({
   linkTextBold: {
     color: '#0A84FF',
     fontWeight: '600',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    borderRadius: 24,
+  },
+  devButton: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  devButtonText: {
+    fontSize: 12,
+    color: '#A0A0A5',
   },
 });

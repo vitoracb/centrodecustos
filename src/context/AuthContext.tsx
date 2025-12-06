@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signInDev?: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,6 +40,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const signInDev = () => {
+    if (!__DEV__) return;
+
+    const fakeUser: User = {
+      id: 'dev-user',
+      app_metadata: { provider: 'dev' },
+      user_metadata: { name: 'Dev User' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'dev@example.com',
+      phone: '',
+      role: 'authenticated',
+      last_sign_in_at: new Date().toISOString(),
+      factors: [],
+      identities: [],
+    } as any;
+
+    const fakeSession: Session = {
+      access_token: 'dev-access-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      refresh_token: 'dev-refresh-token',
+      user: fakeUser,
+    } as any;
+
+    setUser(fakeUser);
+    setSession(fakeSession);
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -48,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
     } catch (error: any) {
+      console.log('[Auth] Erro de login bruto:', error);
       Alert.alert('Erro ao fazer login', error.message);
       throw error;
     }
@@ -108,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        signInDev: __DEV__ ? signInDev : undefined,
       }}
     >
       {children}
