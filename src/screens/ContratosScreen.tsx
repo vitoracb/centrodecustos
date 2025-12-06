@@ -534,10 +534,6 @@ export const ContratosScreen = () => {
                   <Text style={styles.metaLabel}>Valor</Text>
                   <Text style={styles.metaValue}>{formatCurrency(contract.value)}</Text>
                 </View>
-                <View>
-                  <Text style={styles.metaLabel}>Documentos</Text>
-                  <Text style={styles.metaValue}>{contract.docs}</Text>
-                </View>
               </View>
               <View style={styles.actionsRow}>
                 <TouchableOpacity 
@@ -706,8 +702,7 @@ export const ContratosScreen = () => {
                   setTimeout(() => openAttachmentOptions(activeContractId!), 300);
                 }}
               >
-                <FilePlus size={18} color="#FFFFFF" />
-                <Text style={styles.addDocumentButtonText}>Adicionar Documento</Text>
+                <FilePlus size={18} color="#0A84FF" />
               </TouchableOpacity>
             )}
             <ScrollView style={styles.documentsList}>
@@ -1136,19 +1131,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addDocumentButton: {
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#0A84FF',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginTop: 20,
-    marginBottom: 16,
+    alignSelf: 'flex-end',
+    marginTop: 12,
+    marginBottom: 12,
   },
   addDocumentButtonText: {
-    color: '#FFFFFF',
+    color: '#0A84FF',
     fontSize: 15,
     fontWeight: '600',
   },

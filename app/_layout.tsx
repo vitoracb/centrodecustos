@@ -43,6 +43,8 @@ export default function RootLayout() {
                         <Stack.Screen name="signup" options={{ headerShown: false }} />
                         <Stack.Screen name="change-password" options={{ headerShown: false }} />
                         <Stack.Screen name="user-management" options={{ headerShown: false }} />
+                        {/* Tela aberta via deep link de recuperação de senha */}
+                        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                         <Stack.Screen name="+not-found" />
                       </Stack>
                       <StatusBar style="auto" />

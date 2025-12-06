@@ -83,6 +83,50 @@ export default function UserManagementScreen() {
     }
   };
 
+  const deleteUser = async (userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      Alert.alert('Sucesso', 'Usuário excluído!');
+      loadUsers();
+    } catch (error: any) {
+      Alert.alert('Erro', error.message);
+    }
+  };
+
+  const handleUserDeleteOrDeactivate = (user: UserProfile) => {
+    const isActive = user.is_active;
+    const primaryActionLabel = isActive ? 'Desativar' : 'Ativar';
+    const title = isActive
+      ? 'Desativar ou Excluir Usuário'
+      : 'Ativar ou Excluir Usuário';
+
+    Alert.alert(
+      title,
+      `Usuário: ${user.email}`,
+      [
+        {
+          text: primaryActionLabel,
+          onPress: () => toggleUserStatus(user.id, user.is_active),
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => deleteUser(user.id),
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const handleCreateUser = async () => {
     if (!newUserEmail) {
       Alert.alert('Erro', 'Preencha o email do usuário');
@@ -210,7 +254,7 @@ export default function UserManagementScreen() {
           style={styles.addButton}
           onPress={() => setIsCreateModalVisible(true)}
         >
-          <UserPlus size={20} color="#FFFFFF" />
+          <UserPlus size={20} color="#0A84FF" />
         </TouchableOpacity>
       </View>
 
@@ -240,7 +284,7 @@ export default function UserManagementScreen() {
 
               <TouchableOpacity
                 style={styles.actionButton}
-                onPress={() => toggleUserStatus(item.id, item.is_active)}
+                onPress={() => handleUserDeleteOrDeactivate(item)}
               >
                 <Trash2 size={18} color={item.is_active ? '#FF3B30' : '#34C759'} />
               </TouchableOpacity>
@@ -344,9 +388,12 @@ export default function UserManagementScreen() {
                   disabled={creating}
                 >
                   {creating ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color="#0A84FF" />
                   ) : (
-                    <Text style={styles.createButtonText}>Criar Usuário</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <UserPlus size={18} color="#0A84FF" />
+                      <Text style={styles.createButtonText}>Criar Usuário</Text>
+                    </View>
                   )}
                 </TouchableOpacity>
               </View>{/* fecha modalBody */}
@@ -391,7 +438,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#0A84FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -547,17 +596,19 @@ const styles = StyleSheet.create({
     color: '#0A84FF',
   },
   createButton: {
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
   },
   createButtonDisabled: {
     opacity: 0.6,
   },
   createButtonText: {
-    color: '#FFFFFF',
+    color: '#0A84FF',
     fontSize: 16,
     fontWeight: '600',
   },

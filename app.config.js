@@ -7,6 +7,10 @@ export default {
     icon: './icons/nowtranding_icon_1024.png',
     userInterfaceStyle: 'light',
 
+    // Deep linking scheme para abrir o app via links como
+    // com.centrodecustos://reset-password
+    scheme: 'com.centrodecustos',
+
     splash: {
       image: './icons/nowtranding_icon_1024.png',
       resizeMode: 'contain',
@@ -44,6 +48,20 @@ export default {
         'WRITE_EXTERNAL_STORAGE',
         'READ_MEDIA_IMAGES',
         'READ_MEDIA_VIDEO',
+      ],
+      // Intent filter básico para permitir que o Android
+      // abra o app via com.centrodecustos://reset-password
+      intentFilters: [
+        {
+          action: 'VIEW',
+          data: [
+            {
+              scheme: 'com.centrodecustos',
+              host: 'reset-password',
+            },
+          ],
+          category: ['BROWSABLE', 'DEFAULT'],
+        },
       ],
     },
 

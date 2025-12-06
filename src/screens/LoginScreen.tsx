@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/src/context/AuthContext';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/src/lib/supabaseClient';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -44,6 +45,42 @@ export default function LoginScreen() {
       // Erro já tratado no AuthContext
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      Alert.alert('Recuperar senha', 'Informe o e-mail para enviar o link de recuperação.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('E-mail inválido', 'Digite um e-mail válido, por exemplo: nome@exemplo.com');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        // Ajuste esta URL conforme configurado no painel do Supabase
+        redirectTo: 'com.centrodecustos://reset-password',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert(
+        'E-mail enviado',
+        'Enviamos um link de recuperação de senha para o e-mail informado.'
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Erro ao enviar e-mail',
+        error?.message || 'Não foi possível enviar o e-mail de recuperação. Tente novamente.'
+      );
     }
   };
 
@@ -113,14 +150,6 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Entrar</Text>
             )}
           </TouchableOpacity>
-          {__DEV__ && signInDev && (
-            <TouchableOpacity
-              style={styles.devButton}
-              onPress={signInDev}
-            >
-              <Text style={styles.devButtonText}>Entrar em modo teste (dev)</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => router.push('/signup' as any)}
@@ -128,6 +157,13 @@ export default function LoginScreen() {
             <Text style={styles.linkText}>
               Não tem conta? <Text style={styles.linkTextBold}>Criar conta</Text>
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.forgotPasswordButton}
+            onPress={handleForgotPassword}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -221,6 +257,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  forgotPasswordButton: {
+    alignSelf: 'center',
+    marginTop: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 13,
+    color: '#0A84FF',
+    fontWeight: '500',
   },
   linkButton: {
     alignItems: 'center',
