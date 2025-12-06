@@ -854,6 +854,140 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         }
 
         if (isFixedReceipt) {
+          // Busca o recebimento atual no banco (pode ou não ser fixo)
+          const { data: currentReceipt, error: fetchError } = await supabase
+            .from("financial_transactions")
+            .select("*")
+            .eq("id", receipt.id)
+            .eq("type", "RECEITA")
+            .single();
+
+          if (fetchError) {
+            console.error("❌ Erro ao buscar receita atual:", fetchError);
+            throw new Error("Erro ao buscar receita atual");
+          }
+
+          const wasFixed = currentReceipt?.is_fixed === true;
+          const isBecomingFixed = !wasFixed && isFixedReceipt;
+
+          // CASO 1: Receita está SE TORNANDO FIXA pela primeira vez
+          if (isBecomingFixed && receipt.fixedDurationMonths && receipt.fixedDurationMonths > 1) {
+            console.log('🔄 Receita se tornando fixa pela primeira vez, gerando parcelas...');
+            
+            // Atualiza a receita atual para ser o template
+            const templatePayload: any = {
+              cost_center_id: receipt.center,
+              value: receipt.value,
+              date: dbDate,
+              category: receipt.category ?? null,
+              description: receipt.name,
+              payment_method: receipt.method ?? null,
+              status: statusValue,
+              is_fixed: true,
+              fixed_duration_months: receipt.fixedDurationMonths,
+              installment_number: 1,
+            };
+
+            const { error: updateError } = await supabase
+              .from("financial_transactions")
+              .update(templatePayload)
+              .eq("id", receipt.id)
+              .eq("type", "RECEITA");
+
+            if (updateError) {
+              console.error("❌ Erro ao atualizar receita para fixa:", updateError);
+              throw new Error("Erro ao atualizar receita para fixa");
+            }
+
+            // Gera as parcelas subsequentes (2, 3, etc)
+            const dateParts = receipt.date.split("/");
+            if (dateParts.length === 3) {
+              const [day, month, year] = dateParts.map(Number);
+
+              for (let offset = 1; offset < receipt.fixedDurationMonths; offset++) {
+                const targetMonth = month + offset;
+                let targetYear = year;
+                let actualMonth = targetMonth;
+
+                if (targetMonth > 12) {
+                  const yearOffset = Math.floor((targetMonth - 1) / 12);
+                  targetYear = year + yearOffset;
+                  actualMonth = ((targetMonth - 1) % 12) + 1;
+                }
+
+                const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+                const receiptDay = Math.min(day, lastDayOfMonth);
+                const newReceiptDate = `${String(receiptDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+                const installmentDbDate = toDbDate(newReceiptDate);
+
+                if (installmentDbDate) {
+                  const installmentPayload: any = {
+                    type: "RECEITA",
+                    status: statusValue,
+                    cost_center_id: receipt.center,
+                    value: receipt.value,
+                    date: installmentDbDate,
+                    category: receipt.category ?? null,
+                    description: receipt.name,
+                    payment_method: receipt.method ?? null,
+                    is_fixed: false,
+                    fixed_duration_months: null,
+                    installment_number: offset + 1,
+                  };
+
+                  const { error: installmentError } = await supabase
+                    .from("financial_transactions")
+                    .insert(installmentPayload);
+
+                  if (installmentError) {
+                    console.error('❌ Erro ao criar parcela:', installmentError);
+                  } else {
+                    console.log('✅ Parcela criada:', { offset: offset + 1, date: newReceiptDate });
+                  }
+                }
+              }
+            }
+
+            // Recarrega todas as receitas
+            const { data: reloadedReceipts, error: reloadError } = await supabase
+              .from("financial_transactions")
+              .select(
+                `
+                id,
+                type,
+                status,
+                date,
+                value,
+                category,
+                description,
+                payment_method,
+                reference,
+                is_fixed,
+                fixed_duration_months,
+                installment_number,
+                created_at,
+                cost_center_id
+              `
+              )
+              .eq("type", "RECEITA")
+              .order("date", { ascending: false });
+
+            if (!reloadError && reloadedReceipts) {
+              const mapped: Receipt[] = await Promise.all(
+                (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
+              );
+              setReceipts(mapped);
+              
+              const updatedTemplate = mapped.find((r) => r.id === receipt.id);
+              if (updatedTemplate) {
+                return updatedTemplate;
+              }
+            }
+
+            throw new Error("Erro ao recarregar receitas após conversão para fixa");
+          }
+
+          // CASO 2: Receita JÁ ERA FIXA, atualiza template e parcelas
           // Busca o recebimento template atual no banco
           const { data: currentTemplate, error: templateError } = await supabase
             .from("financial_transactions")
