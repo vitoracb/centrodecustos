@@ -377,6 +377,7 @@ export const FinanceiroScreen = () => {
     'date_desc' | 'date_asc' | 'value_desc' | 'value_asc' | 'name_asc' | 'category_asc' | 'sector_asc'
   >('date_desc');
   const [isExpenseSortDropdownOpen, setIsExpenseSortDropdownOpen] = useState(false);
+  const [isExpenseBottomNavActive, setIsExpenseBottomNavActive] = useState(false);
 
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
@@ -1589,9 +1590,17 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            <ExpensePieChart expenses={filteredExpenses} mode={expenseMode} selectedPeriod={selectedExpensePeriod} />
+            <ExpensePieChart
+              expenses={filteredExpenses}
+              mode={expenseMode}
+              selectedPeriod={selectedExpensePeriod}
+            />
             <ExpenseBarChart expenses={filteredExpenses} />
-            <ExpenseSectorChart expenses={filteredExpenses} />
+            <ExpenseSectorChart
+              expenses={filteredExpenses}
+              mode={expenseMode}
+              selectedPeriod={selectedExpensePeriod}
+            />
             
             {/* Despesas agrupadas por status */}
             {filteredExpenses.length > 0 && (
@@ -1668,92 +1677,83 @@ export const FinanceiroScreen = () => {
               </View>
             )}
             {filteredExpenses.length > 0 && (
-              <View style={styles.sortContainer}>
-                <Text style={styles.sortLabel}>Ordenar despesas por</Text>
-                <View>
+              <View style={styles.sortHeaderContainer}>
+                <View style={styles.sortHeaderRow}>
                   <TouchableOpacity
-                    style={styles.sortButton}
+                    style={styles.sortButtonCompact}
                     onPress={() => setIsExpenseSortDropdownOpen(prev => !prev)}
                   >
-                    <Text style={styles.sortButtonText}>
-                      {expenseSortOption === 'date_desc' && 'Data (mais recente primeiro)'}
-                      {expenseSortOption === 'date_asc' && 'Data (mais antiga primeiro)'}
-                      {expenseSortOption === 'value_desc' && 'Valor (maior para menor)'}
-                      {expenseSortOption === 'value_asc' && 'Valor (menor para maior)'}
-                      {expenseSortOption === 'name_asc' && 'Nome (A-Z)'}
-                      {expenseSortOption === 'category_asc' && 'Categoria (A-Z)'}
-                      {expenseSortOption === 'sector_asc' && 'Setor (A-Z)'}
-                    </Text>
-                    <ChevronDown size={16} color="#0A84FF" />
+                    <ChevronDown size={18} color="#0A84FF" />
                   </TouchableOpacity>
-                  {isExpenseSortDropdownOpen && (
-                    <View style={styles.sortDropdown}>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('date_desc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Data (mais recente primeiro)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('date_asc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Data (mais antiga primeiro)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('value_desc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Valor (maior para menor)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('value_asc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Valor (menor para maior)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('name_asc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Nome (A-Z)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('category_asc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Categoria (A-Z)</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.sortDropdownItem}
-                        onPress={() => {
-                          setExpenseSortOption('sector_asc');
-                          setIsExpenseSortDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={styles.sortDropdownItemText}>Setor (A-Z)</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </View>
+
+                {isExpenseSortDropdownOpen && (
+                  <View style={styles.sortDropdown}>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('date_desc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Data (mais recente primeiro)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('date_asc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Data (mais antiga primeiro)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('value_desc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Valor (maior para menor)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('value_asc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Valor (menor para maior)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('name_asc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Nome (A-Z)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('category_asc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Categoria (A-Z)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sortDropdownItem}
+                      onPress={() => {
+                        setExpenseSortOption('sector_asc');
+                        setIsExpenseSortDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.sortDropdownItemText}>Setor (A-Z)</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
             
@@ -2175,6 +2175,17 @@ export const FinanceiroScreen = () => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          onScroll={(event) => {
+            const y = event.nativeEvent.contentOffset.y;
+
+            if (activeTab === 'Despesas') {
+              // Ativa/desativa o mini-navegador inferior conforme o scroll
+              setIsExpenseBottomNavActive(y > 400);
+            } else {
+              setIsExpenseBottomNavActive(false);
+            }
+          }}
+          scrollEventThrottle={16}
         >
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
@@ -2709,7 +2720,43 @@ export const FinanceiroScreen = () => {
           </View>
         </TouchableOpacity>
       </Modal>
-      
+
+      {activeTab === 'Despesas' && (
+        <View
+          style={[
+            styles.expenseBottomNavigator,
+            !isExpenseBottomNavActive && { opacity: 0.15 },
+          ]}
+          pointerEvents={isExpenseBottomNavActive ? 'auto' : 'none'}
+        >
+          <TouchableOpacity
+            style={styles.miniNavButton}
+            onPress={() =>
+              setSelectedExpensePeriod(prev =>
+                expenseMode === 'mensal'
+                  ? prev.subtract(1, 'month')
+                  : prev.subtract(1, 'year')
+              )
+            }
+          >
+            <Text style={styles.miniNavText}>←</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.miniNavButton}
+            onPress={() =>
+              setSelectedExpensePeriod(prev =>
+                expenseMode === 'mensal'
+                  ? prev.add(1, 'month')
+                  : prev.add(1, 'year')
+              )
+            }
+          >
+            <Text style={styles.miniNavText}>→</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
     </SafeAreaView>
   );
 };
@@ -2953,6 +3000,59 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#1B8A2F',
+  },
+  sortHeaderContainer: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  sortHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4,
+  },
+  sortRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  miniNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F5F5F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniNavText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0A84FF',
+  },
+  sortButtonCompact: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseBottomNavigator: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  periodText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    textTransform: 'capitalize',
   },
   cardActions: {
     flexDirection: 'row',

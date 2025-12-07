@@ -41,6 +41,14 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
   // Usa props externas se fornecidas, senão usa estado interno
   const mode = externalMode ?? internalMode;
   const selectedPeriod = externalPeriod ?? internalPeriod;
+  const periodLabel = useMemo(() => {
+    if (!selectedPeriod) return '';
+    const base = mode === 'mensal'
+      ? selectedPeriod.format('MMMM YYYY')
+      : selectedPeriod.format('YYYY');
+    if (!base) return '';
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }, [mode, selectedPeriod]);
 
   const chartData = useMemo(() => {
     const totalsByCategory: Record<ExpenseCategory, number> = {
@@ -148,7 +156,10 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Distribuição por Categoria</Text>
+        <Text style={styles.title}>
+          Despesas por Categoria
+          {periodLabel ? ` - ${periodLabel}` : ''}
+        </Text>
       </View>
       {!externalMode && (
         <>

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { G, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { Expense, ExpenseSector } from '../context/FinancialContext';
+import dayjs from 'dayjs';
 
 const SECTOR_LABELS: Record<ExpenseSector, string> = {
   now: 'Now',
@@ -29,9 +30,19 @@ const SECTOR_COLORS: Record<ExpenseSector, string> = {
 
 interface ExpenseSectorChartProps {
   expenses: Expense[];
+  mode?: 'mensal' | 'anual';
+  selectedPeriod?: dayjs.Dayjs;
 }
 
-export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
+export const ExpenseSectorChart = ({ expenses, mode = 'mensal', selectedPeriod }: ExpenseSectorChartProps) => {
+  const effectivePeriod = selectedPeriod ?? dayjs();
+  const periodLabel = useMemo(() => {
+    const base = mode === 'mensal'
+      ? effectivePeriod.format('MMMM YYYY')
+      : effectivePeriod.format('YYYY');
+    if (!base) return '';
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }, [mode, effectivePeriod]);
   const chartData = useMemo(() => {
     // Filtra apenas despesas fixas com setor
     // Prioriza parcelas geradas (isFixed: false com installmentNumber)
@@ -172,7 +183,10 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Despesas por Setor</Text>
+          <Text style={styles.title}>
+            Despesas por Setor
+            {periodLabel ? ` - ${periodLabel}` : ''}
+          </Text>
         </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>
@@ -186,7 +200,10 @@ export const ExpenseSectorChart = ({ expenses }: ExpenseSectorChartProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Despesas por Setor</Text>
+        <Text style={styles.title}>
+          Despesas por Setor
+          {periodLabel ? ` - ${periodLabel}` : ''}
+        </Text>
       </View>
       <View style={styles.chartContainer}>
         <Svg width={chartSize} height={chartSize} viewBox={`0 0 ${chartSize} ${chartSize}`}>
