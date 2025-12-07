@@ -805,9 +805,13 @@ export const DashboardScreen = () => {
       return month - 1 === currentMonth && year === currentYear;
     };
 
-    // Usa exatamente a mesma lógica do Fechamento: filtra apenas por período, não por centro
-    const expensesInPeriod = allExpenses.filter(expense => filterByPeriod(expense.date));
-    const receiptsInPeriod = allReceipts.filter(receipt => filterByPeriod(receipt.date));
+    // Filtra por período E por centro de custo selecionado
+    const expensesInPeriod = allExpenses.filter(
+      expense => expense.center === selectedCenter && filterByPeriod(expense.date),
+    );
+    const receiptsInPeriod = allReceipts.filter(
+      receipt => receipt.center === selectedCenter && filterByPeriod(receipt.date),
+    );
 
     return {
       expenses: expensesInPeriod,
@@ -917,19 +921,12 @@ export const DashboardScreen = () => {
         );
       }
 
-      // Botões de relatório ficam visíveis para todos (incluindo viewer)
-      actions.push(
-        {
-          label: 'Gerar Relatório PDF',
-          icon: FileText,
-          onPress: () => handleOpenReportPreview('pdf'),
-        },
-        {
-          label: 'Gerar Relatório Excel',
-          icon: Download,
-          onPress: () => handleOpenReportPreview('excel'),
-        },
-      );
+      // Botão de relatório (apenas PDF) visível para todos (incluindo viewer)
+      actions.push({
+        label: 'Gerar Relatório PDF',
+        icon: FileText,
+        onPress: () => handleOpenReportPreview('pdf'),
+      });
 
       return actions;
     },
@@ -1033,7 +1030,10 @@ export const DashboardScreen = () => {
                   {quickActions.map((action, index) => (
                     <TouchableOpacity
                       key={`${action.label}-${index}`}
-                      style={styles.quickButton}
+                      style={[
+                        styles.quickButton,
+                        action.label === 'Gerar Relatório PDF' && styles.quickButtonWide,
+                      ]}
                       activeOpacity={0.8}
                       onPress={action.onPress}
                     >
@@ -1355,6 +1355,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     gap: 8,
+  },
+  quickButtonWide: {
+    width: '100%',
+    paddingVertical: 16,
   },
   quickLabel: {
     fontSize: 14,

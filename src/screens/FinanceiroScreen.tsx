@@ -779,8 +779,12 @@ export const FinanceiroScreen = () => {
       return month - 1 === selectedMonth && year === selectedYear;
     };
 
-    const expensesInPeriod = allExpenses.filter(expense => filterByPeriod(expense.date));
-    const receiptsInPeriod = allReceipts.filter(receipt => filterByPeriod(receipt.date));
+    const expensesInPeriod = allExpenses.filter(
+      expense => expense.center === selectedCenter && filterByPeriod(expense.date),
+    );
+    const receiptsInPeriod = allReceipts.filter(
+      receipt => receipt.center === selectedCenter && filterByPeriod(receipt.date),
+    );
 
     return {
       expenses: expensesInPeriod,

@@ -197,7 +197,7 @@ export default function UserManagementScreen() {
           onPress: () => changeUserRole(user.id, 'admin'),
         },
         {
-          text: 'Editor',
+          text: 'Gerente',
           onPress: () => changeUserRole(user.id, 'editor'),
         },
         {
