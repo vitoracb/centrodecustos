@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { X, Check, ChevronLeft, ChevronRight, Share } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
+import ImageViewer from 'react-native-image-zoom-viewer';
 import { shareFile } from '../lib/shareUtils';
 
 export interface FilePreviewItem {
@@ -74,15 +75,24 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     });
   }, [currentFile.fileUri]);
 
-  if (!currentFile.fileUri) {
-    console.log('⚠️ [FilePreview] fileUri vazio!');
-    return null;
-  }
-
   const isImage = currentFile.mimeType?.startsWith('image/');
   const isPdf =
     currentFile.mimeType === 'application/pdf' ||
     currentFile.fileUri.toLowerCase().endsWith('.pdf');
+
+  // Para imagens com ImageViewer, não usamos overlay de loading para não bloquear gestos de zoom
+  // e garantimos que o estado de loading fique desativado
+  useEffect(() => {
+    if (isImage) {
+      setLoading(false);
+      setErrorLoading(null);
+    }
+  }, [isImage, currentFile.fileUri]);
+
+  if (!currentFile.fileUri) {
+    console.log('⚠️ [FilePreview] fileUri vazio!');
+    return null;
+  }
 
   const canGoPrevious = isMultiFile && currentIndex > 0;
   const canGoNext = isMultiFile && currentIndex < (files?.length || 0) - 1;
@@ -156,24 +166,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
           <View style={styles.content}>
             {isImage && (
-              <Image
-                source={{ uri: currentFile.fileUri }}
+              <ImageViewer
+                imageUrls={[{ url: currentFile.fileUri }]}
+                enableImageZoom
+                backgroundColor="#000000"
                 style={styles.image}
-                resizeMode="contain"
-                onLoadStart={() => {
-                  console.log('🖼️ [Image] Iniciando carregamento...');
-                  setLoading(true);
-                  setErrorLoading(null);
-                }}
-                onLoadEnd={() => {
-                  console.log('✅ [Image] Carregamento concluído');
-                  setLoading(false);
-                }}
-                onError={(error) => {
-                  console.log('❌ [Image] Erro ao carregar:', error.nativeEvent);
-                  setLoading(false);
-                  setErrorLoading('Não foi possível carregar a imagem.');
-                }}
+                saveToLocalByLongPress={false}
+                renderIndicator={() => null}
+                minScale={1}
+                maxScale={4}
+                doubleClickInterval={250}
               />
             )}
 
@@ -216,7 +218,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               </View>
             )}
 
-            {loading && (
+            {loading && !isImage && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" />
                 <Text style={styles.loadingText}>
