@@ -201,7 +201,7 @@ const getActivityIcon = (type: ActivityType): { icon: React.ComponentType<any>; 
 
 export const DashboardScreen = () => {
   const router = useRouter();
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const {
     getEquipmentsByCenter,
     getAllEquipments,
@@ -255,6 +255,18 @@ export const DashboardScreen = () => {
   const [isOrderModalVisible, setOrderModalVisible] = useState(false);
   const [isExportingReport, setIsExportingReport] = useState(false);
 
+  const getCenterName = useCallback(
+    (code: string | null | undefined): string => {
+      if (!code) return '';
+
+      const fromContext = costCenters.find((cc) => cc.code === code)?.name;
+      if (fromContext) return fromContext;
+
+      return centerLabels[code as keyof typeof centerLabels] || code;
+    },
+    [costCenters],
+  );
+
   const isDashboardLoading =
     (equipmentLoading || contractLoading || ordersLoading) && !refreshing;
 
@@ -280,7 +292,7 @@ export const DashboardScreen = () => {
                 year: String(equipment.year || ''),
                 purchaseDate: equipment.purchaseDate || '',
                 nextReview: equipment.nextReview || '',
-                center: centerLabels[equipment.center as keyof typeof centerLabels] || '',
+                center: getCenterName(equipment.center) || '',
               },
             });
           } else {
@@ -326,7 +338,7 @@ export const DashboardScreen = () => {
         // Não navega para tipos desconhecidos
         break;
     }
-  }, [router, getAllEquipments]);
+  }, [router, getAllEquipments, getCenterName]);
 
   // Calcula equipamentos ativos
   const activeEquipments = useMemo(() => {
@@ -954,7 +966,7 @@ export const DashboardScreen = () => {
             </View>
             <Text style={styles.subtitle}>
               Visão geral das operações do centro de custo{' '}
-              {centerLabels[selectedCenter as keyof typeof centerLabels]}
+              {getCenterName(selectedCenter)}
             </Text>
           </View>
 

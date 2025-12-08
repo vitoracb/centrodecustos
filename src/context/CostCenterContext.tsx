@@ -17,6 +17,7 @@ interface CostCenterContextType {
   costCenters: CostCenterData[];
   loading: boolean;
   addCostCenter: (name: string, code: string) => Promise<void>;
+  removeCostCenter: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -40,6 +41,17 @@ export const CostCenterProvider = ({ children }: CostCenterProviderProps) => {
   const [selectedCenter, setSelectedCenter] = useState<CostCenter>('valenca');
   const [costCenters, setCostCenters] = useState<CostCenterData[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Gerador simples de UUID v4 em string, para usar como id quando o banco
+  // exige id não-nulo (sem default) na tabela cost_centers
+  const generateUUID = () => {
+    // 100% em JS, sem depender de libs externas
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
 
   const loadCostCenters = useCallback(async () => {
     try {
@@ -126,10 +138,14 @@ export const CostCenterProvider = ({ children }: CostCenterProviderProps) => {
         throw new Error('Já existe um centro de custo com esse código');
       }
 
+      // Gera id explícito, já que a coluna id no banco exige NOT NULL
+      const newId = generateUUID();
+
       // Insere o novo centro de custo
       const { data, error } = await supabase
         .from('cost_centers')
         .insert({
+          id: newId,
           code: normalizedCode,
           name: name.trim(),
         })
@@ -163,6 +179,45 @@ export const CostCenterProvider = ({ children }: CostCenterProviderProps) => {
     }
   }, []);
 
+  const removeCostCenter = useCallback(async (id: string) => {
+    try {
+      // Não permite remover se for o único centro
+      if (costCenters.length <= 1) {
+        throw new Error('É necessário manter pelo menos um centro de custo cadastrado.');
+      }
+
+      const centerToRemove = costCenters.find((cc) => cc.id === id);
+      if (!centerToRemove) {
+        throw new Error('Centro de custo não encontrado.');
+      }
+
+      const { error } = await supabase
+        .from('cost_centers')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      setCostCenters((prev) => {
+        const updated = prev.filter((cc) => cc.id !== id);
+
+        // Se o centro removido era o selecionado, ajusta para o primeiro da lista
+        if (centerToRemove.code === selectedCenter && updated.length > 0) {
+          setSelectedCenter(updated[0].code);
+        }
+
+        return updated;
+      });
+
+      logger.info('Centro de custo removido com sucesso:', id);
+    } catch (err: any) {
+      logger.error('Erro ao remover centro de custo:', err);
+      throw err;
+    }
+  }, [costCenters, selectedCenter]);
+
   const refresh = useCallback(async () => {
     await loadCostCenters();
   }, [loadCostCenters]);
@@ -175,6 +230,7 @@ export const CostCenterProvider = ({ children }: CostCenterProviderProps) => {
         costCenters,
         loading,
         addCostCenter,
+        removeCostCenter,
         refresh,
       }}
     >

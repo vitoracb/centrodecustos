@@ -9,20 +9,18 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { ChevronDown, Plus, User, LogOut, Shield, Eye, Edit, Key, Users } from 'lucide-react-native';
+import { ChevronDown, User, LogOut, Shield, Eye, Edit, Key, Users, BarChart3 } from 'lucide-react-native';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../context/PermissionsContext';
-import { CostCenterFormModal } from './CostCenterFormModal';
 import { useRouter } from 'expo-router';
 
 export const CostCenterSelector = () => {
   const router = useRouter();
-  const { selectedCenter, setSelectedCenter, costCenters, addCostCenter } = useCostCenter();
+  const { selectedCenter, setSelectedCenter, costCenters } = useCostCenter();
   const { user, signOut } = useAuth();
   const { profile, isAdmin, isEditor, isViewer } = usePermissions();
   const [isOpen, setIsOpen] = useState(false);
-  const [isFormModalVisible, setIsFormModalVisible] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const currentOption =
@@ -32,21 +30,6 @@ export const CostCenterSelector = () => {
   const handleSelect = (code: string) => {
     setSelectedCenter(code);
     setIsOpen(false);
-  };
-
-  const handleAddNew = () => {
-    setIsOpen(false);
-    setIsFormModalVisible(true);
-  };
-
-  const handleFormSubmit = async (name: string, code: string) => {
-    try {
-      await addCostCenter(name, code);
-      setIsFormModalVisible(false);
-    } catch (error) {
-      // O erro já foi tratado no modal
-      throw error;
-    }
   };
 
   const handleProfilePress = () => {
@@ -143,30 +126,10 @@ export const CostCenterSelector = () => {
                   </TouchableOpacity>
                 );
               })}
-              
-              {/* Botão para adicionar novo centro de custo */}
-              <TouchableOpacity
-                style={styles.addOption}
-                activeOpacity={0.8}
-                onPress={handleAddNew}
-              >
-                <View style={styles.addOptionContent}>
-                  <Plus size={18} color="#0A84FF" />
-                  <Text style={styles.addOptionLabel}>
-                    Adicionar novo centro de custo
-                  </Text>
-                </View>
-              </TouchableOpacity>
             </ScrollView>
           </View>
         </Pressable>
       </Modal>
-
-      <CostCenterFormModal
-        visible={isFormModalVisible}
-        onClose={() => setIsFormModalVisible(false)}
-        onSubmit={handleFormSubmit}
-      />
 
       {/* Modal de Perfil */}
       <Modal
@@ -224,6 +187,20 @@ export const CostCenterSelector = () => {
                 >
                   <Users size={20} color="#0A84FF" />
                   <Text style={styles.menuItemText}>Gerenciar Usuários</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsProfileMenuOpen(false);
+                    setTimeout(() => {
+                      router.push('/cost-center-management' as any);
+                    }, 100);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <BarChart3 size={20} color="#0A84FF" />
+                  <Text style={styles.menuItemText}>Gerenciar Centros de Custo</Text>
                 </TouchableOpacity>
               </>
             )}

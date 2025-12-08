@@ -17,7 +17,8 @@ const getCenterLabel = (center: CostCenter): string => {
     cna: 'CNA',
     cabralia: 'Cabrália',
   };
-  return defaultLabels[center] || center;
+  // Se não houver rótulo fixo, capitaliza o código para exibir de forma mais amigável
+  return defaultLabels[center] || capitalize(String(center));
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
