@@ -29,16 +29,10 @@ import { EquipmentFilterModal, EquipmentFilters } from '../components/EquipmentF
 import { EquipmentListSkeleton } from '../components/skeletons/EquipmentListSkeleton';
 import dayjs from 'dayjs';
 
-const centerLabels = {
-  valenca: 'Valença',
-  cna: 'CNA',
-  cabralia: 'Cabrália',
-};
-
 const PAGE_SIZE = 10;
 
 export const EquipamentosScreen = () => {
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const {
     getEquipmentsByCenter,
     addEquipment,
@@ -74,6 +68,8 @@ export const EquipamentosScreen = () => {
     nextReview: string;
   } | null>(null);
   const [equipmentPage, setEquipmentPage] = useState(1);
+  const selectedCenterName =
+    costCenters.find((cc) => cc.code === selectedCenter)?.name || selectedCenter;
   
   // Pega todos os equipamentos (para filtrar por centro de custo também)
   const allEquipments = useMemo(
@@ -207,7 +203,7 @@ export const EquipamentosScreen = () => {
               <Text style={styles.title}>Equipamentos</Text>
             </View>
             <Text style={styles.subtitle}>
-              Gestão completa dos ativos do centro {centerLabels[selectedCenter]}
+              Controle dos equipamentos do centro {selectedCenterName}
             </Text>
           </View>
 

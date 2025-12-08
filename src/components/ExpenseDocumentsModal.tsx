@@ -55,14 +55,59 @@ export const ExpenseDocumentsModal = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Documentos da Despesa</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={24} color="#1C1C1E" />
           </TouchableOpacity>
         </View>
-        
+
+        {/* Ações rápidas de anexar, no topo do modal */}
+        <View style={styles.actionsRow}>
+          {onAddDocument && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                console.log('🔵 [ExpenseDocumentsModal] Botão DOCUMENTO clicado');
+                console.log('🔵 onAddDocument existe?', !!onAddDocument);
+                if (onAddDocument) {
+                  onAddDocument();
+                }
+              }}
+              disabled={isUploading}
+              activeOpacity={0.8}
+            >
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#0A84FF" />
+              ) : (
+                <FileText size={18} color="#0A84FF" />
+              )}
+            </TouchableOpacity>
+          )}
+
+          {onAddPhoto && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                console.log('📸 [ExpenseDocumentsModal] Botão FOTO clicado');
+                console.log('📸 onAddPhoto existe?', !!onAddPhoto);
+                if (onAddPhoto) {
+                  onAddPhoto();
+                }
+              }}
+              disabled={isUploading}
+              activeOpacity={0.8}
+            >
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#0A84FF" />
+              ) : (
+                <ImageIcon size={18} color="#0A84FF" />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
         <ScrollView style={styles.content}>
           {documents.length === 0 ? (
             <View style={styles.emptyState}>
@@ -114,66 +159,6 @@ export const ExpenseDocumentsModal = ({
             ))
           )}
         </ScrollView>
-
-        <View style={styles.footer}>
-          {onAddDocument && (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={onAddDocument}
-              disabled={isUploading}
-              activeOpacity={0.8}
-            >
-              {isUploading ? (
-                <>
-                  <ActivityIndicator size="small" color="#0A84FF" />
-                  <Text style={styles.addButtonText}>Enviando...</Text>
-                </>
-              ) : (
-                <>
-                  <Plus size={18} color="#0A84FF" />
-                  <Text style={styles.addButtonText}>Adicionar documento</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {onAddPhoto && (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={onAddPhoto}
-              disabled={isUploading}
-              activeOpacity={0.8}
-            >
-              <ImageIcon size={18} color="#0A84FF" />
-              <Text style={styles.addButtonText}>Adicionar foto</Text>
-            </TouchableOpacity>
-          )}
-
-          {(onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto) && (
-            <TouchableOpacity
-              style={[styles.addButton, styles.paymentReceiptButton]}
-              onPress={onAddPaymentReceiptDocument || onAddPaymentReceiptPhoto}
-              disabled={isUploading}
-              activeOpacity={0.8}
-            >
-              {isUploading ? (
-                <>
-                  <ActivityIndicator size="small" color="#34C759" />
-                  <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>
-                    Enviando comprovante...
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Plus size={18} color="#34C759" />
-                  <Text style={[styles.addButtonText, styles.paymentReceiptButtonText]}>
-                    Adicionar comprovante de pagamento
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -183,15 +168,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 40,
+    paddingTop: 12,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
   },
@@ -206,6 +191,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    justifyContent: 'flex-end',
   },
   emptyState: {
     flex: 1,
@@ -259,35 +252,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1C1C1E',
   },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    gap: 10,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#F5F5F7',
     borderWidth: 1,
     borderColor: '#0A84FF',
-  },
-  addButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0A84FF',
-  },
-  paymentReceiptButton: {
-    borderColor: '#34C759',
-    backgroundColor: '#F0FDF4',
-  },
-  paymentReceiptButtonText: {
-    color: '#34C759',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

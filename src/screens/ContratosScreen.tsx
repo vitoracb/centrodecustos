@@ -51,7 +51,7 @@ const formatCurrency = (value?: number): string => {
 };
 
 export const ContratosScreen = () => {
-  const { selectedCenter } = useCostCenter();
+  const { selectedCenter, costCenters } = useCostCenter();
   const { getContractsByCenter, addContract, updateContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
   const { canCreate, canUploadFiles, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
@@ -76,6 +76,8 @@ export const ContratosScreen = () => {
   const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
   const [activeContractId, setActiveContractId] = useState<string | null>(null);
   const [isPickingFile, setIsPickingFile] = useState(false);
+  const selectedCenterName =
+    costCenters.find((cc) => cc.code === selectedCenter)?.name || selectedCenter;
   const [documentsModalVisible, setDocumentsModalVisible] = useState(false);
   const [selectedContractDocuments, setSelectedContractDocuments] = useState<ContractDocument[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -395,7 +397,7 @@ export const ContratosScreen = () => {
               <Text style={styles.title}>Contratos</Text>
             </View>
             <Text style={styles.subtitle}>
-              Controle de contratos do centro {centerLabels[selectedCenter]}
+              Controle de contratos do centro {selectedCenterName}
             </Text>
           </View>
 

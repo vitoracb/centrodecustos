@@ -132,7 +132,7 @@ export const FuncionariosScreen = () => {
               <Text style={styles.title}>Funcionários</Text>
             </View>
             <Text style={styles.subtitle}>
-              Documentos vinculados ao centro {selectedCenterName}
+              Controle dos funcionários vinculados ao centro {selectedCenterName}
             </Text>
           </View>
 
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
   documentName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: '#0A84FF',
   },
   documentDate: {
     fontSize: 12,

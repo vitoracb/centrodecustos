@@ -458,7 +458,7 @@ export default function PedidosScreen() {
               <Text style={styles.title}>Pedidos</Text>
             </View>
             <Text style={styles.subtitle}>
-              Controle os pedidos do centro {selectedCenterName}
+              Controle dos pedidos de orçamento do centro {selectedCenterName}
             </Text>
           </View>
 

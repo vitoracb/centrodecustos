@@ -355,6 +355,7 @@ export const FinanceiroScreen = () => {
   const [selectedExpenseDocuments, setSelectedExpenseDocuments] = useState<Expense['documents']>([]);
   const [selectedExpenseForDocument, setSelectedExpenseForDocument] = useState<Expense | null>(null);
   const [documentTypeModalVisible, setDocumentTypeModalVisible] = useState(false);
+  const [documentInputMode, setDocumentInputMode] = useState<'file' | 'photo' | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [receiptStatusModalVisible, setReceiptStatusModalVisible] = useState(false);
   const [selectedReceiptForStatus, setSelectedReceiptForStatus] = useState<Receipt | null>(null);
@@ -482,79 +483,226 @@ export const FinanceiroScreen = () => {
   };
 
   const handleAddExpenseDocument = () => {
-    if (!selectedExpenseForDocument || isUploadingDocument) return;
+    console.log('🔧 [handleAddExpenseDocument] Clicou!');
+    console.log('🔧 selectedExpenseForDocument:', selectedExpenseForDocument);
+    console.log('🔧 isUploadingDocument:', isUploadingDocument);
 
-    // Mostra modal customizado para selecionar tipo de documento
-    // (Alert.alert no Android só suporta 3 botões)
-    setDocumentTypeModalVisible(true);
+    if (!selectedExpenseForDocument || isUploadingDocument) {
+      console.log('❌ TRAVOU na validação!');
+      return;
+    }
+
+    console.log('✅ Vai abrir Action Sheet de tipo (arquivo)');
+    // Fecha o modal de documentos antes de abrir o Action Sheet
+    setExpenseDocumentsModalVisible(false);
+
+    Alert.alert(
+      'Tipo de documento',
+      undefined,
+      [
+        {
+          text: 'Nota Fiscal',
+          onPress: () => handlePickExpenseDocument('nota_fiscal'),
+        },
+        {
+          text: 'Recibo',
+          onPress: () => handlePickExpenseDocument('recibo'),
+        },
+        {
+          text: 'Comprovante',
+          onPress: () => handlePickExpenseDocument('comprovante_pagamento'),
+        },
+        {
+          text: 'Boleto',
+          onPress: () => handlePickExpenseDocument('boleto'),
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ],
+    );
   };
 
-  const handleAddExpensePhoto = async () => {
+  const pickExpensePhotoFromSource = async (
+    type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto',
+    source: 'camera' | 'library',
+  ) => {
     if (!selectedExpenseForDocument || isUploadingDocument) return;
 
-    setIsUploadingDocument(true);
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
-        return;
+      if (source === 'library') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+        });
+
+        if (result.canceled || !result.assets[0]) return;
+
+        const asset = result.assets[0];
+
+        const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+        if (!isValidSize) return;
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+        const fileValidation = await validateFile(
+          asset.uri,
+          asset.mimeType ?? 'image/jpeg',
+          asset.fileName ?? undefined,
+          allowedTypes,
+          80,
+        );
+
+        if (!fileValidation.isValid) {
+          Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+          return;
+        }
+
+        const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+          type,
+        });
+
+        setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+        setSelectedExpenseForDocument(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            documents: [...(prev.documents || []), newDocument],
+          };
+        });
+
+        Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
+      } else {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para tirar fotos.');
+          return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+        });
+
+        if (result.canceled || !result.assets[0]) return;
+
+        const asset = result.assets[0];
+
+        const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
+        if (!isValidSize) return;
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
+        const fileValidation = await validateFile(
+          asset.uri,
+          asset.mimeType ?? 'image/jpeg',
+          asset.fileName ?? undefined,
+          allowedTypes,
+          80,
+        );
+
+        if (!fileValidation.isValid) {
+          Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
+          return;
+        }
+
+        const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
+          fileName: asset.fileName ?? 'Foto',
+          fileUri: asset.uri,
+          mimeType: asset.mimeType ?? 'image/jpeg',
+          type,
+        });
+
+        setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
+        setSelectedExpenseForDocument(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            documents: [...(prev.documents || []), newDocument],
+          };
+        });
+
+        Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
       }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (result.canceled || !result.assets[0]) return;
-
-      const asset = result.assets[0];
-
-      // Valida tamanho do arquivo (80MB)
-      const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
-      if (!isValidSize) {
-        return;
-      }
-
-      // Valida tipo do arquivo (imagens)
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/*'];
-      const fileValidation = await validateFile(
-        asset.uri,
-        asset.mimeType ?? 'image/jpeg',
-        asset.fileName ?? undefined,
-        allowedTypes,
-        80
-      );
-
-      if (!fileValidation.isValid) {
-        Alert.alert('Tipo de arquivo inválido', fileValidation.errorMessage || 'Apenas imagens são permitidas');
-        return;
-      }
-
-      const newDocument = await addDocumentToExpense(selectedExpenseForDocument.id, {
-        fileName: asset.fileName ?? 'Foto',
-        fileUri: asset.uri,
-        mimeType: asset.mimeType ?? 'image/jpeg',
-        type: 'recibo',
-      });
-
-      // Atualiza a lista de documentos imediatamente
-      setSelectedExpenseDocuments(prev => [...(prev || []), newDocument]);
-      setSelectedExpenseForDocument(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          documents: [...(prev.documents || []), newDocument],
-        };
-      });
-
-      Alert.alert('Sucesso', 'Foto adicionada com sucesso!');
     } catch (error: any) {
       console.error('Erro ao adicionar foto:', error);
       Alert.alert('Erro', 'Não foi possível adicionar a foto.');
-    } finally {
-      setIsUploadingDocument(false);
     }
+  };
+
+  const handleAddExpensePhoto = () => {
+    console.log('📸 [handleAddExpensePhoto] Clicou!');
+    console.log('📸 selectedExpenseForDocument:', selectedExpenseForDocument);
+    console.log('📸 isUploadingDocument:', isUploadingDocument);
+
+    if (!selectedExpenseForDocument || isUploadingDocument) {
+      console.log('❌ TRAVOU na validação!');
+      return;
+    }
+
+    console.log('✅ Vai abrir Action Sheet de tipo (foto)');
+    // Fecha o modal de documentos antes de abrir o Action Sheet
+    setExpenseDocumentsModalVisible(false);
+
+    const askPhotoSource = (
+      type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto',
+    ) => {
+      Alert.alert(
+        'Origem da foto',
+        undefined,
+        [
+          {
+            text: 'Tirar foto',
+            onPress: () => pickExpensePhotoFromSource(type, 'camera'),
+          },
+          {
+            text: 'Escolher do álbum',
+            onPress: () => pickExpensePhotoFromSource(type, 'library'),
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+        ],
+      );
+    };
+
+    Alert.alert(
+      'Tipo de documento',
+      undefined,
+      [
+        {
+          text: 'Nota Fiscal',
+          onPress: () => askPhotoSource('nota_fiscal'),
+        },
+        {
+          text: 'Recibo',
+          onPress: () => askPhotoSource('recibo'),
+        },
+        {
+          text: 'Comprovante',
+          onPress: () => askPhotoSource('comprovante_pagamento'),
+        },
+        {
+          text: 'Boleto',
+          onPress: () => askPhotoSource('boleto'),
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ],
+    );
   };
 
   const handleAddPaymentReceiptDocument = async () => {
@@ -1772,13 +1920,10 @@ export const FinanceiroScreen = () => {
                       style={styles.cardRow}
                       onPress={() => {
                         const sharedDocs = getSharedExpenseDocuments(item, allExpenses);
-                        if (sharedDocs.length > 0) {
-                          setSelectedExpenseForDocument(item);
-                          setSelectedExpenseDocuments(sharedDocs);
-                          setExpenseDocumentsModalVisible(true);
-                        }
+                        setSelectedExpenseForDocument(item);
+                        setSelectedExpenseDocuments(sharedDocs);
+                        setExpenseDocumentsModalVisible(true);
                       }}
-                      disabled={getSharedExpenseDocuments(item, allExpenses).length === 0}
                     >
                       <View style={[styles.iconCircle, { backgroundColor: '#FDECEC' }]}>
                         <ArrowUpCircle size={18} color="#FF3B30" />
@@ -1929,11 +2074,9 @@ export const FinanceiroScreen = () => {
                         style={styles.documentsIndicator}
                         onPress={() => {
                           const sharedDocs = getSharedExpenseDocuments(item, allExpenses);
-                          if (sharedDocs.length > 0) {
-                            setSelectedExpenseForDocument(item);
-                            setSelectedExpenseDocuments(sharedDocs);
-                            setExpenseDocumentsModalVisible(true);
-                          }
+                          setSelectedExpenseForDocument(item);
+                          setSelectedExpenseDocuments(sharedDocs);
+                          setExpenseDocumentsModalVisible(true);
                         }}
                       >
                         <FileText size={14} color="#0A84FF" />
@@ -2605,7 +2748,10 @@ export const FinanceiroScreen = () => {
         visible={documentTypeModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setDocumentTypeModalVisible(false)}
+        onRequestClose={() => {
+          setDocumentTypeModalVisible(false);
+          setDocumentInputMode(null);
+        }}
       >
         <TouchableOpacity
           style={{
@@ -2615,7 +2761,10 @@ export const FinanceiroScreen = () => {
             alignItems: 'center',
           }}
           activeOpacity={1}
-          onPress={() => setDocumentTypeModalVisible(false)}
+          onPress={() => {
+            setDocumentTypeModalVisible(false);
+            setDocumentInputMode(null);
+          }}
         >
           <View
             style={{
@@ -2644,7 +2793,29 @@ export const FinanceiroScreen = () => {
               }}
               onPress={() => {
                 setDocumentTypeModalVisible(false);
-                handlePickExpenseDocument('nota_fiscal');
+                if (documentInputMode === 'file') {
+                  handlePickExpenseDocument('nota_fiscal');
+                } else if (documentInputMode === 'photo') {
+                  Alert.alert(
+                    'Origem da foto',
+                    'Escolha de onde anexar a foto',
+                    [
+                      {
+                        text: 'Câmera',
+                        onPress: () => pickExpensePhotoFromSource('nota_fiscal', 'camera'),
+                      },
+                      {
+                        text: 'Álbum',
+                        onPress: () => pickExpensePhotoFromSource('nota_fiscal', 'library'),
+                      },
+                      {
+                        text: 'Cancelar',
+                        style: 'cancel',
+                      },
+                    ],
+                  );
+                }
+                setDocumentInputMode(null);
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
@@ -2662,7 +2833,29 @@ export const FinanceiroScreen = () => {
               }}
               onPress={() => {
                 setDocumentTypeModalVisible(false);
-                handlePickExpenseDocument('recibo');
+                if (documentInputMode === 'file') {
+                  handlePickExpenseDocument('recibo');
+                } else if (documentInputMode === 'photo') {
+                  Alert.alert(
+                    'Origem da foto',
+                    'Escolha de onde anexar a foto',
+                    [
+                      {
+                        text: 'Câmera',
+                        onPress: () => pickExpensePhotoFromSource('recibo', 'camera'),
+                      },
+                      {
+                        text: 'Álbum',
+                        onPress: () => pickExpensePhotoFromSource('recibo', 'library'),
+                      },
+                      {
+                        text: 'Cancelar',
+                        style: 'cancel',
+                      },
+                    ],
+                  );
+                }
+                setDocumentInputMode(null);
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
@@ -2680,7 +2873,29 @@ export const FinanceiroScreen = () => {
               }}
               onPress={() => {
                 setDocumentTypeModalVisible(false);
-                handlePickExpenseDocument('comprovante_pagamento');
+                if (documentInputMode === 'file') {
+                  handlePickExpenseDocument('comprovante_pagamento');
+                } else if (documentInputMode === 'photo') {
+                  Alert.alert(
+                    'Origem da foto',
+                    'Escolha de onde anexar a foto',
+                    [
+                      {
+                        text: 'Câmera',
+                        onPress: () => pickExpensePhotoFromSource('comprovante_pagamento', 'camera'),
+                      },
+                      {
+                        text: 'Álbum',
+                        onPress: () => pickExpensePhotoFromSource('comprovante_pagamento', 'library'),
+                      },
+                      {
+                        text: 'Cancelar',
+                        style: 'cancel',
+                      },
+                    ],
+                  );
+                }
+                setDocumentInputMode(null);
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
@@ -2698,7 +2913,29 @@ export const FinanceiroScreen = () => {
               }}
               onPress={() => {
                 setDocumentTypeModalVisible(false);
-                handlePickExpenseDocument('boleto');
+                if (documentInputMode === 'file') {
+                  handlePickExpenseDocument('boleto');
+                } else if (documentInputMode === 'photo') {
+                  Alert.alert(
+                    'Origem da foto',
+                    'Escolha de onde anexar a foto',
+                    [
+                      {
+                        text: 'Câmera',
+                        onPress: () => pickExpensePhotoFromSource('boleto', 'camera'),
+                      },
+                      {
+                        text: 'Álbum',
+                        onPress: () => pickExpensePhotoFromSource('boleto', 'library'),
+                      },
+                      {
+                        text: 'Cancelar',
+                        style: 'cancel',
+                      },
+                    ],
+                  );
+                }
+                setDocumentInputMode(null);
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>
@@ -2715,7 +2952,10 @@ export const FinanceiroScreen = () => {
                 borderColor: '#E5E5EA',
                 alignItems: 'center',
               }}
-              onPress={() => setDocumentTypeModalVisible(false)}
+              onPress={() => {
+                setDocumentTypeModalVisible(false);
+                setDocumentInputMode(null);
+              }}
             >
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#6C6C70' }}>
                 Cancelar
