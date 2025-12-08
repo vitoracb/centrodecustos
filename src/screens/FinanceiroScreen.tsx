@@ -823,7 +823,7 @@ export const FinanceiroScreen = () => {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório PDF foi gerado com sucesso');
-        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`;
+        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.pdf`;
         await shareFile(fileUri, fileName);
       } else {
         await exportToExcel(reportPreview.data);
@@ -852,7 +852,7 @@ export const FinanceiroScreen = () => {
     try {
       if (reportPreview.type === 'pdf') {
         const fileUri = await exportToPDF(reportPreview.data);
-        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.html`;
+        const fileName = `Relatorio_${reportPreview.data.period.year}_${reportPreview.data.period.month !== undefined ? dayjs().month(reportPreview.data.period.month).format('MMMM') : 'Anual'}.pdf`;
         await shareFile(fileUri, fileName);
       } else {
         await exportToExcel(reportPreview.data);

@@ -44,43 +44,13 @@ export const ExpenseSectorChart = ({ expenses, mode = 'mensal', selectedPeriod }
     return base.charAt(0).toUpperCase() + base.slice(1);
   }, [mode, effectivePeriod]);
   const chartData = useMemo(() => {
-    // Filtra apenas despesas fixas com setor
-    // Prioriza parcelas geradas (isFixed: false com installmentNumber)
-    // Exclui o template (isFixed: true) quando há parcelas geradas para evitar duplicação
-    const fixedExpensesWithSector = expenses.filter(
-      exp => {
-        if (!exp.sector) return false;
-        
-        // Se tem installmentNumber, é uma parcela gerada - sempre inclui
-        if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
-          return true;
-        }
-        
-        // Se é o template (isFixed: true), verifica se há parcelas geradas NO MESMO MÊS
-        // Se houver, exclui o template para evitar duplicação
-        if (exp.isFixed) {
-          const templateMonth = exp.date.substring(0, 7); // YYYY-MM
-          const hasGeneratedInstallmentsInSameMonth = expenses.some(
-            other => 
-              other.id !== exp.id && // Não é a mesma despesa
-              other.name === exp.name &&
-              other.center === exp.center &&
-              other.date.substring(0, 7) === templateMonth && // Mesmo mês
-              other.installmentNumber !== undefined &&
-              other.installmentNumber !== null
-          );
-          // Só inclui o template se NÃO houver parcelas geradas no mesmo mês
-          return !hasGeneratedInstallmentsInSameMonth;
-        }
-        
-        return false;
-      }
-    );
+    // Usa todas as despesas que possuem setor, para alinhar com o total de despesas por categoria
+    const expensesWithSector = expenses.filter(exp => !!exp.sector);
 
     // Agrupa por setor
     const sectorMap = new Map<ExpenseSector, number>();
     
-    fixedExpensesWithSector.forEach(exp => {
+    expensesWithSector.forEach(exp => {
       if (exp.sector) {
         const current = sectorMap.get(exp.sector) || 0;
         // Valores negativos (abatimentos) são subtraídos do total

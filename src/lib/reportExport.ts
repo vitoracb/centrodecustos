@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 import { Expense, Receipt } from '../context/FinancialContext';
 import { CostCenter } from '../context/CostCenterContext';
 import dayjs from 'dayjs';
@@ -78,6 +79,70 @@ const capitalize = (str: string): string => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
+// Gera um gráfico de pizza em SVG (compatível com PDF via expo-print)
+const generatePieChartSVG = (
+  data: Array<{ label: string; value: number; color: string }>,
+  size: number = 180,
+): string => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  // Gráfico vazio se não houver dados
+  if (total === 0 || data.length === 0) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="#E5E5EA" stroke="#D1D1D6" stroke-width="1"/>
+    </svg>`;
+  }
+
+  // Caso especial: apenas uma fatia com valor > 0
+  if (data.length === 1 && data[0].value > 0) {
+    const color = data[0].color;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
+    </svg>`;
+  }
+
+  const radius = size / 2 - 2;
+  const centerX = size / 2;
+  const centerY = size / 2;
+
+  let currentAngle = -90; // Começa no topo
+  const paths: string[] = [];
+
+  data.forEach((item) => {
+    const percentage = (item.value / total) * 100;
+    // Ignora fatias muito pequenas (<0.1%) para evitar artefatos visuais
+    if (percentage < 0.1) return;
+
+    const angle = (percentage / 100) * 360;
+    const startAngle = (currentAngle * Math.PI) / 180;
+    const endAngle = ((currentAngle + angle) * Math.PI) / 180;
+
+    const x1 = centerX + radius * Math.cos(startAngle);
+    const y1 = centerY + radius * Math.sin(startAngle);
+    const x2 = centerX + radius * Math.cos(endAngle);
+    const y2 = centerY + radius * Math.sin(endAngle);
+
+    const largeArc = angle > 180 ? 1 : 0;
+
+    const pathData = [
+      `M ${centerX} ${centerY}`,
+      `L ${x1.toFixed(2)} ${y1.toFixed(2)}`,
+      `A ${radius} ${radius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
+      'Z',
+    ].join(' ');
+
+    paths.push(
+      `<path d="${pathData}" fill="${item.color}" stroke="#FFFFFF" stroke-width="2"/>`,
+    );
+
+    currentAngle += angle;
+  });
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+    ${paths.join('\n    ')}
+  </svg>`;
+};
+
 const REPORT_LOGO_URL =
   'https://foffmjqekmeogsldehbr.supabase.co/storage/v1/object/public/app-assets/logonoworiginal.png';
 
@@ -153,20 +218,20 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
     receiptsBySource[source] = (receiptsBySource[source] || 0) + receipt.value;
   });
 
-  let receiptsGradientStops = '';
-  let receiptsCurrentPercent = 0;
-  const totalReceiptsForPie = Object.values(receiptsBySource).reduce((sum, value) => sum + value, 0);
-  Object.entries(receiptsBySource).forEach(([_, value], index) => {
-    const percentValue = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
-    const nextPercent = receiptsCurrentPercent + percentValue;
-    const color = CHART_COLORS[index % CHART_COLORS.length];
-    receiptsGradientStops += `${color} ${receiptsCurrentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
-    receiptsCurrentPercent = nextPercent;
-  });
-  if (!receiptsGradientStops) {
-    receiptsGradientStops = '#E5E5EA 0% 100%, ';
-  }
-  receiptsGradientStops = receiptsGradientStops.slice(0, -2);
+  const totalReceiptsForPie = Object.values(receiptsBySource).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+
+  // Dados SVG para gráfico de pizza de recebimentos
+  const receiptsPieData = Object.entries(receiptsBySource).map(
+    ([source, value], index) => ({
+      label: source,
+      value,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }),
+  );
+  const receiptsPieSVG = generatePieChartSVG(receiptsPieData);
 
   // Agrupar despesas por categoria
   const expensesByCategory: Record<string, number> = {};
@@ -177,17 +242,19 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
     expensesByCategory[category] = (expensesByCategory[category] || 0) + expense.value;
   });
 
-  // Agrupar despesas por status
+  // Agrupar despesas por status (sempre exibindo com inicial maiúscula)
   const expensesByStatus: Record<string, number> = {};
   expenses.forEach((expense) => {
-    const status = expense.status ? (STATUS_LABELS[expense.status] || expense.status) : 'Sem status';
+    const rawStatus = expense.status
+      ? (STATUS_LABELS[expense.status] || expense.status)
+      : 'Sem status';
+    const status = capitalize(rawStatus);
     expensesByStatus[status] = (expensesByStatus[status] || 0) + expense.value;
   });
 
-  // Agrupar despesas fixas por setor, alinhado com o gráfico do app
-  const expensesForSector = expenses.filter((expense) =>
-    shouldIncludeExpenseInSector(expense, expenses)
-  );
+  // Agrupar despesas por setor: usa todas as despesas que possuem setor,
+  // para que o total por setor possa bater com o total por categoria
+  const expensesForSector = expenses.filter((expense) => !!expense.sector);
 
   const expensesBySector: Record<string, number> = {};
   expensesForSector.forEach((expense) => {
@@ -196,54 +263,51 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
   });
 
   // Dados para gráfico de pizza (categorias)
-  const totalCategories = Object.values(expensesByCategory).reduce((sum, value) => sum + value, 0);
-  let categoryGradientStops = '';
-  let currentPercent = 0;
-  Object.entries(expensesByCategory).forEach(([category, value], index) => {
-    const percentValue = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
-    const nextPercent = currentPercent + percentValue;
-    const color = CHART_COLORS[index % CHART_COLORS.length];
-    categoryGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
-    currentPercent = nextPercent;
-  });
-  if (!categoryGradientStops) {
-    categoryGradientStops = '#E5E5EA 0% 100%, ';
-  }
-  categoryGradientStops = categoryGradientStops.slice(0, -2);
+  const totalCategories = Object.values(expensesByCategory).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const categoryPieData = Object.entries(expensesByCategory).map(
+    ([category, value], index) => ({
+      label: category,
+      value,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }),
+  );
+  const categoryPieSVG = generatePieChartSVG(categoryPieData);
 
   // Dados para gráfico de pizza (status)
-  const totalStatus = Object.values(expensesByStatus).reduce((sum, value) => sum + value, 0);
-  let statusGradientStops = '';
-  currentPercent = 0;
-  Object.entries(expensesByStatus).forEach(([status, value], index) => {
-    const percentValue = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
-    const nextPercent = currentPercent + percentValue;
-    const color = CHART_COLORS[index % CHART_COLORS.length];
-    statusGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
-    currentPercent = nextPercent;
-  });
-  if (!statusGradientStops) {
-    statusGradientStops = '#E5E5EA 0% 100%, ';
-  }
-  statusGradientStops = statusGradientStops.slice(0, -2);
+  const totalStatus = Object.values(expensesByStatus).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const statusPieData = Object.entries(expensesByStatus).map(
+    ([status, value], index) => ({
+      label: status,
+      value,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }),
+  );
+  const statusPieSVG = generatePieChartSVG(statusPieData);
 
   // Dados para gráfico de pizza (setores)
-  const totalSectors = Object.values(expensesBySector).reduce((sum, value) => sum + value, 0);
-  let sectorGradientStops = '';
-  currentPercent = 0;
-  Object.entries(expensesBySector).forEach(([sector, value]) => {
-    const percentValue = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
-    const nextPercent = currentPercent + percentValue;
-    // Usa a cor específica do setor se disponível, senão usa do array
-    const sectorKey = Object.keys(SECTOR_LABELS).find(key => SECTOR_LABELS[key] === sector);
-    const color = sectorKey && SECTOR_COLORS[sectorKey] ? SECTOR_COLORS[sectorKey] : CHART_COLORS[Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length];
-    sectorGradientStops += `${color} ${currentPercent.toFixed(2)}% ${nextPercent.toFixed(2)}%, `;
-    currentPercent = nextPercent;
+  const totalSectors = Object.values(expensesBySector).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const sectorPieData = Object.entries(expensesBySector).map(([sector, value]) => {
+    const sectorKey = Object.keys(SECTOR_LABELS).find(
+      key => SECTOR_LABELS[key] === sector,
+    );
+    const color =
+      sectorKey && SECTOR_COLORS[sectorKey]
+        ? SECTOR_COLORS[sectorKey]
+        : CHART_COLORS[
+            Object.keys(expensesBySector).indexOf(sector) % CHART_COLORS.length
+          ];
+    return { label: sector, value, color };
   });
-  if (!sectorGradientStops) {
-    sectorGradientStops = '#E5E5EA 0% 100%, ';
-  }
-  sectorGradientStops = sectorGradientStops.slice(0, -2);
+  const sectorPieSVG = generatePieChartSVG(sectorPieData);
 
   // Dados para gráfico de barras (despesas mensais do ano selecionado)
   const expensesByMonth = Array(12).fill(0);
@@ -267,10 +331,17 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
   <meta charset="UTF-8">
   <title>Relatório Financeiro</title>
   <style>
+    @page {
+      margin: 20px 15px 40px 15px;
+    }
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      margin: 10px 0;
       color: #1C1C1E;
+      background-color: #FFFFFF;
+      font-size: 13px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .header {
       display: flex;
@@ -281,10 +352,14 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
       border-bottom: 2px solid #000000;
     }
     .logo {
-      width: 60px;
-      height: 60px;
+      width: 60px !important;
+      height: 60px !important;
+      max-width: 60px !important;
+      max-height: 60px !important;
+      object-fit: contain;
       border-radius: 6px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: block;
     }
     .company-info {
       flex: 1;
@@ -319,9 +394,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
       margin: 20px 0;
     }
     th, td {
-      padding: 10px;
+      padding: 9px;
       text-align: left;
       border-bottom: 1px solid #E5E5EA;
+      font-size: 12px;
     }
     th {
       background-color: #F5F5F7;
@@ -332,12 +408,16 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
       padding: 15px;
       border-radius: 8px;
       margin: 20px 0;
+      border: 1px solid #E5E5EA;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .summary-item {
       display: flex;
       justify-content: space-between;
       margin: 10px 0;
-      font-size: 16px;
+      font-size: 14px;
     }
     .summary-label {
       font-weight: 600;
@@ -351,6 +431,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
     .category-table {
       margin: 20px 0;
     }
+    .chart-block {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     .chart-section {
       display: flex;
       flex-wrap: wrap;
@@ -358,11 +442,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
       align-items: center;
       margin: 20px 0;
     }
-    .pie-chart {
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    .pie-chart-container {
+      width: 160px;
+      height: 160px;
+      flex-shrink: 0;
     }
     .chart-legend {
       list-style: none;
@@ -375,19 +458,21 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
       align-items: center;
       gap: 8px;
       margin-bottom: 8px;
+      font-size: 12px;
     }
     .legend-color {
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       border-radius: 4px;
       display: inline-block;
+      border: 1px solid #D1D1D6;
     }
     .bar-chart {
       display: flex;
       gap: 10px;
       align-items: flex-end;
-      height: 180px;
-      padding: 10px 0;
+      height: 160px;
+      padding: 8px 0;
     }
     .bar {
       flex: 1;
@@ -472,10 +557,11 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
   </table>
 
   ${Object.keys(receiptsBySource).length > 1 ? `
-  <h2>Recebimentos</h2>
-  <div class="chart-section">
-    <div class="pie-chart" style="background: conic-gradient(${receiptsGradientStops});"></div>
-    <ul class="chart-legend">
+  <div class="chart-block">
+    <h2>Recebimentos</h2>
+    <div class="chart-section">
+      <div class="pie-chart-container">${receiptsPieSVG}</div>
+      <ul class="chart-legend">
       ${Object.entries(receiptsBySource)
         .map(([source, value], index) => {
           const percentValue = totalReceiptsForPie === 0 ? 0 : (value / totalReceiptsForPie) * 100;
@@ -488,15 +574,17 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
         `;
         })
         .join('')}
-    </ul>
+      </ul>
+    </div>
   </div>
   ` : ''}
 
-  <h2>Despesas por Categoria</h2>
-  ${Object.keys(expensesByCategory).length > 1 ? `
-  <div class="chart-section">
-    <div class="pie-chart" style="background: conic-gradient(${categoryGradientStops});"></div>
-    <ul class="chart-legend">
+  <div class="chart-block">
+    <h2>Despesas por Categoria</h2>
+    ${Object.keys(expensesByCategory).length > 0 ? `
+    <div class="chart-section">
+      <div class="pie-chart-container">${categoryPieSVG}</div>
+      <ul class="chart-legend">
       ${Object.entries(expensesByCategory)
         .map(([category, value], index) => {
           const percentValue = totalCategories === 0 ? 0 : (value / totalCategories) * 100;
@@ -509,9 +597,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
         `;
         })
         .join('')}
-    </ul>
+      </ul>
+    </div>
+    ` : ''}
   </div>
-  ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -531,11 +620,12 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
     </tbody>
   </table>
 
-  <h2>Despesas por Status</h2>
-  ${Object.keys(expensesByStatus).length > 1 ? `
-  <div class="chart-section">
-    <div class="pie-chart" style="background: conic-gradient(${statusGradientStops});"></div>
-    <ul class="chart-legend">
+  <div class="chart-block">
+    <h2>Despesas por Status</h2>
+    ${Object.keys(expensesByStatus).length > 0 ? `
+    <div class="chart-section">
+      <div class="pie-chart-container">${statusPieSVG}</div>
+      <ul class="chart-legend">
       ${Object.entries(expensesByStatus)
         .map(([status, value], index) => {
           const percentValue = totalStatus === 0 ? 0 : (value / totalStatus) * 100;
@@ -548,9 +638,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
         `;
         })
         .join('')}
-    </ul>
+      </ul>
+    </div>
+    ` : ''}
   </div>
-  ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -571,11 +662,12 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
   </table>
 
   ${Object.keys(expensesBySector).length > 0 ? `
-  <h2>Despesas por Setor</h2>
-  ${Object.keys(expensesBySector).length > 1 ? `
-  <div class="chart-section">
-    <div class="pie-chart" style="background: conic-gradient(${sectorGradientStops});"></div>
-    <ul class="chart-legend">
+  <div class="chart-block">
+    <h2>Despesas por Setor</h2>
+    ${Object.keys(expensesBySector).length > 0 ? `
+    <div class="chart-section">
+      <div class="pie-chart-container">${sectorPieSVG}</div>
+      <ul class="chart-legend">
       ${Object.entries(expensesBySector)
         .map(([sector, value]) => {
           const percentValue = totalSectors === 0 ? 0 : (value / totalSectors) * 100;
@@ -590,9 +682,9 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
         `;
         })
         .join('')}
-    </ul>
-  </div>
-  ` : ''}
+      </ul>
+    </div>
+    ` : ''}
   <table class="category-table">
     <thead>
       <tr>
@@ -613,9 +705,10 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
   </table>
   ` : ''}
 
-  <h2>Gráfico de Despesas Mensais - ${period.year}</h2>
-  <div class="bar-chart">
-    ${expensesByMonth
+  <div class="chart-block">
+    <h2>Gráfico de Despesas Mensais - ${period.year}</h2>
+    <div class="bar-chart">
+      ${expensesByMonth
       .map((value, month) => {
         const heightPercent = (value / maxMonthlyExpense) * 100;
         return `
@@ -629,6 +722,7 @@ export const buildReportHTML = (data: ReportData, logoSrcOverride?: string): str
     `;
       })
       .join('')}
+    </div>
   </div>
 
   ${Object.keys(expensesBySector).length > 0 ? `
@@ -757,22 +851,42 @@ const getReportLogoDataUrl = async (): Promise<string | null> => {
 
 export const exportToPDF = async (data: ReportData): Promise<string> => {
   try {
-    // Tenta embutir o logo como data URL para evitar problemas de carregamento em visualizadores externos
+    console.log('📄 [exportToPDF] Iniciando geração de PDF...');
+
+    // 1) Gera HTML com logo embutido (base64) para evitar problemas em visualizadores externos
     const logoDataUrl = await getReportLogoDataUrl();
     const html = buildReportHTML(data, logoDataUrl ?? undefined);
+
+    console.log('✅ [exportToPDF] HTML gerado, convertendo para PDF...');
+
+    // 2) Converte HTML -> PDF usando expo-print (gera PDF temporário)
+    const { uri: tempPdfUri } = await Print.printToFileAsync({
+      html,
+      base64: false,
+    });
+
+    console.log('✅ [exportToPDF] PDF temporário criado:', tempPdfUri);
+
+    // 3) Monta nome final do arquivo com período e centro de custo
     const timestamp = Date.now();
     const periodLabel = data.period.month !== undefined
       ? `${capitalize(dayjs().month(data.period.month).format('MMMM'))}_${data.period.year}`
       : `Ano_${data.period.year}`;
     const centerLabel = data.center ? getCenterLabel(data.center).replace(/\s+/g, '_') : 'Todos_Centros';
-    
-    // Salvar HTML temporariamente
-    const fileUri = `${FileSystem.documentDirectory}relatorio_${periodLabel}_${centerLabel}_${timestamp}.html`;
-    await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
 
-    return fileUri;
+    const finalPdfPath = `${FileSystem.documentDirectory}relatorio_${periodLabel}_${centerLabel}_${timestamp}.pdf`;
+
+    // 4) Move o PDF temporário para o caminho definitivo com nome descritivo
+    await FileSystem.moveAsync({
+      from: tempPdfUri,
+      to: finalPdfPath,
+    });
+
+    console.log('✅ [exportToPDF] PDF final salvo em:', finalPdfPath);
+
+    return finalPdfPath;
   } catch (error: any) {
-    console.error('Erro ao exportar PDF:', error);
+    console.error('❌ [exportToPDF] Erro ao exportar PDF:', error);
     throw new Error(`Erro ao exportar PDF: ${error.message}`);
   }
 };
