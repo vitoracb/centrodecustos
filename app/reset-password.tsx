@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,104 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
 import { supabase } from '@/src/lib/supabaseClient';
 
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initializingSession, setInitializingSession] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const router = useRouter();
+
+  const processDeepLinkUrl = useCallback(async (url: string | null) => {
+    try {
+      if (!url) {
+        console.log('[ResetPassword] Nenhuma URL encontrada');
+        setInitializingSession(false);
+        return;
+      }
+
+      console.log('[ResetPassword] Processando URL:', url);
+
+      // Supabase envia o access_token e refresh_token no fragmento da URL (#)
+      // Exemplo: com.centrodecustos://reset-password#access_token=...&refresh_token=...&type=recovery
+      const [, fragment] = url.split('#');
+      if (!fragment) {
+        console.log('[ResetPassword] URL sem fragmento de auth:', url);
+        setInitializingSession(false);
+        return;
+      }
+
+      const urlParams = new URLSearchParams(fragment);
+      const access_token = urlParams.get('access_token');
+      const refresh_token = urlParams.get('refresh_token');
+      const type = urlParams.get('type');
+
+      if (type !== 'recovery' || !access_token || !refresh_token) {
+        console.log('[ResetPassword] Fragmento inválido:', fragment);
+        Alert.alert(
+          'Link inválido',
+          'O link de recuperação é inválido ou expirou. Solicite um novo link na tela de login.',
+        );
+        setInitializingSession(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (error) {
+        console.log('[ResetPassword] Erro ao aplicar sessão de recuperação:', error);
+        Alert.alert(
+          'Erro no link',
+          'Não foi possível validar o link de recuperação. Solicite um novo link na tela de login.',
+        );
+      } else {
+        console.log('[ResetPassword] Sessão de recuperação aplicada com sucesso');
+        setSessionReady(true);
+      }
+    } catch (error) {
+      console.log('[ResetPassword] Erro inesperado ao processar deep link:', error);
+      Alert.alert(
+        'Erro no link',
+        'Ocorreu um erro ao processar o link de recuperação. Solicite um novo link.',
+      );
+    } finally {
+      setInitializingSession(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initFromDeepLink = async () => {
+      // Tenta obter a URL inicial (quando o app é aberto pelo link)
+      const initialUrl = await Linking.getInitialURL();
+      await processDeepLinkUrl(initialUrl);
+    };
+
+    initFromDeepLink();
+
+    // Listener para quando o app já está aberto e recebe um link
+    const subscription = Linking.addEventListener('url', (event) => {
+      console.log('[ResetPassword] URL recebida via listener:', event.url);
+      processDeepLinkUrl(event.url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [processDeepLinkUrl]);
 
   const handleUpdatePassword = async () => {
+    if (initializingSession) {
+      Alert.alert('Aguarde', 'Estamos validando o link de recuperação. Tente novamente em instantes.');
+      return;
+    }
     if (!password || !confirmPassword) {
       Alert.alert('Campos obrigatórios', 'Preencha e confirme a nova senha.');
       return;
@@ -41,10 +131,10 @@ export default function ResetPasswordScreen() {
         throw error;
       }
 
-      Alert.alert(
-        'Senha atualizada',
-        'Sua senha foi alterada com sucesso. Volte para a tela de login e entre com a nova senha.'
-      );
+      // Faz logout para limpar a sessão de recuperação
+      await supabase.auth.signOut();
+
+      setPasswordUpdated(true);
     } catch (error: any) {
       Alert.alert(
         'Erro ao atualizar senha',
@@ -54,6 +144,52 @@ export default function ResetPasswordScreen() {
       setLoading(false);
     }
   };
+
+  const handleGoToLogin = async () => {
+    router.replace('/login');
+  };
+
+  if (initializingSession) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={styles.content}>
+          <ActivityIndicator size="large" color="#0A84FF" />
+          <Text style={{ marginTop: 16, textAlign: 'center', color: '#6C6C70' }}>
+            Validando link de recuperação...
+          </Text>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  if (passwordUpdated) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.content}>
+          <View style={styles.successIcon}>
+            <Text style={styles.successIconText}>✓</Text>
+          </View>
+          <Text style={styles.title}>Senha atualizada!</Text>
+          <Text style={styles.subtitle}>
+            Sua senha foi alterada com sucesso. Agora você pode fazer login com a nova senha.
+          </Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleGoToLogin}
+          >
+            <Text style={styles.buttonText}>Ir para o Login</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -98,6 +234,13 @@ export default function ResetPasswordScreen() {
             ) : (
               <Text style={styles.buttonText}>Salvar nova senha</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={handleGoToLogin}
+          >
+            <Text style={styles.linkText}>Voltar para o Login</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -159,5 +302,29 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#34C759',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  successIconText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '700',
+  },
+  linkButton: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#0A84FF',
+    fontWeight: '500',
   },
 });

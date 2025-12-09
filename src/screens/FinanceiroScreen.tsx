@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
+import { SwipeableContainer } from '../components/SwipeableContainer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import {
@@ -411,6 +412,55 @@ export const FinanceiroScreen = () => {
       lastActiveTabRef.current = activeTab;
     }
   }, [activeTab, selectedPeriod, selectedReceiptPeriod, selectedExpensePeriod]);
+
+  // Swipe handlers para navegação de período
+  const handleReceiptSwipeLeft = useCallback(() => {
+    if (receiptMode === 'mensal') {
+      setSelectedReceiptPeriod((prev) => prev.add(1, 'month'));
+    } else {
+      setSelectedReceiptPeriod((prev) => prev.add(1, 'year'));
+    }
+  }, [receiptMode]);
+
+  const handleReceiptSwipeRight = useCallback(() => {
+    if (receiptMode === 'mensal') {
+      setSelectedReceiptPeriod((prev) => prev.subtract(1, 'month'));
+    } else {
+      setSelectedReceiptPeriod((prev) => prev.subtract(1, 'year'));
+    }
+  }, [receiptMode]);
+
+  const handleExpenseSwipeLeft = useCallback(() => {
+    if (expenseMode === 'mensal') {
+      setSelectedExpensePeriod((prev) => prev.add(1, 'month'));
+    } else {
+      setSelectedExpensePeriod((prev) => prev.add(1, 'year'));
+    }
+  }, [expenseMode]);
+
+  const handleExpenseSwipeRight = useCallback(() => {
+    if (expenseMode === 'mensal') {
+      setSelectedExpensePeriod((prev) => prev.subtract(1, 'month'));
+    } else {
+      setSelectedExpensePeriod((prev) => prev.subtract(1, 'year'));
+    }
+  }, [expenseMode]);
+
+  const handleClosureSwipeLeft = useCallback(() => {
+    if (closureMode === 'mensal') {
+      setSelectedPeriod((prev) => prev.add(1, 'month'));
+    } else {
+      setSelectedPeriod((prev) => prev.add(1, 'year'));
+    }
+  }, [closureMode]);
+
+  const handleClosureSwipeRight = useCallback(() => {
+    if (closureMode === 'mensal') {
+      setSelectedPeriod((prev) => prev.subtract(1, 'month'));
+    } else {
+      setSelectedPeriod((prev) => prev.subtract(1, 'year'));
+    }
+  }, [closureMode]);
 
   const handlePickExpenseDocument = async (type: 'nota_fiscal' | 'recibo' | 'comprovante_pagamento' | 'boleto') => {
     if (!selectedExpenseForDocument || isUploadingDocument) return;
@@ -1374,7 +1424,11 @@ export const FinanceiroScreen = () => {
     switch (activeTab) {
       case 'Recebimentos':
         return (
-          <View style={styles.section}>
+          <SwipeableContainer
+            onSwipeLeft={handleReceiptSwipeLeft}
+            onSwipeRight={handleReceiptSwipeRight}
+            style={styles.section}
+          >
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recebimentos</Text>
               <View style={styles.headerActions}>
@@ -1609,11 +1663,15 @@ export const FinanceiroScreen = () => {
                 </Text>
               </View>
             )}
-          </View>
+          </SwipeableContainer>
         );
       case 'Despesas':
         return (
-          <View style={styles.section}>
+          <SwipeableContainer
+            onSwipeLeft={handleExpenseSwipeLeft}
+            onSwipeRight={handleExpenseSwipeRight}
+            style={styles.section}
+          >
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Despesas</Text>
               <View style={styles.headerActions}>
@@ -2105,11 +2163,15 @@ export const FinanceiroScreen = () => {
                 </Text>
               </View>
             )}
-          </View>
+          </SwipeableContainer>
         );
       case 'Fechamento':
         return (
-          <View style={styles.section}>
+          <SwipeableContainer
+            onSwipeLeft={handleClosureSwipeLeft}
+            onSwipeRight={handleClosureSwipeRight}
+            style={styles.section}
+          >
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Fechamento de Contas</Text>
             </View>
@@ -2305,7 +2367,7 @@ export const FinanceiroScreen = () => {
                 <Text style={styles.exportButtonText}>Gerar Relatório PDF</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </SwipeableContainer>
         );
       default:
         return null;

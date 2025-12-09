@@ -11,14 +11,15 @@ import {
 import { useContext } from 'react';
 import { OrderContext } from '@/src/context/OrderContext';
 import { EquipmentContext } from '@/src/context/EquipmentContext';
-import { useCostCenter } from '@/src/context/CostCenterContext';
+import { CostCenterContext } from '@/src/context/CostCenterContext';
 
 export default function TabLayout() {
-  // Usa useContext diretamente com fallback seguro
+  // Usa useContext diretamente com fallback seguro para todos os contexts
   const orderContext = useContext(OrderContext);
   const notificationCount = orderContext?.getUnreadNotificationsCount ? orderContext.getUnreadNotificationsCount() : 0;
   const equipmentContext = useContext(EquipmentContext);
-  const { selectedCenter } = useCostCenter();
+  const costCenterContext = useContext(CostCenterContext);
+  const selectedCenter = costCenterContext?.selectedCenter ?? 'valenca';
 
   const revisionCount = equipmentContext?.getPendingRevisionAlertsCount
     ? equipmentContext.getPendingRevisionAlertsCount(selectedCenter as any)

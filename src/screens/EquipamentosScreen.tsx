@@ -248,33 +248,50 @@ export const EquipamentosScreen = () => {
             </View>
           ) : (
             paginatedEquipments.map((equipment) => (
-            <TouchableOpacity
-              key={equipment.id}
-              style={styles.card}
-              activeOpacity={0.9}
-              onPress={() =>
-                router.push({
-                  pathname: '/equipamentos/[id]' as any,
-                  params: {
-                    id: equipment.id,
-                    name: equipment.name,
-                    brand: equipment.brand,
-                    year: String(equipment.year),
-                    purchaseDate: equipment.purchaseDate,
-                    nextReview: equipment.nextReview,
-                    center: centerLabels[selectedCenter],
-                  },
-                })
-              }
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <View style={styles.cardTitleRow}>
-                    <View style={styles.cardIconWrapper}>
-                      <Tractor size={18} color="#0A84FF" />
-                    </View>
-                    <Text style={styles.cardTitle}>{equipment.name}</Text>
-                    <TouchableOpacity
+              <TouchableOpacity
+                key={equipment.id}
+                style={styles.card}
+                activeOpacity={0.9}
+                onPress={() => {
+                  try {
+                    if (!equipment || !equipment.id) {
+                      console.error('Equipment card press without valid id:', equipment);
+                      Alert.alert('Erro', 'Equipamento inválido');
+                      return;
+                    }
+
+                    console.log('==================');
+                    console.log(' [Equipment] Clicked on:', equipment.name);
+                    console.log(' [Equipment] ID:', equipment.id);
+                    console.log(' [Equipment] Data:', JSON.stringify(equipment));
+                    console.log('==================');
+
+                    router.push({
+                      pathname: '/equipamentos/[id]' as any,
+                      params: {
+                        id: equipment.id,
+                        name: equipment.name,
+                        brand: equipment.brand,
+                        year: String(equipment.year),
+                        purchaseDate: equipment.purchaseDate,
+                        nextReview: equipment.nextReview,
+                        center: selectedCenterName,
+                      },
+                    });
+                  } catch (error) {
+                    console.error('Error navigating to equipment detail:', error);
+                    Alert.alert('Erro', 'Não foi possível abrir o equipamento');
+                  }
+                }}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderLeft}>
+                    <View style={styles.cardTitleRow}>
+                      <View style={styles.cardIconWrapper}>
+                        <Tractor size={18} color="#0A84FF" />
+                      </View>
+                      <Text style={styles.cardTitle}>{equipment.name}</Text>
+                      <TouchableOpacity
                       style={[
                         styles.statusBadge,
                         equipment.status === 'ativo'

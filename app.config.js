@@ -22,7 +22,7 @@ export default {
     ios: {
       bundleIdentifier: 'com.nowtranding.centrodecustos',
       supportsTablet: true,
-      buildNumber: '1',
+      buildNumber: '2',
       infoPlist: {
         NSCameraUsageDescription:
           'Este app precisa acessar a câmera para capturar fotos de documentos e comprovantes.',

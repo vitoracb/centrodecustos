@@ -21,7 +21,7 @@ interface CostCenterContextType {
   refresh: () => Promise<void>;
 }
 
-const CostCenterContext = createContext<CostCenterContextType | undefined>(
+export const CostCenterContext = createContext<CostCenterContextType | undefined>(
   undefined
 );
 

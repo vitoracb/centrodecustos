@@ -64,7 +64,6 @@ export default function LoginScreen() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        // Ajuste esta URL conforme configurado no painel do Supabase
         redirectTo: 'com.centrodecustos://reset-password',
       });
 
@@ -131,7 +130,9 @@ export default function LoginScreen() {
             onPress={() => setRememberMe(!rememberMe)}
             activeOpacity={0.7}
           >
-            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+            <View
+              style={[styles.checkbox, rememberMe && styles.checkboxChecked]}
+            >
               {rememberMe && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.checkboxLabel}>Permanecer conectado</Text>

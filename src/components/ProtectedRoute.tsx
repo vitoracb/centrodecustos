@@ -13,6 +13,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     const inTabsGroup = segments[0] === '(tabs)';
     const isAuthScreen = segments[0] === 'login' || segments[0] === 'signup';
+    const isResetPassword = segments[0] === 'reset-password';
+
+    // Permite acesso à tela de reset-password sem autenticação
+    if (isResetPassword) {
+      return;
+    }
 
     if (!user && inTabsGroup) {
       // Redireciona para login se não estiver autenticado e tentar acessar as tabs
