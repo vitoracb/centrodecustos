@@ -1,4 +1,4 @@
-import { Stack, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import Toast from "react-native-toast-message";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
@@ -35,22 +35,6 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Componente que decide se deve carregar os providers autenticados
-function ConditionalProviders({ children }: { children: React.ReactNode }) {
-  const segments = useSegments();
-
-  // Telas que não precisam dos providers de dados (autenticação/recuperação)
-  const isPublicRoute =
-    segments[0] === 'login' ||
-    segments[0] === 'signup' ||
-    segments[0] === 'reset-password';
-
-  if (isPublicRoute) {
-    return <>{children}</>;
-  }
-
-  return <AuthenticatedProviders>{children}</AuthenticatedProviders>;
-}
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -59,7 +43,7 @@ export default function RootLayout() {
     <AuthProvider>
       <PermissionsProvider>
         <ProtectedRoute>
-          <ConditionalProviders>
+          <AuthenticatedProviders>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -72,7 +56,7 @@ export default function RootLayout() {
             </Stack>
             <StatusBar style="auto" />
             <Toast config={toastConfig} />
-          </ConditionalProviders>
+          </AuthenticatedProviders>
         </ProtectedRoute>
       </PermissionsProvider>
     </AuthProvider>
