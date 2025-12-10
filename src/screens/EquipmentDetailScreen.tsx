@@ -24,7 +24,7 @@ import {
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter, CostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
-import { useFinancial , ExpenseDocument } from '../context/FinancialContext';
+import { useFinancial, ExpenseDocument } from '../context/FinancialContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { UpdateHoursModal } from '../components/UpdateHoursModal';
 
@@ -361,12 +361,12 @@ export const EquipmentDetailScreen = () => {
     activeTab === 'documentos'
       ? documents
       : activeTab === 'despesas'
-      ? expenses
-      : activeTab === 'fotos'
-      ? photos
-      : activeTab === 'revisoes'
-      ? reviews
-      : [];
+        ? expenses
+        : activeTab === 'fotos'
+          ? photos
+          : activeTab === 'revisoes'
+            ? reviews
+            : [];
 
   const actionLabel = () => {
     switch (activeTab) {
@@ -635,7 +635,7 @@ export const EquipmentDetailScreen = () => {
             {(() => {
               const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
               const isPastRevision = equipment.hoursUntilRevision <= 0;
-              
+
               if (isNearRevision || isPastRevision) {
                 return (
                   <View style={[
@@ -646,8 +646,8 @@ export const EquipmentDetailScreen = () => {
                       styles.revisionAlertText,
                       isPastRevision && styles.revisionAlertTextError,
                     ]}>
-                      {isPastRevision 
-                        ? `⚠️ REVISÃO ATRASADA! Agende urgente!` 
+                      {isPastRevision
+                        ? `⚠️ REVISÃO ATRASADA! Agende urgente!`
                         : `🔔 Revisão próxima! Faltam ${equipment.hoursUntilRevision.toFixed(0)}h`
                       }
                     </Text>
@@ -761,7 +761,7 @@ export const EquipmentDetailScreen = () => {
                       <Edit3 size={16} color="#0A84FF" />
                     </TouchableOpacity>
                   ) : null}
-                  
+
                   <TouchableOpacity
                     activeOpacity={0.8}
                     onPress={() => handleCardPress(item)}
@@ -769,12 +769,17 @@ export const EquipmentDetailScreen = () => {
                     disabled={activeTab === 'despesas' && (!('documents' in item) || !Array.isArray(item.documents) || item.documents.length === 0)}
                   >
                     <View style={styles.cardHeaderInfo}>
-                      <Text style={styles.cardTitle}>{item.title}</Text>
+                      <Text style={[
+                        styles.cardTitle,
+                        (activeTab === 'documentos' || activeTab === 'fotos') && 'fileUri' in item && item.fileUri
+                          ? styles.cardTitleLink
+                          : null,
+                      ]}>{item.title}</Text>
                       {'amount' in item ? (
                         <Text style={styles.cardValue}>{item.amount}</Text>
                       ) : null}
                     </View>
-                    
+
                     <View style={styles.cardMetaRow}>
                       <Text style={styles.cardSubtitle}>
                         {'category' in item && item.category
@@ -823,7 +828,7 @@ export const EquipmentDetailScreen = () => {
                         </View>
                       )}
                   </TouchableOpacity>
-                  
+
                   {canDelete && (
                     <TouchableOpacity
                       style={styles.deleteButtonBottomRight}
@@ -850,13 +855,13 @@ export const EquipmentDetailScreen = () => {
             initialData={
               editingDocument
                 ? {
-                    name: editingDocument.title,
-                    date: editingDocument.date,
-                    fileName:
-                      editingDocument.fileName ?? editingDocument.title,
-                    fileUri: editingDocument.fileUri ?? '',
-                    mimeType: editingDocument.mimeType,
-                  }
+                  name: editingDocument.title,
+                  date: editingDocument.date,
+                  fileName:
+                    editingDocument.fileName ?? editingDocument.title,
+                  fileUri: editingDocument.fileUri ?? '',
+                  mimeType: editingDocument.mimeType,
+                }
                 : undefined
             }
             onSubmit={async data => {
@@ -909,13 +914,13 @@ export const EquipmentDetailScreen = () => {
                     prev.map(doc =>
                       doc.id === editingDocument.id
                         ? {
-                            ...doc,
-                            title: data.name,
-                            date: data.date,
-                            fileName: data.fileName,
-                            fileUri: fileUrl,
-                            mimeType: data.mimeType,
-                          }
+                          ...doc,
+                          title: data.name,
+                          date: data.date,
+                          fileName: data.fileName,
+                          fileUri: fileUrl,
+                          mimeType: data.mimeType,
+                        }
                         : doc,
                     ),
                   );
@@ -1032,7 +1037,7 @@ export const EquipmentDetailScreen = () => {
               try {
                 await deleteExpenseDocument(selectedExpenseForDocument.expenseId, document.fileUri);
                 // Atualiza os documentos locais
-                setSelectedExpenseDocuments((prev) => 
+                setSelectedExpenseDocuments((prev) =>
                   prev?.filter((doc) => doc.fileUri !== document.fileUri) || []
                 );
                 // Atualiza a despesa na lista local
@@ -1099,40 +1104,40 @@ export const EquipmentDetailScreen = () => {
             initialData={
               editingExpense && editingExpense.expenseId
                 ? (() => {
-                    const expenseToEdit = getAllExpenses().find(
-                      exp => exp.id === editingExpense.expenseId
-                    );
-                    return expenseToEdit
-                      ? {
-                          id: expenseToEdit.id,
-                          category: expenseToEdit.category,
-                          equipmentId: expenseToEdit.equipmentId,
-                          name: expenseToEdit.name,
-                          date: expenseToEdit.date,
-                          value: expenseToEdit.value,
-                          documents: expenseToEdit.documents || [],
-                          gestaoSubcategory: expenseToEdit.gestaoSubcategory,
-                          observations: expenseToEdit.observations,
-                          isFixed: expenseToEdit.isFixed,
-                          sector: expenseToEdit.sector,
-                        }
-                      : {
-                          category: 'manutencao',
-                          equipmentId: equipment.id,
-                          name: '',
-                          date: dayjs().format('DD/MM/YYYY'),
-                          value: 0,
-                          documents: [],
-                        };
-                  })()
+                  const expenseToEdit = getAllExpenses().find(
+                    exp => exp.id === editingExpense.expenseId
+                  );
+                  return expenseToEdit
+                    ? {
+                      id: expenseToEdit.id,
+                      category: expenseToEdit.category,
+                      equipmentId: expenseToEdit.equipmentId,
+                      name: expenseToEdit.name,
+                      date: expenseToEdit.date,
+                      value: expenseToEdit.value,
+                      documents: expenseToEdit.documents || [],
+                      gestaoSubcategory: expenseToEdit.gestaoSubcategory,
+                      observations: expenseToEdit.observations,
+                      isFixed: expenseToEdit.isFixed,
+                      sector: expenseToEdit.sector,
+                    }
+                    : {
+                      category: 'manutencao',
+                      equipmentId: equipment.id,
+                      name: '',
+                      date: dayjs().format('DD/MM/YYYY'),
+                      value: 0,
+                      documents: [],
+                    };
+                })()
                 : {
-                    category: 'manutencao',
-                    equipmentId: equipment.id,
-                    name: '',
-                    date: dayjs().format('DD/MM/YYYY'),
-                    value: 0,
-                    documents: [],
-                  }
+                  category: 'manutencao',
+                  equipmentId: equipment.id,
+                  name: '',
+                  date: dayjs().format('DD/MM/YYYY'),
+                  value: 0,
+                  documents: [],
+                }
             }
           />
 
@@ -1142,18 +1147,18 @@ export const EquipmentDetailScreen = () => {
             initialData={
               editingPhoto
                 ? {
-                    title: editingPhoto.title,
-                    date: editingPhoto.date,
-                    uri: editingPhoto.fileUri ?? '',
-                    fileName: editingPhoto.fileName ?? editingPhoto.title,
-                    mimeType: editingPhoto.mimeType,
-                  }
+                  title: editingPhoto.title,
+                  date: editingPhoto.date,
+                  uri: editingPhoto.fileUri ?? '',
+                  fileName: editingPhoto.fileName ?? editingPhoto.title,
+                  mimeType: editingPhoto.mimeType,
+                }
                 : undefined
             }
             onSubmit={async data => {
               try {
                 const isoDate = brToIso(data.date);
-                
+
                 if (editingPhoto) {
                   // Se o arquivo mudou, faz upload do novo arquivo
                   let fileUrl = editingPhoto.fileUri;
@@ -1196,13 +1201,13 @@ export const EquipmentDetailScreen = () => {
                     prev.map(photo =>
                       photo.id === editingPhoto.id
                         ? {
-                            ...photo,
-                            title: data.title,
-                            date: data.date,
-                            fileName: data.fileName,
-                            fileUri: fileUrl,
-                            mimeType: data.mimeType,
-                          }
+                          ...photo,
+                          title: data.title,
+                          date: data.date,
+                          fileName: data.fileName,
+                          fileUri: fileUrl,
+                          mimeType: data.mimeType,
+                        }
                         : photo,
                     ),
                   );
@@ -1269,7 +1274,7 @@ export const EquipmentDetailScreen = () => {
                         .eq('id', inserted.id)
                         .select('*')
                         .maybeSingle();
-                      
+
                       if (updateResult.data) {
                         inserted = updateResult.data;
                       }
@@ -1318,11 +1323,11 @@ export const EquipmentDetailScreen = () => {
             initialData={
               editingReview
                 ? {
-                    type: editingReview.title,
-                    description: editingReview.description ?? '',
-                    date: editingReview.date,
-                    next: editingReview.next,
-                  }
+                  type: editingReview.title,
+                  description: editingReview.description ?? '',
+                  date: editingReview.date,
+                  next: editingReview.next,
+                }
                 : undefined
             }
             onSubmit={async data => {
@@ -1358,12 +1363,12 @@ export const EquipmentDetailScreen = () => {
                     prev.map(review =>
                       review.id === editingReview.id
                         ? {
-                            ...review,
-                            title: data.type,
-                            date: data.date,
-                            description: data.description,
-                            next: data.next ?? undefined,
-                          }
+                          ...review,
+                          title: data.type,
+                          date: data.date,
+                          description: data.description,
+                          next: data.next ?? undefined,
+                        }
                         : review,
                     ),
                   );
@@ -1663,6 +1668,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1C1C1E',
   },
+  cardTitleLink: {
+    color: '#0A84FF',
+  },
   cardValue: {
     fontSize: 15,
     fontWeight: '700',
@@ -1699,6 +1707,10 @@ const styles = StyleSheet.create({
   cardMeta: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  cardMetaLink: {
+    color: '#0A84FF',
+    textDecorationLine: 'underline',
   },
   fixedBadge: {
     backgroundColor: '#E6FEEA',

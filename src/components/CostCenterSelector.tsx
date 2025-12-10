@@ -88,7 +88,7 @@ export const CostCenterSelector = () => {
               <ChevronDown size={18} color="#1C1C1E" />
             </TouchableOpacity>
           </View>
-          
+
           <TouchableOpacity
             style={styles.profileButton}
             activeOpacity={0.7}
@@ -406,5 +406,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FF3B30',
     fontWeight: '500',
+  },
+  themeSection: {
+    padding: 16,
+  },
+  themeSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6C6C70',
+    marginBottom: 12,
+  },
+  themeOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F7',
+    borderWidth: 1,
+    borderColor: 'transparent',
+    gap: 4,
+  },
+  themeOptionActive: {
+    backgroundColor: '#E5F1FF',
+    borderColor: '#0A84FF',
+  },
+  themeOptionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6C6C70',
+  },
+  themeOptionTextActive: {
+    color: '#0A84FF',
+    fontWeight: '600',
   },
 });

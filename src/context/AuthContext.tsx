@@ -174,8 +174,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+
+      // Se a sessão já não existe, não é um erro real - apenas siga em frente
+      if (error) {
+        // AuthSessionMissingError significa que a sessão já expirou/foi removida
+        // Neste caso, o logout já aconteceu efetivamente
+        if (error.name === 'AuthSessionMissingError' || error.message?.includes('session missing')) {
+          console.log('[Auth] Sessão já expirada, procedendo com logout local forçado');
+          await clearCorruptedTokens();
+          setSession(null);
+          setUser(null);
+          return;
+        }
+        throw error;
+      }
     } catch (error: any) {
+      // Verifica novamente por segurança
+      if (error.name === 'AuthSessionMissingError' || error.message?.includes('session missing')) {
+        console.log('[Auth] Sessão já expirada (catch), procedendo com logout local forçado');
+        await clearCorruptedTokens();
+        setSession(null);
+        setUser(null);
+        return;
+      }
       Alert.alert('Erro ao sair', error.message);
       throw error;
     }

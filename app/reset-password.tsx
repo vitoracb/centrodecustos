@@ -98,56 +98,94 @@ export default function ResetPasswordScreen() {
   useEffect(() => {
     let mounted = true;
     let authSubscription: { unsubscribe: () => void } | null = null;
+    let sessionEstablished = false;
+
+    const markSessionReady = () => {
+      if (mounted && !sessionEstablished) {
+        sessionEstablished = true;
+        setSessionReady(true);
+        setInitializingSession(false);
+        console.log('[ResetPassword] ✅ Sessão marcada como pronta');
+      }
+    };
 
     const setupAuth = async () => {
       console.log('[ResetPassword] ===== INICIANDO SETUP DE AUTH =====');
 
-      // MÉTODO 1: Configura listener de auth state (mais confiável no iOS)
-      // O Supabase dispara eventos quando o link de recovery é aberto
+      // PASSO 1: Configura listener de auth state PRIMEIRO (antes de qualquer coisa)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         console.log('[ResetPassword] Auth event:', event, '- Session:', !!session);
         setDebugInfo(prev => prev + `\nAuth event: ${event}`);
 
         // PASSWORD_RECOVERY é disparado quando o link de recuperação é processado
         if (event === 'PASSWORD_RECOVERY' && session) {
-          console.log('[ResetPassword] PASSWORD_RECOVERY detectado - sessão pronta!');
+          console.log('[ResetPassword] PASSWORD_RECOVERY detectado!');
           setDebugInfo(prev => prev + '\nPASSWORD_RECOVERY detectado ✓');
-          if (mounted) {
-            setSessionReady(true);
-            setInitializingSession(false);
-          }
-        } else if (event === 'SIGNED_IN' && session) {
-          // Também aceita SIGNED_IN como fallback
-          console.log('[ResetPassword] SIGNED_IN detectado - verificando sessão');
-          setDebugInfo(prev => prev + '\nSIGNED_IN detectado');
-          if (mounted) {
-            setSessionReady(true);
-            setInitializingSession(false);
-          }
+          markSessionReady();
+        } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+          // Também aceita SIGNED_IN e TOKEN_REFRESHED como fallback
+          console.log('[ResetPassword] ' + event + ' detectado - verificando sessão');
+          setDebugInfo(prev => prev + '\n' + event + ' detectado');
+          markSessionReady();
         }
       });
 
       authSubscription = subscription;
 
-      // MÉTODO 2: Tenta processar a URL inicial (backup)
-      const initialUrl = await Linking.getInitialURL();
-      const urlSuccess = await processDeepLinkUrl(initialUrl);
-
-      // MÉTODO 3: Verifica se já existe uma sessão ativa
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && mounted) {
-        console.log('[ResetPassword] Sessão existente encontrada');
-        setDebugInfo(prev => prev + '\nSessão existente ✓');
-        setSessionReady(true);
+      // PASSO 2: Verifica IMEDIATAMENTE se já existe uma sessão ativa
+      // (pode ter sido criada pelo deep link antes do listener ser configurado)
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      if (existingSession && mounted) {
+        console.log('[ResetPassword] Sessão existente encontrada imediatamente!');
+        console.log('[ResetPassword] User:', existingSession.user?.email);
+        setDebugInfo(prev => prev + '\nSessão existente encontrada ✓');
+        markSessionReady();
       }
 
-      // Aguarda um pouco antes de marcar como não inicializando
-      // para dar tempo do auth event chegar
-      setTimeout(() => {
-        if (mounted) {
-          setInitializingSession(false);
+      // PASSO 3: Tenta processar a URL inicial (backup)
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        console.log('[ResetPassword] URL inicial:', initialUrl.substring(0, 100));
+        const urlSuccess = await processDeepLinkUrl(initialUrl);
+        if (urlSuccess) {
+          markSessionReady();
         }
-      }, 2000);
+      }
+
+      // PASSO 4: Polling de sessão a cada 500ms durante 5 segundos
+      // Isso garante que não perdemos a sessão por condição de corrida
+      let pollCount = 0;
+      const maxPolls = 10; // 10 x 500ms = 5 segundos
+
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+
+        if (sessionEstablished) {
+          clearInterval(pollInterval);
+          return;
+        }
+
+        console.log('[ResetPassword] Poll #' + pollCount + ' - verificando sessão...');
+        const { data: { session: polledSession } } = await supabase.auth.getSession();
+
+        if (polledSession && mounted) {
+          console.log('[ResetPassword] Sessão encontrada via polling!');
+          console.log('[ResetPassword] User:', polledSession.user?.email);
+          setDebugInfo(prev => prev + '\nSessão via polling ✓');
+          markSessionReady();
+          clearInterval(pollInterval);
+          return;
+        }
+
+        if (pollCount >= maxPolls) {
+          console.log('[ResetPassword] Polling finalizado - nenhuma sessão');
+          setDebugInfo(prev => prev + '\nPolling finalizado - sem sessão');
+          clearInterval(pollInterval);
+          if (mounted && !sessionEstablished) {
+            setInitializingSession(false);
+          }
+        }
+      }, 500);
     };
 
     setupAuth();
