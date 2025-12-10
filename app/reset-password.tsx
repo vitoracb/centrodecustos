@@ -21,47 +21,56 @@ export default function ResetPasswordScreen() {
   const [initializingSession, setInitializingSession] = useState(true);
   const [sessionReady, setSessionReady] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const router = useRouter();
 
+  // Função para processar a URL do deep link (método tradicional)
   const processDeepLinkUrl = useCallback(async (url: string | null) => {
     try {
+      setDebugInfo(prev => prev + `\nURL: ${url?.substring(0, 100) || 'null'}...`);
+
       if (!url) {
-        console.log('[ResetPassword] Nenhuma URL encontrada');
-        setInitializingSession(false);
-        return;
+        console.log('[ResetPassword] Nenhuma URL encontrada - aguardando auth event');
+        return false;
       }
 
       console.log('[ResetPassword] ===== PROCESSANDO DEEP LINK =====');
       console.log('[ResetPassword] URL completa:', url);
-      console.log('[ResetPassword] URL length:', url.length);
 
-      // Supabase envia o access_token e refresh_token no fragmento da URL (#)
-      // Exemplo: com.centrodecustos://reset-password#access_token=...&refresh_token=...&type=recovery
-      // ou: nowtrading-centrodecustos://reset-password#access_token=...
-      const [baseUrl, fragment] = url.split('#');
-      console.log('[ResetPassword] Base URL:', baseUrl);
-      console.log('[ResetPassword] Fragmento presente:', !!fragment);
+      // Supabase envia tokens no fragmento (#) ou como query params (?)
+      const hasFragment = url.includes('#');
+      const hasQuery = url.includes('?');
 
-      if (!fragment) {
-        console.log('[ResetPassword] URL sem fragmento de auth - link pode ter expirado ou ser inválido');
-        console.log('[ResetPassword] URL completa recebida:', url);
-        setInitializingSession(false);
-        return;
+      setDebugInfo(prev => prev + `\nFragment: ${hasFragment}, Query: ${hasQuery}`);
+
+      let access_token: string | null = null;
+      let refresh_token: string | null = null;
+      let type: string | null = null;
+
+      if (hasFragment) {
+        const [, fragment] = url.split('#');
+        const urlParams = new URLSearchParams(fragment);
+        access_token = urlParams.get('access_token');
+        refresh_token = urlParams.get('refresh_token');
+        type = urlParams.get('type');
+      } else if (hasQuery) {
+        // Tenta pegar dos query params como fallback
+        const urlObj = new URL(url);
+        access_token = urlObj.searchParams.get('access_token');
+        refresh_token = urlObj.searchParams.get('refresh_token');
+        type = urlObj.searchParams.get('type');
       }
 
-      const urlParams = new URLSearchParams(fragment);
-      const access_token = urlParams.get('access_token');
-      const refresh_token = urlParams.get('refresh_token');
-      const type = urlParams.get('type');
+      console.log('[ResetPassword] Tokens encontrados:', {
+        hasAccessToken: !!access_token,
+        hasRefreshToken: !!refresh_token,
+        type
+      });
 
-      if (type !== 'recovery' || !access_token || !refresh_token) {
-        console.log('[ResetPassword] Fragmento inválido:', fragment);
-        Alert.alert(
-          'Link inválido',
-          'O link de recuperação é inválido ou expirou. Solicite um novo link na tela de login.',
-        );
-        setInitializingSession(false);
-        return;
+      if (!access_token || !refresh_token) {
+        console.log('[ResetPassword] Tokens não encontrados na URL');
+        setDebugInfo(prev => prev + '\nTokens não encontrados na URL');
+        return false;
       }
 
       const { error } = await supabase.auth.setSession({
@@ -70,43 +79,89 @@ export default function ResetPasswordScreen() {
       });
 
       if (error) {
-        console.log('[ResetPassword] Erro ao aplicar sessão de recuperação:', error);
-        Alert.alert(
-          'Erro no link',
-          'Não foi possível validar o link de recuperação. Solicite um novo link na tela de login.',
-        );
-      } else {
-        console.log('[ResetPassword] Sessão de recuperação aplicada com sucesso');
-        setSessionReady(true);
+        console.log('[ResetPassword] Erro ao aplicar sessão:', error.message);
+        setDebugInfo(prev => prev + `\nErro: ${error.message}`);
+        return false;
       }
-    } catch (error) {
-      console.log('[ResetPassword] Erro inesperado ao processar deep link:', error);
-      Alert.alert(
-        'Erro no link',
-        'Ocorreu um erro ao processar o link de recuperação. Solicite um novo link.',
-      );
-    } finally {
-      setInitializingSession(false);
+
+      console.log('[ResetPassword] Sessão aplicada com sucesso via URL');
+      setDebugInfo(prev => prev + '\nSessão aplicada via URL ✓');
+      setSessionReady(true);
+      return true;
+    } catch (error: any) {
+      console.log('[ResetPassword] Erro ao processar URL:', error);
+      setDebugInfo(prev => prev + `\nErro: ${error?.message}`);
+      return false;
     }
   }, []);
 
   useEffect(() => {
-    const initFromDeepLink = async () => {
-      // Tenta obter a URL inicial (quando o app é aberto pelo link)
+    let mounted = true;
+    let authSubscription: { unsubscribe: () => void } | null = null;
+
+    const setupAuth = async () => {
+      console.log('[ResetPassword] ===== INICIANDO SETUP DE AUTH =====');
+
+      // MÉTODO 1: Configura listener de auth state (mais confiável no iOS)
+      // O Supabase dispara eventos quando o link de recovery é aberto
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[ResetPassword] Auth event:', event, '- Session:', !!session);
+        setDebugInfo(prev => prev + `\nAuth event: ${event}`);
+
+        // PASSWORD_RECOVERY é disparado quando o link de recuperação é processado
+        if (event === 'PASSWORD_RECOVERY' && session) {
+          console.log('[ResetPassword] PASSWORD_RECOVERY detectado - sessão pronta!');
+          setDebugInfo(prev => prev + '\nPASSWORD_RECOVERY detectado ✓');
+          if (mounted) {
+            setSessionReady(true);
+            setInitializingSession(false);
+          }
+        } else if (event === 'SIGNED_IN' && session) {
+          // Também aceita SIGNED_IN como fallback
+          console.log('[ResetPassword] SIGNED_IN detectado - verificando sessão');
+          setDebugInfo(prev => prev + '\nSIGNED_IN detectado');
+          if (mounted) {
+            setSessionReady(true);
+            setInitializingSession(false);
+          }
+        }
+      });
+
+      authSubscription = subscription;
+
+      // MÉTODO 2: Tenta processar a URL inicial (backup)
       const initialUrl = await Linking.getInitialURL();
-      await processDeepLinkUrl(initialUrl);
+      const urlSuccess = await processDeepLinkUrl(initialUrl);
+
+      // MÉTODO 3: Verifica se já existe uma sessão ativa
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && mounted) {
+        console.log('[ResetPassword] Sessão existente encontrada');
+        setDebugInfo(prev => prev + '\nSessão existente ✓');
+        setSessionReady(true);
+      }
+
+      // Aguarda um pouco antes de marcar como não inicializando
+      // para dar tempo do auth event chegar
+      setTimeout(() => {
+        if (mounted) {
+          setInitializingSession(false);
+        }
+      }, 2000);
     };
 
-    initFromDeepLink();
+    setupAuth();
 
-    // Listener para quando o app já está aberto e recebe um link
+    // Listener para URLs recebidas enquanto o app está aberto
     const subscription = Linking.addEventListener('url', (event) => {
       console.log('[ResetPassword] URL recebida via listener:', event.url);
       processDeepLinkUrl(event.url);
     });
 
     return () => {
+      mounted = false;
       subscription.remove();
+      authSubscription?.unsubscribe();
     };
   }, [processDeepLinkUrl]);
 
