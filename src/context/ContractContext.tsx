@@ -12,6 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 import { uploadFileToStorage } from '@/src/lib/storageUtils';
 import { useAuth } from './AuthContext';
 import { cacheManager } from '@/src/lib/cacheManager';
+import { logAuditEvent } from '@/src/lib/auditLogger';
 
 export type ContractCategory = 'principal' | 'terceirizados';
 
@@ -278,6 +279,23 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           return next;
         });
 
+        // Audit logging para operação crítica
+        if (user?.id) {
+          await logAuditEvent({
+            userId: user.id,
+            action: 'CREATE',
+            entity: 'CONTRACT',
+            entityId: newContract.id,
+            costCenterId: newContract.center,
+            newValues: newContract,
+            metadata: {
+              timestamp: new Date().toISOString(),
+            }
+          }).catch(err => {
+            console.warn('[Audit] Erro ao registrar criação de contrato:', err);
+          });
+        }
+
         // Envia notificação push sobre novo contrato
         try {
           const { notificationService } = await import('@/src/lib/notifications');
@@ -344,6 +362,27 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
           cacheManager.set(cacheKey, next).catch(() => {});
           return next;
         });
+
+        // Audit logging para operação crítica
+        if (user?.id) {
+          const oldContract = contracts.find(c => c.id === id);
+          const updatedContract = { ...oldContract, ...updates };
+
+          await logAuditEvent({
+            userId: user.id,
+            action: 'UPDATE',
+            entity: 'CONTRACT',
+            entityId: id,
+            costCenterId: oldContract?.center || 'unknown',
+            oldValues: oldContract,
+            newValues: updatedContract,
+            metadata: {
+              timestamp: new Date().toISOString(),
+            }
+          }).catch(err => {
+            console.warn('[Audit] Erro ao registrar atualização de contrato:', err);
+          });
+        }
       } catch (err: any) {
         console.error('❌ Erro em updateContract:', err);
         Alert.alert('Erro', 'Não foi possível atualizar o contrato. Tente novamente.');
@@ -491,6 +530,8 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
         }
 
         // Atualiza o estado marcando como deletado
+        const deletedContract = contracts.find(c => c.id === id);
+
         setContracts((prev) =>
           prev.map((contract) =>
             contract.id === id
@@ -498,6 +539,24 @@ export const ContractProvider = ({ children }: ContractProviderProps) => {
               : contract
           )
         );
+
+        // Audit logging para operação crítica
+        if (user?.id && deletedContract) {
+          await logAuditEvent({
+            userId: user.id,
+            action: 'DELETE',
+            entity: 'CONTRACT',
+            entityId: id,
+            costCenterId: deletedContract.center,
+            oldValues: deletedContract,
+            newValues: { ...deletedContract, deletedAt: new Date(deletedAt).getTime() },
+            metadata: {
+              timestamp: new Date().toISOString(),
+            }
+          }).catch(err => {
+            console.warn('[Audit] Erro ao registrar exclusão de contrato:', err);
+          });
+        }
       } catch (err: any) {
         console.error('❌ Erro em deleteContract:', err);
         // Não mostra alert duplicado se já foi mostrado acima

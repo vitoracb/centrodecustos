@@ -13,6 +13,7 @@ import { CostCenter } from './CostCenterContext';
 import { scheduleRevisionNotification } from '@/src/lib/revisionNotifications';
 import { useAuth } from './AuthContext';
 import { cacheManager } from '@/src/lib/cacheManager';
+import { logEquipmentOperation } from '@/src/lib/auditLogger';
 
 /**
  * Status do equipamento
@@ -310,6 +311,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
           return next;
         });
         showSuccess('Equipamento adicionado', newEquipment.name);
+
+        // Audit logging para operação crítica
+        if (user?.id && newEquipment.id) {
+          await logEquipmentOperation(
+            user.id,
+            'CREATE',
+            newEquipment.id,
+            newEquipment.center,
+            undefined, // oldData
+            newEquipment // newData
+          ).catch(err => {
+            logger.warn('[Audit] Erro ao registrar criação de equipamento:', err);
+          });
+        }
       } catch (err: any) {
         logger.error('Erro em addEquipment:', err);
         throw err;
@@ -397,6 +412,23 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         if (!isOnlyStatusChange) {
           showSuccess('Equipamento atualizado', equipmentName);
         }
+
+        // Audit logging para operação crítica
+        if (user?.id) {
+          const oldEquipment = equipments.find(eq => eq.id === id);
+          const updatedEquipment = equipments.find(eq => eq.id === id);
+
+          await logEquipmentOperation(
+            user.id,
+            'UPDATE',
+            id,
+            oldEquipment?.center || 'unknown',
+            oldEquipment,
+            { ...oldEquipment, ...updates }
+          ).catch(err => {
+            logger.warn('[Audit] Erro ao registrar atualização de equipamento:', err);
+          });
+        }
       } catch (err: any) {
         logger.error('Erro em updateEquipment:', err);
         throw err;
@@ -434,6 +466,20 @@ export const EquipmentProvider = ({ children }: EquipmentProviderProps) => {
         ));
         
         showSuccess('Equipamento excluído', deletedEquipment?.name || '');
+
+        // Audit logging para operação crítica
+        if (user?.id && deletedEquipment) {
+          await logEquipmentOperation(
+            user.id,
+            'DELETE',
+            id,
+            deletedEquipment.center,
+            deletedEquipment,
+            { ...deletedEquipment, deletedAt: new Date(deletedAt).getTime() }
+          ).catch(err => {
+            logger.warn('[Audit] Erro ao registrar exclusão de equipamento:', err);
+          });
+        }
         
         // Recarrega os equipamentos para garantir sincronização
         await loadEquipments();

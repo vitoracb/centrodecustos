@@ -12,6 +12,7 @@ import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
 import { useAuth } from "./AuthContext";
 import { cacheManager } from "@/src/lib/cacheManager";
 import { pushEvents } from "@/src/lib/pushEvents";
+import { logAuditEvent } from "@/src/lib/auditLogger";
 
 // ============================
 // TIPOS
@@ -341,6 +342,23 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
+
+        // Audit logging para operação crítica
+        if (user?.id) {
+          await logAuditEvent({
+            userId: user.id,
+            action: 'CREATE',
+            entity: 'ORDER',
+            entityId: newOrder.id,
+            costCenterId: order.costCenter,
+            newValues: newOrder,
+            metadata: {
+              timestamp: new Date().toISOString(),
+            }
+          }).catch(err => {
+            console.warn('[Audit] Erro ao registrar criação de pedido:', err);
+          });
+        }
       } catch (err) {
         console.log("❌ Erro em addOrder:", err);
         throw err;
@@ -453,6 +471,26 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
+
+        // Audit logging para operação crítica
+        if (user?.id) {
+          const oldOrder = orders.find(o => o.id === order.id);
+
+          await logAuditEvent({
+            userId: user.id,
+            action: 'UPDATE',
+            entity: 'ORDER',
+            entityId: order.id,
+            costCenterId: order.costCenter,
+            oldValues: oldOrder,
+            newValues: updated,
+            metadata: {
+              timestamp: new Date().toISOString(),
+            }
+          }).catch(err => {
+            console.warn('[Audit] Erro ao registrar atualização de pedido:', err);
+          });
+        }
       } catch (err) {
         console.log("❌ Erro em updateOrder:", err);
         throw err;
