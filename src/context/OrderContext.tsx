@@ -11,6 +11,7 @@ import { CostCenter } from "./CostCenterContext";
 import { uploadMultipleFilesToStorage } from "@/src/lib/storageUtils";
 import { useAuth } from "./AuthContext";
 import { cacheManager } from "@/src/lib/cacheManager";
+import { pushEvents } from "@/src/lib/pushEvents";
 
 // ============================
 // TIPOS
@@ -248,7 +249,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           .from('equipments')
           .select('id, name')
           .in('id', equipmentIds);
-        
+
         if (equipmentsData) {
           const equipmentMap = new Map(equipmentsData.map(e => [e.id, e.name]));
           mapped = mapped.map(order => ({
@@ -328,16 +329,16 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
           ...data,
           cost_center_id: data.cost_center_id ?? order.costCenter,
         });
-        
+
         // Buscar nome do equipamento se houver equipment_id
         if (newOrder.equipmentId && !newOrder.equipmentName) {
           const equipmentName = await fetchEquipmentName(newOrder.equipmentId);
           newOrder = { ...newOrder, equipmentName };
         }
-        
+
         setOrders((prev) => {
           const next = [newOrder, ...prev];
-          cacheManager.set(cacheKey, next).catch(() => {});
+          cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
       } catch (err) {
@@ -440,7 +441,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
         }
 
         let updated = mapRowToOrder(data);
-        
+
         // Buscar nome do equipamento se houver equipment_id
         if (updated.equipmentId && !updated.equipmentName) {
           const equipmentName = await fetchEquipmentName(updated.equipmentId);
@@ -449,7 +450,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
         setOrders((prev) => {
           const next = prev.map((o) => (o.id === order.id ? updated : o));
-          cacheManager.set(cacheKey, next).catch(() => {});
+          cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
       } catch (err) {
@@ -489,7 +490,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
       }
       setOrders((prev) => {
         const next = prev.filter((o) => o.id !== id);
-        cacheManager.set(cacheKey, next).catch(() => {});
+        cacheManager.set(cacheKey, next).catch(() => { });
         return next;
       });
     } catch (err) {
@@ -553,7 +554,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
         }
 
         let updated = mapRowToOrder(data);
-        
+
         // Buscar nome do equipamento se houver equipment_id
         if (updated.equipmentId && !updated.equipmentName) {
           const equipmentName = await fetchEquipmentName(updated.equipmentId);
@@ -562,9 +563,12 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
 
         setOrders((prev) => {
           const next = prev.map((o) => (o.id === orderId ? updated : o));
-          cacheManager.set(cacheKey, next).catch(() => {});
+          cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
+
+        // Envia notificação push para admins/editores
+        pushEvents.notifyBudgetApproved(updated.name, updated.costCenter);
       } catch (err) {
         console.log("❌ Erro em approveOrder:", err);
         throw err;
@@ -598,9 +602,15 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
               ? { ...o, status: "orcamento_reprovado" as OrderStatus }
               : o
           );
-          cacheManager.set(cacheKey, next).catch(() => {});
+          cacheManager.set(cacheKey, next).catch(() => { });
           return next;
         });
+
+        // Envia notificação push para admins/editores
+        const order = orders.find((o) => o.id === orderId);
+        if (order) {
+          pushEvents.notifyBudgetRejected(order.name, order.costCenter);
+        }
       } catch (err) {
         console.log("❌ Erro em rejectOrder:", err);
         throw err;

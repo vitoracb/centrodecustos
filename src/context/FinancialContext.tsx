@@ -16,6 +16,7 @@ import { useRealtimeSync } from "@/src/hooks/useRealtimeSync";
 import { cacheManager } from "@/src/lib/cacheManager";
 import { sanitizeName, sanitizeText, sanitizeCurrency, validateAndSanitize } from "@/src/lib/security";
 import { logFinancialOperation } from "@/src/lib/auditLogger";
+import { pushEvents } from "@/src/lib/pushEvents";
 
 // ========================
 // TIPOS
@@ -1561,6 +1562,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             `✅ Despesa fixa "${expense.name}" criada com duração: ${expense.fixedDurationMonths} meses`
           );
         }
+
+        // Envia notificação push para admins/editores (assíncrono, não bloqueia)
+        pushEvents.notifyNewExpense(
+          expense.name,
+          expense.value,
+          expense.category,
+          expense.center
+        );
 
         // Se for despesa fixa, gera as cópias imediatamente
         if (expense.isFixed) {

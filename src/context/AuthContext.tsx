@@ -4,6 +4,7 @@ import { supabase } from '@/src/lib/supabaseClient';
 import { Alert } from 'react-native';
 import { cacheManager } from '@/src/lib/cacheManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerPushToken, unregisterPushToken } from '@/src/lib/pushTokenService';
 
 interface AuthContextType {
   session: Session | null;
@@ -96,6 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Registra push token quando usuário faz login
+      if (event === 'SIGNED_IN' && session?.user?.id) {
+        registerPushToken(session.user.id).catch((err) => {
+          console.warn('[Auth] Erro ao registrar push token:', err);
+        });
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -139,6 +147,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       const currentUserId = user?.id;
+
+      // Remove push token antes de sair
+      if (currentUserId) {
+        try {
+          await unregisterPushToken(currentUserId);
+          console.log('[Auth] 📱 Push token removido no logout');
+        } catch (pushError) {
+          console.warn('[Auth] Erro ao remover push token:', pushError);
+        }
+      }
 
       // Limpa caches por usuário antes de sair
       if (currentUserId) {
