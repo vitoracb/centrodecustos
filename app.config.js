@@ -4,7 +4,7 @@ export default {
     slug: 'nowtrading-centrodecustos',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './icons/nowtranding_icon_1024.png',
+    icon: './assets/icon.png',
     userInterfaceStyle: 'light',
 
     // Deep linking scheme para abrir o app via links como
@@ -12,7 +12,7 @@ export default {
     scheme: 'com.centrodecustos',
 
     splash: {
-      image: './icons/nowtranding_icon_1024.png',
+      image: './assets/icon.png',
       resizeMode: 'contain',
       backgroundColor: '#ffffff',
     },
@@ -39,7 +39,7 @@ export default {
       package: 'com.nowtranding.centrodecustos',
       versionCode: 1,
       adaptiveIcon: {
-        foregroundImage: './icons/nowtranding_icon_1024.png',
+        foregroundImage: './assets/icon.png',
         backgroundColor: '#ffffff',
       },
       permissions: [
@@ -66,7 +66,7 @@ export default {
     },
 
     web: {
-      favicon: './icons/nowtranding_icon_1024.png',
+      favicon: './assets/icon.png',
     },
 
     plugins: [
