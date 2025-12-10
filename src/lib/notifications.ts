@@ -8,6 +8,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { logger } from './logger';
+import { haptics } from './haptics';
 
 // Verifica se está rodando no Expo Go
 // Usa verificação segura caso ExecutionEnvironment não esteja disponível
@@ -109,6 +110,9 @@ export async function sendLocalNotification(
       },
       trigger: null, // null = envia imediatamente
     });
+
+    // Vibra ao enviar notificação
+    await haptics.notification();
 
     logger.debug('Notificação enviada:', { title, body });
   } catch (error) {
