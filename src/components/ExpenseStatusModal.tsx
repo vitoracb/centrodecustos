@@ -91,7 +91,7 @@ export const ExpenseStatusModal = ({
             {availableStatuses.map((status, index) => {
               const isSelected = expense.status === status;
               const style = STATUS_STYLES[status];
-              
+
               return (
                 <TouchableOpacity
                   key={status}
@@ -122,7 +122,7 @@ export const ExpenseStatusModal = ({
           {expense.documents && expense.documents.length === 0 && (
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                💡 O status "Pago" só está disponível quando há comprovante anexado à despesa.
+                💡 O status &quot;Pago&quot; só está disponível quando há comprovante anexado à despesa.
               </Text>
             </View>
           )}

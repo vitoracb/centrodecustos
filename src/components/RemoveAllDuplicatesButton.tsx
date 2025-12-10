@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { removeAllFixedExpenseDuplicates } from '../scripts/removeAllFixedExpenseDuplicates';
 
 export function RemoveAllDuplicatesButton() {
@@ -21,7 +21,7 @@ export function RemoveAllDuplicatesButton() {
             setLoading(true);
             try {
               const result = await removeAllFixedExpenseDuplicates();
-              
+
               if (result.success) {
                 if (result.removedCount === 0) {
                   Alert.alert(
@@ -30,10 +30,10 @@ export function RemoveAllDuplicatesButton() {
                     [{ text: 'OK' }]
                   );
                 } else {
-                  const detailsText = result.details.length > 0 
+                  const detailsText = result.details.length > 0
                     ? '\n\nDespesas corrigidas:\n' + result.details.slice(0, 5).join('\n') + (result.details.length > 5 ? '\n...' : '')
                     : '';
-                  
+
                   Alert.alert(
                     'Sucesso!',
                     `${result.removedCount} duplicata(s) removida(s).${detailsText}`,

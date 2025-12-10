@@ -16,6 +16,7 @@ import dayjs from 'dayjs';
 import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import { ChevronDown } from 'lucide-react-native';
+import { sanitizeName, sanitizeText, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
 interface OrderFormData {
   name: string;
@@ -74,10 +75,25 @@ export const OrderFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, selecione um equipamento.');
       return;
     }
+
+    // Validação de segurança
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+    if (observations && (hasSQLInjectionPatterns(observations) || hasXSSPatterns(observations))) {
+      Alert.alert('Entrada inválida', 'As observações contêm caracteres não permitidos.');
+      return;
+    }
+
+    // Sanitização
+    const sanitizedName = sanitizeName(name);
+    const sanitizedObservations = sanitizeText(observations, 1000);
+
     onSubmit({
-      name: name.trim(),
+      name: sanitizedName || 'Pedido sem nome',
       date: dayjs(date).format('DD/MM/YYYY'),
-      observations: observations.trim(),
+      observations: sanitizedObservations,
       equipmentId: selectedEquipmentId,
     });
     onClose();

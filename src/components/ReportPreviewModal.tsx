@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { X, Download, Share } from 'lucide-react-native';
+import { X, Share } from 'lucide-react-native';
 
 interface ReportPreviewModalProps {
   visible: boolean;

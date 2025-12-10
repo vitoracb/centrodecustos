@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { BaseToast, ErrorToast, SuccessToast, InfoToast } from 'react-native-toast-message';
+import { ErrorToast, SuccessToast, InfoToast } from 'react-native-toast-message';
 
 export const toastConfig = {
   success: (props: any) => (

@@ -24,7 +24,7 @@ import {
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter, CostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
-import { useFinancial } from '../context/FinancialContext';
+import { useFinancial , ExpenseDocument } from '../context/FinancialContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { UpdateHoursModal } from '../components/UpdateHoursModal';
 
@@ -34,7 +34,6 @@ import { PhotoUploadModal } from '../components/PhotoUploadModal';
 import { ReviewFormModal } from '../components/ReviewFormModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseDocumentsModal } from '../components/ExpenseDocumentsModal';
-import { ExpenseDocument } from '../context/FinancialContext';
 
 import dayjs from 'dayjs';
 import { supabase } from '@/src/lib/supabaseClient';
@@ -159,11 +158,11 @@ export const EquipmentDetailScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
-    files?: Array<{
+    files?: {
       fileUri: string;
       fileName: string;
       mimeType: string | null;
-    }>;
+    }[];
     initialIndex?: number;
   } | null>(null);
 
@@ -415,7 +414,7 @@ export const EquipmentDetailScreen = () => {
 
     if ('fileUri' in item && item.fileUri) {
       // Determina qual lista usar baseado na aba ativa
-      let allFiles: Array<{ fileUri: string; fileName: string; mimeType: string | null }> = [];
+      let allFiles: { fileUri: string; fileName: string; mimeType: string | null }[] = [];
       let currentIndex = 0;
 
       if (activeTab === 'documentos') {

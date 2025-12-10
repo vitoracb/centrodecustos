@@ -107,7 +107,7 @@ export default function CostCenterManagementScreen() {
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>Nenhum centro de custo cadastrado</Text>
                 <Text style={styles.emptySubtitle}>
-                  Toque em "Adicionar centro de custo" para criar o primeiro.
+                  Toque em &quot;Adicionar centro de custo&quot; para criar o primeiro.
                 </Text>
               </View>
             }

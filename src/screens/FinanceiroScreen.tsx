@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  ActivityIndicator,
   Image,
   Modal,
 } from 'react-native';
@@ -24,12 +23,10 @@ import {
   Trash2,
   FileText,
   ChevronDown,
-  Download,
-  BarChart3,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
-import { useFinancial, Receipt, Expense, ExpenseCategory, ExpenseStatus, ExpenseDocument } from '../context/FinancialContext';
+import { useFinancial, Receipt, Expense, ExpenseStatus, ExpenseDocument, ReceiptStatus } from '../context/FinancialContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { ReceiptFormModal } from '../components/ReceiptFormModal';
@@ -48,7 +45,6 @@ import { ReportPreviewModal } from '../components/ReportPreviewModal';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
-import { ReceiptStatus } from '../context/FinancialContext';
 import { validateFile, checkFileSizeAndAlert } from '../lib/validations';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -115,14 +111,6 @@ const getReceiptFixedInfo = (receipt: Receipt, allReceipts: Receipt[]): { isFixe
     (r) => r.isFixed && r.name === receipt.name && r.center === receipt.center
   );
 
-  console.log('🔍 [getReceiptFixedInfo]', {
-    receiptName: receipt.name,
-    receiptIsFixed: receipt.isFixed,
-    receiptInstallmentNumber: receipt.installmentNumber,
-    templateFound: !!template,
-    templateDuration: template?.fixedDurationMonths,
-  });
-
   // Se não encontrou template, não é fixo
   if (!template || !template.fixedDurationMonths) {
     return { isFixed: false };
@@ -130,7 +118,6 @@ const getReceiptFixedInfo = (receipt: Receipt, allReceipts: Receipt[]): { isFixe
 
   // Se tem installmentNumber, usa ele diretamente
   if (receipt.installmentNumber && template.fixedDurationMonths) {
-    console.log('✅ [getReceiptFixedInfo] Usando installmentNumber:', `${receipt.installmentNumber}/${template.fixedDurationMonths}`);
     return {
       isFixed: true,
       installment: `${receipt.installmentNumber}/${template.fixedDurationMonths}`,
@@ -277,7 +264,7 @@ const getExpenseFixedInfo = (expense: Expense, allExpenses: Expense[]): { isFixe
   const templateMonth = templateDate.month();
   const expenseYear = expenseDate.year();
   const expenseMonth = expenseDate.month();
-  
+
   const monthsDiff = (expenseYear - templateYear) * 12 + (expenseMonth - templateMonth);
   const installment = monthsDiff + 1; // +1 porque a primeira parcela é 1, não 0
 
@@ -298,16 +285,16 @@ export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter, costCenters } = useCostCenter();
   const {
-    getReceiptsByCenter, 
-    getExpensesByCenter, 
-    getAllExpenses, 
-    getAllReceipts, 
-    addReceipt, 
-    updateReceipt, 
-    deleteReceipt, 
-    addExpense, 
-    updateExpense, 
-    deleteExpense, 
+    getReceiptsByCenter,
+    getExpensesByCenter,
+    getAllExpenses,
+    getAllReceipts,
+    addReceipt,
+    updateReceipt,
+    deleteReceipt,
+    addExpense,
+    updateExpense,
+    deleteExpense,
     addDocumentToExpense,
     deleteExpenseDocument,
     generateFixedExpenses,
@@ -319,7 +306,7 @@ export const FinanceiroScreen = () => {
     html: string;
     data: ReportData;
   } | null>(null);
-  
+
   // Para o FinancialContext, os dados são recarregados automaticamente via useEffect
   // Vamos apenas forçar uma atualização do estado
   const onRefresh = useCallback(async () => {
@@ -330,7 +317,7 @@ export const FinanceiroScreen = () => {
     }, 500);
   }, []);
   const { getEquipmentsByCenter } = useEquipment();
-  
+
   // Filtra equipamentos pelo centro de custo selecionado
   const equipmentsForFilter = useMemo(
     () => getEquipmentsByCenter(selectedCenter),
@@ -364,11 +351,11 @@ export const FinanceiroScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
-    files?: Array<{
+    files?: {
       fileUri: string;
       fileName: string;
       mimeType: string | null;
-    }>;
+    }[];
     initialIndex?: number;
   } | null>(null);
   const [statusModalExpense, setStatusModalExpense] = useState<Expense | null>(null);
@@ -391,7 +378,7 @@ export const FinanceiroScreen = () => {
     if (lastActiveTabRef.current !== activeTab) {
       // Pega o período da aba anterior
       let currentPeriod: dayjs.Dayjs;
-      
+
       if (lastActiveTabRef.current === 'Recebimentos') {
         currentPeriod = selectedReceiptPeriod;
       } else if (lastActiveTabRef.current === 'Despesas') {
@@ -533,16 +520,10 @@ export const FinanceiroScreen = () => {
   };
 
   const handleAddExpenseDocument = () => {
-    console.log('🔧 [handleAddExpenseDocument] Clicou!');
-    console.log('🔧 selectedExpenseForDocument:', selectedExpenseForDocument);
-    console.log('🔧 isUploadingDocument:', isUploadingDocument);
-
     if (!selectedExpenseForDocument || isUploadingDocument) {
-      console.log('❌ TRAVOU na validação!');
       return;
     }
 
-    console.log('✅ Vai abrir Action Sheet de tipo (arquivo)');
     // Fecha o modal de documentos antes de abrir o Action Sheet
     setExpenseDocumentsModalVisible(false);
 
@@ -691,16 +672,10 @@ export const FinanceiroScreen = () => {
   };
 
   const handleAddExpensePhoto = () => {
-    console.log('📸 [handleAddExpensePhoto] Clicou!');
-    console.log('📸 selectedExpenseForDocument:', selectedExpenseForDocument);
-    console.log('📸 isUploadingDocument:', isUploadingDocument);
-
     if (!selectedExpenseForDocument || isUploadingDocument) {
-      console.log('❌ TRAVOU na validação!');
       return;
     }
 
-    console.log('✅ Vai abrir Action Sheet de tipo (foto)');
     // Fecha o modal de documentos antes de abrir o Action Sheet
     setExpenseDocumentsModalVisible(false);
 
@@ -932,7 +907,7 @@ export const FinanceiroScreen = () => {
       setActiveTab('Fechamento');
       paramsAppliedRef.current = true;
     }
-    
+
     if (monthParam && yearParam) {
       const month = parseInt(monthParam, 10);
       const year = parseInt(yearParam, 10);
@@ -1113,7 +1088,7 @@ export const FinanceiroScreen = () => {
     // Filtrar por nome
     if (expenseFilters.name && expenseFilters.name.trim()) {
       const searchName = expenseFilters.name.trim().toLowerCase();
-      filtered = filtered.filter((expense) => 
+      filtered = filtered.filter((expense) =>
         expense.name.toLowerCase().includes(searchName)
       );
     }
@@ -1312,7 +1287,7 @@ export const FinanceiroScreen = () => {
     };
 
     return {
-      period: closureMode === 'anual' 
+      period: closureMode === 'anual'
         ? selectedPeriod.format('YYYY')
         : selectedPeriod.format('MMMM [de] YYYY'),
       received: formatCurrency(totalReceipts),
@@ -1811,12 +1786,12 @@ export const FinanceiroScreen = () => {
               mode={expenseMode}
               selectedPeriod={selectedExpensePeriod}
             />
-            
+
             {/* Despesas agrupadas por status */}
             {filteredExpenses.length > 0 && (
               <View style={styles.expensesByStatusContainer}>
                 <Text style={styles.expensesByStatusTitle}>Despesas por Status</Text>
-                
+
                 {/* A Confirmar */}
                 {expensesByStatusForDespesas.totalsByStatus.confirmar > 0 && (
                   <View style={[styles.statusExpenseCard, { backgroundColor: STATUS_STYLES.confirmar.backgroundColor }]}>
@@ -1966,7 +1941,7 @@ export const FinanceiroScreen = () => {
                 )}
               </View>
             )}
-            
+
             {paginatedExpenses.length > 0 ? (
               <>
                 {paginatedExpenses.map((item) => (
@@ -2021,8 +1996,8 @@ export const FinanceiroScreen = () => {
                                   {item.method === 'BOLETO'
                                     ? 'Boleto'
                                     : item.method === 'TRANSFERENCIA'
-                                    ? 'Transferência'
-                                    : item.method}
+                                      ? 'Transferência'
+                                      : item.method}
                                 </Text>
                               </View>
                             )}
@@ -2316,7 +2291,7 @@ export const FinanceiroScreen = () => {
             {/* Gráfico Comparativo entre Centros */}
             <View style={styles.comparisonSection}>
               <Text style={styles.comparisonTitle}>Comparativo entre Centros</Text>
-              
+
               {/* Botões de modo */}
               <View style={styles.comparisonModeSelector}>
                 <TouchableOpacity
@@ -2344,7 +2319,7 @@ export const FinanceiroScreen = () => {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
+
               {/* Gráfico */}
               <CostCenterComparisonChart
                 expenses={getAllExpenses()}
@@ -2450,7 +2425,7 @@ export const FinanceiroScreen = () => {
                 templateReceipt = template;
               }
             }
-            
+
             // Atualiza usando o template (que atualizará todas as parcelas)
             updateReceipt({
               ...templateReceipt,
@@ -2475,33 +2450,33 @@ export const FinanceiroScreen = () => {
         initialData={
           editingReceipt
             ? (() => {
-                // Busca informações de receita fixa
-                const fixedInfo = getReceiptFixedInfo(editingReceipt, allReceipts);
-                
-                // Se for uma receita fixa (template ou parcela), busca o template
-                let isFixed = editingReceipt.isFixed ?? false;
-                let fixedDurationMonths = editingReceipt.fixedDurationMonths;
-                
-                if (fixedInfo.isFixed && !isFixed) {
-                  // É uma parcela de receita fixa, busca o template
-                  const template = allReceipts.find(
-                    (r) => r.isFixed && r.name === editingReceipt.name && r.center === editingReceipt.center
-                  );
-                  if (template) {
-                    isFixed = true;
-                    fixedDurationMonths = template.fixedDurationMonths;
-                  }
+              // Busca informações de receita fixa
+              const fixedInfo = getReceiptFixedInfo(editingReceipt, allReceipts);
+
+              // Se for uma receita fixa (template ou parcela), busca o template
+              let isFixed = editingReceipt.isFixed ?? false;
+              let fixedDurationMonths = editingReceipt.fixedDurationMonths;
+
+              if (fixedInfo.isFixed && !isFixed) {
+                // É uma parcela de receita fixa, busca o template
+                const template = allReceipts.find(
+                  (r) => r.isFixed && r.name === editingReceipt.name && r.center === editingReceipt.center
+                );
+                if (template) {
+                  isFixed = true;
+                  fixedDurationMonths = template.fixedDurationMonths;
                 }
-                
-                return {
-                  name: editingReceipt.name,
-                  date: editingReceipt.date,
-                  value: editingReceipt.value,
-                  isFixed,
-                  fixedDurationMonths,
-                  id: editingReceipt.id,
-                };
-              })()
+              }
+
+              return {
+                name: editingReceipt.name,
+                date: editingReceipt.date,
+                value: editingReceipt.value,
+                isFixed,
+                fixedDurationMonths,
+                id: editingReceipt.id,
+              };
+            })()
             : undefined
         }
       />
@@ -2536,10 +2511,10 @@ export const FinanceiroScreen = () => {
                 };
               }
             }
-            
+
             // Verifica se a data foi alterada (para despesas não fixas)
             const dateChanged = !editingExpense.isFixed && data.date !== editingExpense.date;
-            
+
             // Atualiza usando o template (que atualizará todas as parcelas)
             updateExpense({
               ...templateExpense,
@@ -2556,12 +2531,12 @@ export const FinanceiroScreen = () => {
               fixedDurationMonths: data.fixedDurationMonths,
               debitAdjustment: data.debitAdjustment,
             });
-            
+
             // Navega para o mês da nova data se foi alterada e está no modo mensal
             if (dateChanged && expenseMode === 'mensal' && data.date) {
               const [day, month, year] = data.date.split('/').map(Number);
               const newDate = dayjs(`${year}-${month}-${day}`);
-              
+
               if (newDate.isValid()) {
                 setSelectedExpensePeriod(newDate.startOf('month'));
               }
@@ -2613,75 +2588,75 @@ export const FinanceiroScreen = () => {
         initialData={
           editingExpense
             ? (() => {
-                const allExpenses = getAllExpenses();
+              const allExpenses = getAllExpenses();
 
-                // Primeiro, trata o caso de despesa fixa (ou parcela de despesa fixa)
-                let expenseData = editingExpense;
-                const fixedInfo = getExpenseFixedInfo(editingExpense, allExpenses);
-                
-                if (fixedInfo.isFixed) {
-                  // Busca o template para obter isFixed e fixedDurationMonths corretos
-                  const template = allExpenses.find(
-                    (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
-                  );
-                  
-                  if (template) {
-                    // Usa os dados do template, mas mantém a data e documentos da despesa sendo editada
-                    expenseData = {
-                      ...template,
-                      date: editingExpense.date,
-                      documents: editingExpense.documents || [],
-                      id: editingExpense.id,
-                    };
-                  }
+              // Primeiro, trata o caso de despesa fixa (ou parcela de despesa fixa)
+              let expenseData = editingExpense;
+              const fixedInfo = getExpenseFixedInfo(editingExpense, allExpenses);
+
+              if (fixedInfo.isFixed) {
+                // Busca o template para obter isFixed e fixedDurationMonths corretos
+                const template = allExpenses.find(
+                  (e) => e.isFixed && e.name === editingExpense.name && e.center === editingExpense.center
+                );
+
+                if (template) {
+                  // Usa os dados do template, mas mantém a data e documentos da despesa sendo editada
+                  expenseData = {
+                    ...template,
+                    date: editingExpense.date,
+                    documents: editingExpense.documents || [],
+                    id: editingExpense.id,
+                  };
                 }
+              }
 
-                // Depois, verifica se é um grupo parcelado manual (não fixo)
-                let isInstallment = false;
-                let installments: { installmentNumber: number; value: number; date: string }[] | undefined;
-                let installmentsCount: number | undefined;
+              // Depois, verifica se é um grupo parcelado manual (não fixo)
+              let isInstallment = false;
+              let installments: { installmentNumber: number; value: number; date: string }[] | undefined;
+              let installmentsCount: number | undefined;
 
-                const installmentInfo = getExpenseInstallmentInfo(editingExpense, allExpenses);
-                if (installmentInfo.isInstallment) {
-                  const siblings = allExpenses
-                    .filter((e) =>
-                      e.center === editingExpense.center &&
-                      e.name === editingExpense.name &&
-                      e.installmentNumber != null &&
-                      !e.isFixed
-                    )
-                    .sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
+              const installmentInfo = getExpenseInstallmentInfo(editingExpense, allExpenses);
+              if (installmentInfo.isInstallment) {
+                const siblings = allExpenses
+                  .filter((e) =>
+                    e.center === editingExpense.center &&
+                    e.name === editingExpense.name &&
+                    e.installmentNumber != null &&
+                    !e.isFixed
+                  )
+                  .sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
 
-                  if (siblings.length > 0) {
-                    isInstallment = true;
-                    installments = siblings.map((e) => ({
-                      installmentNumber: e.installmentNumber ?? 0,
-                      value: e.value,
-                      date: e.date,
-                    }));
-                    installmentsCount = siblings.length;
-                  }
+                if (siblings.length > 0) {
+                  isInstallment = true;
+                  installments = siblings.map((e) => ({
+                    installmentNumber: e.installmentNumber ?? 0,
+                    value: e.value,
+                    date: e.date,
+                  }));
+                  installmentsCount = siblings.length;
                 }
-                
-                return {
-                  name: expenseData.name,
-                  category: expenseData.category,
-                  date: expenseData.date,
-                  value: expenseData.value,
-                  documents: expenseData.documents || [],
-                  equipmentId: expenseData.equipmentId,
-                  gestaoSubcategory: expenseData.gestaoSubcategory,
-                  observations: expenseData.observations,
-                  isFixed: expenseData.isFixed ?? false,
-                  sector: expenseData.sector,
-                  fixedDurationMonths: expenseData.fixedDurationMonths,
-                  id: expenseData.id,
-                  debitAdjustment: expenseData.debitAdjustment,
-                  isInstallment,
-                  installments,
-                  installmentsCount,
-                };
-              })()
+              }
+
+              return {
+                name: expenseData.name,
+                category: expenseData.category,
+                date: expenseData.date,
+                value: expenseData.value,
+                documents: expenseData.documents || [],
+                equipmentId: expenseData.equipmentId,
+                gestaoSubcategory: expenseData.gestaoSubcategory,
+                observations: expenseData.observations,
+                isFixed: expenseData.isFixed ?? false,
+                sector: expenseData.sector,
+                fixedDurationMonths: expenseData.fixedDurationMonths,
+                id: expenseData.id,
+                debitAdjustment: expenseData.debitAdjustment,
+                isInstallment,
+                installments,
+                installmentsCount,
+              };
+            })()
             : undefined
         }
       />
@@ -2725,7 +2700,7 @@ export const FinanceiroScreen = () => {
           try {
             await deleteExpenseDocument(selectedExpenseForDocument.id, document.fileUri);
             // Atualiza os documentos locais
-            setSelectedExpenseDocuments((prev) => 
+            setSelectedExpenseDocuments((prev) =>
               prev?.filter((doc) => doc.fileUri !== document.fileUri) || []
             );
             setSelectedExpenseForDocument((prev) => {
@@ -2788,7 +2763,7 @@ export const FinanceiroScreen = () => {
                 ...selectedReceiptForStatus,
                 status: newStatus,
               });
-              
+
               if (updated) {
                 setReceiptStatusModalVisible(false);
                 setSelectedReceiptForStatus(null);

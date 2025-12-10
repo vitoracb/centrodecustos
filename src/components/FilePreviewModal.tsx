@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
-  Image,
 } from 'react-native';
 import { X, Check, ChevronLeft, ChevronRight, Share } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import ImageViewer from 'react-native-image-zoom-viewer';
 import { shareFile } from '../lib/shareUtils';
+import { logger } from '../lib/logger';
 
 export interface FilePreviewItem {
   fileUri: string;
@@ -68,7 +68,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   useEffect(() => {
     setLoading(true);
     setErrorLoading(null);
-    console.log('📄 [FilePreview] Carregando arquivo:', {
+    logger.debug('📄 [FilePreview] Carregando arquivo:', {
       fileName: currentFile.fileName,
       fileUri: currentFile.fileUri,
       mimeType: currentFile.mimeType,
@@ -90,7 +90,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   }, [isImage, currentFile.fileUri]);
 
   if (!currentFile.fileUri) {
-    console.log('⚠️ [FilePreview] fileUri vazio!');
+    logger.debug('⚠️ [FilePreview] fileUri vazio!');
     return null;
   }
 
@@ -185,21 +185,21 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   source={{ uri: currentFile.fileUri }}
                   style={styles.webview}
                   onLoadStart={() => {
-                    console.log('📄 [PDF] Iniciando carregamento...');
+                    logger.debug('📄 [PDF] Iniciando carregamento...');
                     setLoading(true);
                     setErrorLoading(null);
                   }}
                   onLoadEnd={() => {
-                    console.log('✅ [PDF] Carregamento concluído');
+                    logger.debug('✅ [PDF] Carregamento concluído');
                     setLoading(false);
                   }}
                   onError={(e) => {
-                    console.log('❌ [PDF] Erro ao carregar:', e.nativeEvent);
+                    logger.warn('❌ [PDF] Erro ao carregar:', e.nativeEvent);
                     setLoading(false);
                     setErrorLoading('Não foi possível carregar o PDF.');
                   }}
                   onHttpError={(e) => {
-                    console.log('❌ [PDF] Erro HTTP:', e.nativeEvent);
+                    logger.warn('❌ [PDF] Erro HTTP:', e.nativeEvent);
                   }}
                   originWhitelist={['*']}
                   // melhora comportamento em iOS

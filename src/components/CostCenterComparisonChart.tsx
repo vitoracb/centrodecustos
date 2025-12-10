@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import Svg, { G, Rect, Line, Text as SvgText } from 'react-native-svg';
 import { Expense, Receipt } from '../context/FinancialContext';
 import { CostCenter, useCostCenter } from '../context/CostCenterContext';
@@ -21,13 +21,13 @@ const generateColorFromCode = (code: string): string => {
   if (DEFAULT_CENTER_COLORS[code]) {
     return DEFAULT_CENTER_COLORS[code];
   }
-  
+
   // Gera uma cor baseada no hash do código
   let hash = 0;
   for (let i = 0; i < code.length; i++) {
     hash = code.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   // Gera uma cor HSL com saturação e luminosidade fixas
   const hue = Math.abs(hash) % 360;
   return `hsl(${hue}, 70%, 50%)`;
@@ -47,11 +47,11 @@ export const CostCenterComparisonChart = ({
   period,
 }: CostCenterComparisonChartProps) => {
   const { costCenters } = useCostCenter();
-  
+
   const chartData = useMemo(() => {
     // Usa os centros dinâmicos do contexto
     const centers = costCenters.map(cc => cc.code);
-    const data: Array<{ center: CostCenter; expenses: number; receipts: number; balance: number; name: string }> = [];
+    const data: { center: CostCenter; expenses: number; receipts: number; balance: number; name: string }[] = [];
 
     centers.forEach((center) => {
       let centerExpenses = 0;
@@ -60,8 +60,8 @@ export const CostCenterComparisonChart = ({
       // Calcular despesas do centro
       expenses.forEach((expense) => {
         if (expense.center !== center) return;
-        
-        const [day, month, year] = expense.date.split('/').map(Number);
+
+        const [, month, year] = expense.date.split('/').map(Number);
         if (month && year) {
           const expenseMonth = month - 1;
           if (period.month !== undefined) {
@@ -79,8 +79,8 @@ export const CostCenterComparisonChart = ({
       // Calcular recebimentos do centro
       receipts.forEach((receipt) => {
         if (receipt.center !== center) return;
-        
-        const [day, month, year] = receipt.date.split('/').map(Number);
+
+        const [, month, year] = receipt.date.split('/').map(Number);
         if (month && year) {
           const receiptMonth = month - 1;
           if (period.month !== undefined) {
@@ -148,7 +148,7 @@ export const CostCenterComparisonChart = ({
   const getBarData = (item: typeof chartData[0]) => {
     // Usar a cor específica do centro de custo (dinâmica)
     const centerColor = generateColorFromCode(item.center);
-    
+
     if (mode === 'expenses') {
       return { value: item.expenses, color: centerColor };
     }
@@ -166,11 +166,11 @@ export const CostCenterComparisonChart = ({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>
-          {mode === 'expenses' 
-            ? 'Despesas por Centro' 
-            : mode === 'receipts' 
-            ? 'Recebimentos por Centro' 
-            : 'Saldo por Centro'}
+          {mode === 'expenses'
+            ? 'Despesas por Centro'
+            : mode === 'receipts'
+              ? 'Recebimentos por Centro'
+              : 'Saldo por Centro'}
         </Text>
       </View>
       <View style={styles.chartContainer}>
@@ -228,7 +228,7 @@ export const CostCenterComparisonChart = ({
               const barData = getBarData(item);
               const barValue = mode === 'balance' ? Math.abs(barData.value) : barData.value;
               const barHeight = (barValue / maxValue) * maxBarHeight;
-              
+
               let y: number;
               if (mode === 'balance') {
                 // Para balance, barras positivas sobem, negativas descem

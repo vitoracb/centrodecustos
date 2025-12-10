@@ -15,29 +15,28 @@ import { useCostCenter } from '../context/CostCenterContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { useEmployees, EmployeeDocument } from '../context/EmployeeContext';
 import { usePermissions } from '../context/PermissionsContext';
-import { UserPlus, Trash2, FileText, ChevronDown, Edit3, Plus, User } from 'lucide-react-native';
+import { UserPlus, Trash2, FileText, ChevronDown, Edit3, User } from 'lucide-react-native';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { CostCenter } from '../context/CostCenterContext';
 
 
 export const FuncionariosScreen = () => {
   const { selectedCenter, costCenters } = useCostCenter();
   const { getEquipmentsByCenter } = useEquipment();
-  const { 
-    documentsByCenter, 
-    addEmployeeDocument, 
-    updateEmployeeDocument, 
+  const {
+    documentsByCenter,
+    addEmployeeDocument,
+    updateEmployeeDocument,
     deleteEmployeeDocument,
     deleteEmployee,
     loadDocuments
   } = useEmployees();
   const { canCreate, canEdit, canDelete } = usePermissions();
-  
+
   // Obtém o nome do centro de custo selecionado
   const selectedCenterName = costCenters.find(cc => cc.code === selectedCenter)?.name || selectedCenter;
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -48,13 +47,13 @@ export const FuncionariosScreen = () => {
       setRefreshing(false);
     }
   }, [loadDocuments]);
-  
+
   // Filtra equipamentos pelo centro de custo selecionado
   const equipments = useMemo(
     () => getEquipmentsByCenter(selectedCenter),
     [selectedCenter, getEquipmentsByCenter]
   );
-  
+
   const [selectedEquipment, setSelectedEquipment] = useState<{
     id: string;
     name: string;
@@ -68,11 +67,11 @@ export const FuncionariosScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
-    files?: Array<{
+    files?: {
       fileUri: string;
       fileName: string;
       mimeType: string | null;
-    }>;
+    }[];
     initialIndex?: number;
   } | null>(null);
 
@@ -136,244 +135,244 @@ export const FuncionariosScreen = () => {
             </Text>
           </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Selecionar Equipamento</Text>
-          {equipments.length > 0 ? (
-            <>
-              <TouchableOpacity
-                style={styles.dropdown}
-                activeOpacity={0.8}
-                onPress={() => setEquipmentDropdown(true)}
-              >
-                <Text style={styles.dropdownText}>
-                  {selectedEquipment?.name || 'Selecione um equipamento'}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Selecionar Equipamento</Text>
+            {equipments.length > 0 ? (
+              <>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  activeOpacity={0.8}
+                  onPress={() => setEquipmentDropdown(true)}
+                >
+                  <Text style={styles.dropdownText}>
+                    {selectedEquipment?.name || 'Selecione um equipamento'}
+                  </Text>
+                  <ChevronDown size={18} color="#1C1C1E" />
+                </TouchableOpacity>
+                {equipmentDropdown && (
+                  <View style={styles.dropdownList}>
+                    {equipments.map((equipment) => (
+                      <TouchableOpacity
+                        key={equipment.id}
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setSelectedEquipment({
+                            id: equipment.id,
+                            name: equipment.name,
+                          });
+                          setEquipmentDropdown(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>{equipment.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Nenhum equipamento cadastrado para este centro de custo
                 </Text>
-                <ChevronDown size={18} color="#1C1C1E" />
-              </TouchableOpacity>
-              {equipmentDropdown && (
-                <View style={styles.dropdownList}>
-                  {equipments.map((equipment) => (
-                    <TouchableOpacity
-                      key={equipment.id}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        setSelectedEquipment({
-                          id: equipment.id,
-                          name: equipment.name,
-                        });
-                        setEquipmentDropdown(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{equipment.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                Nenhum equipamento cadastrado para este centro de custo
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Funcionários</Text>
-            {canCreate && (
-              <TouchableOpacity
-                style={[
-                  styles.iconButton,
-                  (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
-                ]}
-                onPress={() => {
-                  setAddingDocumentForEmployee(null);
-                  setEmployeeModalVisible(true);
-                }}
-                disabled={!selectedEquipment || equipments.length === 0}
-              >
-                <UserPlus size={18} color="#0A84FF" />
-              </TouchableOpacity>
+              </View>
             )}
           </View>
 
-          {Object.keys(documentsByEmployee).length > 0 ? (
-            Object.entries(documentsByEmployee).map(([employeeName, employeeDocs]) => (
-              <View key={employeeName} style={styles.employeeGroup}>
-                <View style={styles.employeeHeader}>
-                  <View style={styles.employeeHeaderLeft}>
-                    <View style={styles.iconCircle}>
-                      <User size={18} color="#0A84FF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.employeeName}>{employeeName}</Text>
-                      <Text style={styles.employeeDocCount}>
-                        {employeeDocs.length} {employeeDocs.length === 1 ? 'documento' : 'documentos'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.employeeHeaderActions}>
-                    {canCreate && (
-                      <TouchableOpacity
-                        style={styles.addDocButton}
-                        onPress={() => {
-                          setAddingDocumentForEmployee(employeeName);
-                          setEmployeeModalVisible(true);
-                        }}
-                      >
-                        <FileText size={16} color="#0A84FF" />
-                      </TouchableOpacity>
-                    )}
-                    {canDelete && (
-                      <TouchableOpacity
-                        style={styles.deleteEmployeeButton}
-                        onPress={() => {
-                          if (!selectedEquipment) return;
-                          Alert.alert(
-                            'Excluir funcionário',
-                            `Tem certeza que deseja excluir o funcionário "${employeeName}"? Todos os documentos deste funcionário serão excluídos.`,
-                            [
-                              { text: 'Cancelar', style: 'cancel' },
-                              {
-                                text: 'Excluir',
-                                style: 'destructive',
-                                onPress: () => deleteEmployee(employeeName, selectedEquipment.id, selectedCenter),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Trash2 size={16} color="#FF3B30" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-                {employeeDocs.map((doc) => {
-                  const handleOpenDocument = () => {
-                    // Prepara todos os documentos do funcionário para navegação
-                    const allFiles = employeeDocs.map((d) => ({
-                      fileUri: d.fileUri,
-                      fileName: d.fileName,
-                      mimeType: d.mimeType || null,
-                    }));
-                    const currentIndex = employeeDocs.findIndex((d) => d.id === doc.id);
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Funcionários</Text>
+              {canCreate && (
+                <TouchableOpacity
+                  style={[
+                    styles.iconButton,
+                    (!selectedEquipment || equipments.length === 0) && { opacity: 0.5 },
+                  ]}
+                  onPress={() => {
+                    setAddingDocumentForEmployee(null);
+                    setEmployeeModalVisible(true);
+                  }}
+                  disabled={!selectedEquipment || equipments.length === 0}
+                >
+                  <UserPlus size={18} color="#0A84FF" />
+                </TouchableOpacity>
+              )}
+            </View>
 
-                    // Só passa files se houver mais de 1 documento para navegação
-                    if (allFiles.length > 1) {
-                      setPreviewFile({
-                        uri: doc.fileUri,
-                        name: doc.fileName,
-                        mimeType: doc.mimeType,
-                        files: allFiles,
-                        initialIndex: currentIndex >= 0 ? currentIndex : 0,
-                      });
-                    } else {
-                      // Se houver apenas 1 documento, não passa files (sem navegação)
-                      setPreviewFile({
-                        uri: doc.fileUri,
-                        name: doc.fileName,
-                        mimeType: doc.mimeType,
-                      });
-                    }
-                    setPreviewVisible(true);
-                  };
-
-                  return (
-                    <View key={doc.id} style={styles.documentCard}>
-                      <View style={styles.documentHeader}>
-                        <View style={{ flex: 1 }}>
-                          <TouchableOpacity onPress={handleOpenDocument} activeOpacity={0.7}>
-                            <Text style={styles.documentName}>{doc.documentName}</Text>
-                          </TouchableOpacity>
-                          <Text style={styles.documentDate}>{doc.date}</Text>
-                        </View>
-                        <View style={styles.documentHeaderActions}>
-                          {canEdit && (
-                            <TouchableOpacity
-                              style={styles.editIconButton}
-                              onPress={() => {
-                                setEditingDocument(doc);
-                                setAddingDocumentForEmployee(null);
-                                setEmployeeModalVisible(true);
-                              }}
-                            >
-                              <Edit3 size={16} color="#0A84FF" />
-                            </TouchableOpacity>
-                          )}
-                          {canDelete && (
-                            <TouchableOpacity
-                              style={styles.deleteButton}
-                              onPress={() =>
-                                Alert.alert(
-                                  'Remover documento',
-                                  'Tem certeza que deseja excluir este documento?',
-                                  [
-                                    { text: 'Cancelar', style: 'cancel' },
-                                    { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
-                                  ]
-                                )
-                              }
-                            >
-                              <Trash2 size={16} color="#FF3B30" />
-                            </TouchableOpacity>
-                          )}
-                        </View>
+            {Object.keys(documentsByEmployee).length > 0 ? (
+              Object.entries(documentsByEmployee).map(([employeeName, employeeDocs]) => (
+                <View key={employeeName} style={styles.employeeGroup}>
+                  <View style={styles.employeeHeader}>
+                    <View style={styles.employeeHeaderLeft}>
+                      <View style={styles.iconCircle}>
+                        <User size={18} color="#0A84FF" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.employeeName}>{employeeName}</Text>
+                        <Text style={styles.employeeDocCount}>
+                          {employeeDocs.length} {employeeDocs.length === 1 ? 'documento' : 'documentos'}
+                        </Text>
                       </View>
                     </View>
-                  );
-                })}
+                    <View style={styles.employeeHeaderActions}>
+                      {canCreate && (
+                        <TouchableOpacity
+                          style={styles.addDocButton}
+                          onPress={() => {
+                            setAddingDocumentForEmployee(employeeName);
+                            setEmployeeModalVisible(true);
+                          }}
+                        >
+                          <FileText size={16} color="#0A84FF" />
+                        </TouchableOpacity>
+                      )}
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteEmployeeButton}
+                          onPress={() => {
+                            if (!selectedEquipment) return;
+                            Alert.alert(
+                              'Excluir funcionário',
+                              `Tem certeza que deseja excluir o funcionário "${employeeName}"? Todos os documentos deste funcionário serão excluídos.`,
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                  text: 'Excluir',
+                                  style: 'destructive',
+                                  onPress: () => deleteEmployee(employeeName, selectedEquipment.id, selectedCenter),
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Trash2 size={16} color="#FF3B30" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  {employeeDocs.map((doc) => {
+                    const handleOpenDocument = () => {
+                      // Prepara todos os documentos do funcionário para navegação
+                      const allFiles = employeeDocs.map((d) => ({
+                        fileUri: d.fileUri,
+                        fileName: d.fileName,
+                        mimeType: d.mimeType || null,
+                      }));
+                      const currentIndex = employeeDocs.findIndex((d) => d.id === doc.id);
+
+                      // Só passa files se houver mais de 1 documento para navegação
+                      if (allFiles.length > 1) {
+                        setPreviewFile({
+                          uri: doc.fileUri,
+                          name: doc.fileName,
+                          mimeType: doc.mimeType,
+                          files: allFiles,
+                          initialIndex: currentIndex >= 0 ? currentIndex : 0,
+                        });
+                      } else {
+                        // Se houver apenas 1 documento, não passa files (sem navegação)
+                        setPreviewFile({
+                          uri: doc.fileUri,
+                          name: doc.fileName,
+                          mimeType: doc.mimeType,
+                        });
+                      }
+                      setPreviewVisible(true);
+                    };
+
+                    return (
+                      <View key={doc.id} style={styles.documentCard}>
+                        <View style={styles.documentHeader}>
+                          <View style={{ flex: 1 }}>
+                            <TouchableOpacity onPress={handleOpenDocument} activeOpacity={0.7}>
+                              <Text style={styles.documentName}>{doc.documentName}</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.documentDate}>{doc.date}</Text>
+                          </View>
+                          <View style={styles.documentHeaderActions}>
+                            {canEdit && (
+                              <TouchableOpacity
+                                style={styles.editIconButton}
+                                onPress={() => {
+                                  setEditingDocument(doc);
+                                  setAddingDocumentForEmployee(null);
+                                  setEmployeeModalVisible(true);
+                                }}
+                              >
+                                <Edit3 size={16} color="#0A84FF" />
+                              </TouchableOpacity>
+                            )}
+                            {canDelete && (
+                              <TouchableOpacity
+                                style={styles.deleteButton}
+                                onPress={() =>
+                                  Alert.alert(
+                                    'Remover documento',
+                                    'Tem certeza que deseja excluir este documento?',
+                                    [
+                                      { text: 'Cancelar', style: 'cancel' },
+                                      { text: 'Excluir', style: 'destructive', onPress: () => handleDeleteDocument(doc.id) },
+                                    ]
+                                  )
+                                }
+                              >
+                                <Trash2 size={16} color="#FF3B30" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Nenhum documento cadastrado para este equipamento.
+                </Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                Nenhum documento cadastrado para este equipamento.
-              </Text>
-            </View>
-          )}
-        </View>
+            )}
+          </View>
         </ScrollView>
-      {(canCreate || canEdit) && (
-        <EmployeeDocumentModal
-          visible={isEmployeeModalVisible}
-          onClose={() => {
-            setEmployeeModalVisible(false);
-            setEditingDocument(null);
-            setAddingDocumentForEmployee(null);
-          }}
-          onSubmit={(data) => {
-            if (!selectedEquipment) return;
-            
-            if (editingDocument) {
-              updateEmployeeDocument(editingDocument.id, {
-                employee: data.employeeName,
-                documentName: data.documentName,
-                date: data.date,
-                fileName: data.fileName,
-                fileUri: data.fileUri,
-                mimeType: data.mimeType,
-              });
-            } else {
-              addEmployeeDocument({
-                employee: data.employeeName,
-                documentName: data.documentName,
-                date: data.date,
-                fileName: data.fileName,
-                fileUri: data.fileUri,
-                mimeType: data.mimeType,
-                equipmentId: selectedEquipment.id,
-                center: selectedCenter,
-              });
-            }
-            
-            setEditingDocument(null);
-            setAddingDocumentForEmployee(null);
-          }}
-          initialData={
-            editingDocument
-              ? {
+        {(canCreate || canEdit) && (
+          <EmployeeDocumentModal
+            visible={isEmployeeModalVisible}
+            onClose={() => {
+              setEmployeeModalVisible(false);
+              setEditingDocument(null);
+              setAddingDocumentForEmployee(null);
+            }}
+            onSubmit={(data) => {
+              if (!selectedEquipment) return;
+
+              if (editingDocument) {
+                updateEmployeeDocument(editingDocument.id, {
+                  employee: data.employeeName,
+                  documentName: data.documentName,
+                  date: data.date,
+                  fileName: data.fileName,
+                  fileUri: data.fileUri,
+                  mimeType: data.mimeType,
+                });
+              } else {
+                addEmployeeDocument({
+                  employee: data.employeeName,
+                  documentName: data.documentName,
+                  date: data.date,
+                  fileName: data.fileName,
+                  fileUri: data.fileUri,
+                  mimeType: data.mimeType,
+                  equipmentId: selectedEquipment.id,
+                  center: selectedCenter,
+                });
+              }
+
+              setEditingDocument(null);
+              setAddingDocumentForEmployee(null);
+            }}
+            initialData={
+              editingDocument
+                ? {
                   employeeName: editingDocument.employee,
                   documentName: editingDocument.documentName,
                   date: editingDocument.date,
@@ -381,32 +380,32 @@ export const FuncionariosScreen = () => {
                   fileUri: editingDocument.fileUri,
                   mimeType: editingDocument.mimeType,
                 }
-              : addingDocumentForEmployee
-              ? {
-                  employeeName: addingDocumentForEmployee,
-                  documentName: '',
-                  date: '',
-                  fileName: '',
-                  fileUri: '',
-                  mimeType: null,
-                }
-              : undefined
-          }
-          disableEmployeeName={!!addingDocumentForEmployee}
+                : addingDocumentForEmployee
+                  ? {
+                    employeeName: addingDocumentForEmployee,
+                    documentName: '',
+                    date: '',
+                    fileName: '',
+                    fileUri: '',
+                    mimeType: null,
+                  }
+                  : undefined
+            }
+            disableEmployeeName={!!addingDocumentForEmployee}
+          />
+        )}
+        <FilePreviewModal
+          visible={previewVisible}
+          onClose={() => {
+            setPreviewVisible(false);
+            setPreviewFile(null);
+          }}
+          fileUri={previewFile?.uri}
+          fileName={previewFile?.name}
+          mimeType={previewFile?.mimeType}
+          files={previewFile?.files}
+          initialIndex={previewFile?.initialIndex}
         />
-      )}
-      <FilePreviewModal
-        visible={previewVisible}
-        onClose={() => {
-          setPreviewVisible(false);
-          setPreviewFile(null);
-        }}
-        fileUri={previewFile?.uri}
-        fileName={previewFile?.name}
-        mimeType={previewFile?.mimeType}
-        files={previewFile?.files}
-        initialIndex={previewFile?.initialIndex}
-      />
       </View>
     </SafeAreaView>
   );
@@ -715,11 +714,6 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 8,
     gap: 10,
-  },
-  documentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   documentName: {
     fontSize: 15,

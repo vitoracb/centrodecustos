@@ -14,6 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import { validateDate } from '../lib/validations';
+import { sanitizeName, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
 interface ReceiptFormData {
   name: string;
@@ -106,24 +107,33 @@ export const ReceiptFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o valor do recebimento.');
       return;
     }
-    
+
+    // Validação de segurança
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+
     // Validação de data
     const formattedDate = dayjs(date).format('DD/MM/YYYY');
     const dateValidation = validateDate(formattedDate, {
       allowFuture: true,
       allowPast: true,
     });
-    
+
     if (!dateValidation.isValid) {
       Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
       return;
     }
-    
+
+    // Sanitização
+    const sanitizedName = sanitizeName(name);
+
     setIsSaving(true);
     try {
       await Promise.resolve(
         onSubmit({
-          name: name.trim(),
+          name: sanitizedName || 'Recebimento sem nome',
           date: formattedDate,
           value: parseCurrency(value),
           isFixed,

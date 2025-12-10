@@ -21,7 +21,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { signIn, signInDev } = useAuth();
+  const { signIn } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {

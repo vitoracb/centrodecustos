@@ -33,8 +33,6 @@ import {
   FileText,
   PlusCircle,
   ShoppingCart,
-  Trash2,
-  Download,
 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -51,7 +49,7 @@ const centerLabels = {
   cabralia: 'Cabrália',
 };
 
-type ActivityType = 
+type ActivityType =
   | 'equipment_add'
   | 'equipment_remove'
   | 'equipment_activate'
@@ -231,7 +229,7 @@ export const DashboardScreen = () => {
     html: string;
     data: ReportData;
   } | null>(null);
-  
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -302,38 +300,38 @@ export const DashboardScreen = () => {
           router.push('/equipamentos' as any);
         }
         break;
-      
+
       case 'expense':
         router.push({
           pathname: '/financeiro' as any,
           params: { tab: 'Despesas' },
         });
         break;
-      
+
       case 'receipt':
         router.push({
           pathname: '/financeiro' as any,
           params: { tab: 'Recebimentos' },
         });
         break;
-      
+
       case 'order_pending':
       case 'order_sent':
       case 'order_approved':
       case 'order_rejected':
         router.push('/pedidos' as any);
         break;
-      
+
       case 'employee_add':
       case 'employee_remove':
         router.push('/funcionarios' as any);
         break;
-      
+
       case 'contract_add':
       case 'contract_remove':
         router.push('/contratos' as any);
         break;
-      
+
       default:
         // Não navega para tipos desconhecidos
         break;
@@ -355,14 +353,14 @@ export const DashboardScreen = () => {
 
     const centerExpenses = expenses.filter(exp => {
       if (exp.center !== selectedCenter) return false;
-      
+
       // Extrai ano e mês da despesa no formato DD/MM/YYYY
       const dateParts = exp.date.split('/');
       if (dateParts.length !== 3) return false;
-      
+
       const expenseMonth = `${dateParts[2]}-${dateParts[1]}`; // YYYY-MM
       const currentMonth = now.format('YYYY-MM');
-      
+
       return expenseMonth === currentMonth;
     });
 
@@ -373,12 +371,12 @@ export const DashboardScreen = () => {
       if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
         return true;
       }
-      
+
       // Se é o template (isFixed: true), verifica se há parcelas geradas NO MESMO MÊS
       if (exp.isFixed) {
         const expMonth = dayjs(exp.date, 'DD/MM/YYYY').format('YYYY-MM');
         const hasGeneratedInstallmentsInSameMonth = centerExpenses.some(
-          other => 
+          other =>
             other.id !== exp.id &&
             other.name === exp.name &&
             other.center === exp.center &&
@@ -389,7 +387,7 @@ export const DashboardScreen = () => {
         // Só inclui o template se NÃO houver parcelas geradas no mesmo mês
         return !hasGeneratedInstallmentsInSameMonth;
       }
-      
+
       // Despesas avulsas (não fixas, sem installmentNumber)
       return true;
     });
@@ -405,13 +403,13 @@ export const DashboardScreen = () => {
 
     const centerReceipts = receipts.filter(receipt => {
       if (receipt.center !== selectedCenter) return false;
-      
+
       const dateParts = receipt.date.split('/');
       if (dateParts.length !== 3) return false;
-      
+
       const receiptMonth = `${dateParts[2]}-${dateParts[1]}`;
       const currentMonth = now.format('YYYY-MM');
-      
+
       return receiptMonth === currentMonth;
     });
 
@@ -429,7 +427,7 @@ export const DashboardScreen = () => {
     const centerDocs = documentsByCenter[selectedCenter] ?? {};
     const allEquipments = getAllEquipments();
     const allEmployees = new Set<string>();
-    
+
     Object.values(centerDocs).forEach((docs) => {
       docs.forEach(doc => {
         // Só conta funcionários de documentos não deletados E com equipamento válido
@@ -465,7 +463,7 @@ export const DashboardScreen = () => {
     const allEquipments = getAllEquipments();
     allEquipments.forEach(eq => {
       if (eq.center !== selectedCenter) return;
-      
+
       // Equipamento excluído
       if (eq.deletedAt) {
         activities.push({
@@ -479,7 +477,7 @@ export const DashboardScreen = () => {
         });
         return; // Não mostra outras atividades para equipamentos deletados
       }
-      
+
       // Equipamento adicionado
       if (eq.createdAt) {
         activities.push({
@@ -647,14 +645,14 @@ export const DashboardScreen = () => {
           });
           return; // Não mostra outras atividades para documentos deletados
         }
-        
+
         const docTimestamp = doc.createdAt || Date.now();
-        
+
         // Verifica se é um novo funcionário (primeiro documento deste funcionário neste equipamento)
         // Considera apenas documentos não deletados
         const nonDeletedDocs = docs.filter(d => !d.deletedAt);
-        const isNewEmployee = nonDeletedDocs.filter(d => 
-          d.employee === doc.employee && 
+        const isNewEmployee = nonDeletedDocs.filter(d =>
+          d.employee === doc.employee &&
           (d.createdAt || Date.now()) <= docTimestamp
         ).length === 1;
 
@@ -865,7 +863,7 @@ export const DashboardScreen = () => {
         await exportToExcel(reportPreview.data);
         showSuccess('Relatório exportado', 'O relatório Excel foi gerado com sucesso');
       }
-      
+
       setReportPreview(null);
     } catch (error: any) {
       showError('Erro ao exportar', error.message || 'Tente novamente');
@@ -972,92 +970,92 @@ export const DashboardScreen = () => {
 
           <GlobalSearch />
 
-        {isDashboardLoading ? (
-          <DashboardOverviewSkeleton />
-        ) : (
-          <>
-            <View style={styles.statsGrid}>
-              {statCards.map(card => (
-                <TouchableOpacity
-                  key={card.label}
-                  style={styles.statCard}
-                  onPress={card.onPress}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.statIcon}>
-                    <card.icon size={20} color="#0A84FF" />
-                  </View>
-                  <Text style={styles.statLabel}>{card.label}</Text>
-                  <Text style={styles.statValue}>{card.value}</Text>
-                  {card.change ? (
-                    <Text style={styles.statChange}>{card.change}</Text>
-                  ) : null}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.sectionsRow}>
-              <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Atividades Recentes</Text>
-                {recentActivities.length > 0 ? (
-                  recentActivities.map(activity => {
-                    const { icon: Icon, color, backgroundColor } =
-                      getActivityIcon(activity.type);
-                    return (
-                      <TouchableOpacity
-                        key={activity.id}
-                        style={styles.activityItem}
-                        onPress={() => handleActivityPress(activity)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={[styles.activityIcon, { backgroundColor }]}>
-                          <Icon size={18} color={color} />
-                        </View>
-                        <View style={styles.activityText}>
-                          <Text style={styles.activityTitle}>
-                            {activity.title}
-                          </Text>
-                          <Text style={styles.activityDescription}>
-                            {activity.description}
-                          </Text>
-                        </View>
-                        <Text style={styles.activityTime}>
-                          {activity.timeAgo}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })
-                ) : (
-                  <View style={styles.emptyActivities}>
-                    <Text style={styles.emptyActivitiesText}>
-                      Nenhuma atividade recente
-                    </Text>
-                  </View>
-                )}
+          {isDashboardLoading ? (
+            <DashboardOverviewSkeleton />
+          ) : (
+            <>
+              <View style={styles.statsGrid}>
+                {statCards.map(card => (
+                  <TouchableOpacity
+                    key={card.label}
+                    style={styles.statCard}
+                    onPress={card.onPress}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.statIcon}>
+                      <card.icon size={20} color="#0A84FF" />
+                    </View>
+                    <Text style={styles.statLabel}>{card.label}</Text>
+                    <Text style={styles.statValue}>{card.value}</Text>
+                    {card.change ? (
+                      <Text style={styles.statChange}>{card.change}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
               </View>
 
-              <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-                <View style={styles.quickGrid}>
-                  {quickActions.map((action, index) => (
-                    <TouchableOpacity
-                      key={`${action.label}-${index}`}
-                      style={[
-                        styles.quickButton,
-                        action.label === 'Gerar Relatório PDF' && styles.quickButtonWide,
-                      ]}
-                      activeOpacity={0.8}
-                      onPress={action.onPress}
-                    >
-                      <action.icon size={20} color="#0A84FF" />
-                      <Text style={styles.quickLabel}>{action.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+              <View style={styles.sectionsRow}>
+                <View style={styles.sectionCard}>
+                  <Text style={styles.sectionTitle}>Atividades Recentes</Text>
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map(activity => {
+                      const { icon: Icon, color, backgroundColor } =
+                        getActivityIcon(activity.type);
+                      return (
+                        <TouchableOpacity
+                          key={activity.id}
+                          style={styles.activityItem}
+                          onPress={() => handleActivityPress(activity)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.activityIcon, { backgroundColor }]}>
+                            <Icon size={18} color={color} />
+                          </View>
+                          <View style={styles.activityText}>
+                            <Text style={styles.activityTitle}>
+                              {activity.title}
+                            </Text>
+                            <Text style={styles.activityDescription}>
+                              {activity.description}
+                            </Text>
+                          </View>
+                          <Text style={styles.activityTime}>
+                            {activity.timeAgo}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.emptyActivities}>
+                      <Text style={styles.emptyActivitiesText}>
+                        Nenhuma atividade recente
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.sectionCard}>
+                  <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+                  <View style={styles.quickGrid}>
+                    {quickActions.map((action, index) => (
+                      <TouchableOpacity
+                        key={`${action.label}-${index}`}
+                        style={[
+                          styles.quickButton,
+                          action.label === 'Gerar Relatório PDF' && styles.quickButtonWide,
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={action.onPress}
+                      >
+                        <action.icon size={20} color="#0A84FF" />
+                        <Text style={styles.quickLabel}>{action.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
-          </>
-        )}
+            </>
+          )}
         </ScrollView>
       </View>
 

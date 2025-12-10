@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import Toast from "react-native-toast-message";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
 import { AuthProvider } from "@/src/context/AuthContext";
 import { PermissionsProvider } from "@/src/context/PermissionsContext";
@@ -12,26 +13,29 @@ import { OrdersProvider } from "@/src/context/OrderContext";
 import { FinancialProvider } from "@/src/context/FinancialContext";
 import { ContractProvider } from "@/src/context/ContractContext";
 import { toastConfig } from "@/src/components/ToastConfig";
-import { ReviewNotificationsWrapper} from "@/src/components/ReviewNotificationsWrapper";
+import { ReviewNotificationsWrapper } from "@/src/components/ReviewNotificationsWrapper";
+import { queryClient } from "@/src/lib/queryClient";
 
 // Componente que envolve as telas autenticadas com todos os providers
 function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   return (
-    <CostCenterProvider>
-      <EquipmentProvider>
-        <EmployeeProvider>
-          <OrdersProvider>
-            <FinancialProvider>
-              <ContractProvider>
-                <ReviewNotificationsWrapper>
-                  {children}
-                </ReviewNotificationsWrapper>
-              </ContractProvider>
-            </FinancialProvider>
-          </OrdersProvider>
-        </EmployeeProvider>
-      </EquipmentProvider>
-    </CostCenterProvider>
+    <QueryClientProvider client={queryClient}>
+      <CostCenterProvider>
+        <EquipmentProvider>
+          <EmployeeProvider>
+            <OrdersProvider>
+              <FinancialProvider>
+                <ContractProvider>
+                  <ReviewNotificationsWrapper>
+                    {children}
+                  </ReviewNotificationsWrapper>
+                </ContractProvider>
+              </FinancialProvider>
+            </OrdersProvider>
+          </EmployeeProvider>
+        </EquipmentProvider>
+      </CostCenterProvider>
+    </QueryClientProvider>
   );
 }
 

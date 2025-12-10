@@ -11,7 +11,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInDev?: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,12 +21,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Busca sessão atual
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Busca sessão atual com tratamento de erro para token inválido
+    const initSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          // Se o token é inválido, limpa a sessão corrompida
+          console.warn('[Auth] Erro ao recuperar sessão:', error.message);
+          if (error.message.includes('Refresh Token') || error.message.includes('Invalid')) {
+            console.log('[Auth] Token inválido detectado, limpando sessão...');
+            await supabase.auth.signOut();
+          }
+          setSession(null);
+          setUser(null);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (err: any) {
+        // Captura erros não tratados (ex: refresh token expirado)
+        console.warn('[Auth] Exceção ao recuperar sessão:', err?.message);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initSession();
 
     // Escuta mudanças de autenticação
     const {
@@ -40,35 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInDev = () => {
-    if (!__DEV__) return;
-
-    const fakeUser: User = {
-      id: 'dev-user',
-      app_metadata: { provider: 'dev' },
-      user_metadata: { name: 'Dev User' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-      email: 'dev@example.com',
-      phone: '',
-      role: 'authenticated',
-      last_sign_in_at: new Date().toISOString(),
-      factors: [],
-      identities: [],
-    } as any;
-
-    const fakeSession: Session = {
-      access_token: 'dev-access-token',
-      token_type: 'bearer',
-      expires_in: 3600,
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-      refresh_token: 'dev-refresh-token',
-      user: fakeUser,
-    } as any;
-
-    setUser(fakeUser);
-    setSession(fakeSession);
-  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -93,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) throw error;
-      
+
       Alert.alert(
         'Cadastro realizado!',
         'Verifique seu email para confirmar o cadastro.'
@@ -140,7 +133,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
-        signInDev: __DEV__ ? signInDev : undefined,
       }}
     >
       {children}

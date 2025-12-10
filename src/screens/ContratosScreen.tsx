@@ -15,14 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
-import { useContracts } from '../context/ContractContext';
+import { useContracts , ContractDocument } from '../context/ContractContext';
 import type { Contract } from '../context/ContractContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2, Edit3, ChevronDown, Plus } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
-import { ContractDocument } from '../context/ContractContext';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
@@ -85,11 +84,11 @@ export const ContratosScreen = () => {
     uri: string;
     name?: string;
     mimeType?: string | null;
-    files?: Array<{
+    files?: {
       fileUri: string;
       fileName: string;
       mimeType: string | null;
-    }>;
+    }[];
     initialIndex?: number;
   } | null>(null);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);

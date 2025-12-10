@@ -22,6 +22,7 @@ import { useEquipment } from '../context/EquipmentContext';
 import { useCostCenter } from '../context/CostCenterContext';
 import { FileText, Camera, XCircle, ChevronDown, Minus } from 'lucide-react-native';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
+import { sanitizeName, sanitizeText, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   manutencao: 'Manutenção',
@@ -692,21 +693,39 @@ export const ExpenseFormModal = ({
         }
       : undefined;
 
+    // Sanitização de segurança dos campos de texto
+    const sanitizedName = sanitizeName(name);
+    const sanitizedObservations = sanitizeText(observations, 1000);
+    const sanitizedDebitDescription = sanitizeText(debitDescription, 500);
+
+    // Validação de segurança - verifica padrões suspeitos
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+    if (observations && (hasSQLInjectionPatterns(observations) || hasXSSPatterns(observations))) {
+      Alert.alert('Entrada inválida', 'As observações contêm caracteres não permitidos.');
+      return;
+    }
+
     const basePayload: ExpenseFormData = {
-      name: name.trim(),
+      name: sanitizedName || 'Despesa sem nome',
       category,
       date: dayjs(date).format('DD/MM/YYYY'),
       value: finalValue, // Valor final após abatimento
       documents,
-      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId)) 
-        ? (selectedEquipmentId === 'all' ? undefined : selectedEquipmentId) 
+      equipmentId: (category === 'manutencao' || category === 'funcionario' || category === 'equipamentos' || (category === 'terceirizados' && selectedEquipmentId) || (category === 'diversos' && selectedEquipmentId))
+        ? (selectedEquipmentId === 'all' ? undefined : selectedEquipmentId)
         : undefined,
       gestaoSubcategory: category === 'gestor' ? gestaoSubcategory : undefined,
-      observations: (category === 'diversos' || (category === 'gestor' && gestaoSubcategory === 'diversos')) ? observations.trim() : undefined,
+      observations: (category === 'diversos' || (category === 'gestor' && gestaoSubcategory === 'diversos')) ? sanitizedObservations || undefined : undefined,
       isFixed,
       sector: sector || undefined,
       fixedDurationMonths: isFixed && fixedDurationMonths ? parseInt(fixedDurationMonths, 10) : undefined,
-      debitAdjustment,
+      debitAdjustment: debitAdjustment ? {
+        ...debitAdjustment,
+        description: sanitizedDebitDescription || undefined,
+      } : undefined,
       method: paymentMethod || undefined,
     };
 

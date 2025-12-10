@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCostCenter } from '../context/CostCenterContext';
@@ -17,19 +16,16 @@ import { useEmployees } from '../context/EmployeeContext';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { TopExpenseItem } from '../components/TopExpenseItem';
 import { ComparisonRow } from '../components/ComparisonRow';
-import { ExpensePieChart } from '../components/ExpensePieChart';
 import { GlobalSearch } from '../components/GlobalSearch';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Tractor, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Tractor,
   FileText,
   Users,
   ShoppingCart,
   Download,
-  Plus,
-  Search,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import dayjs from 'dayjs';
@@ -50,26 +46,26 @@ export default function DashboardExecutivoScreen() {
 
   // Ações Rápidas
   const quickActions = [
-    { 
-      label: 'Novo Equipamento', 
+    {
+      label: 'Novo Equipamento',
       icon: Tractor,
       onPress: () => router.push('/(tabs)/equipamentos' as any),
     },
-    { 
-      label: 'Registrar Despesa', 
+    {
+      label: 'Registrar Despesa',
       icon: DollarSign,
       onPress: () => router.push({
         pathname: '/(tabs)/financeiro' as any,
         params: { tab: 'Despesas' }
       }),
     },
-    { 
-      label: 'Novo Funcionário', 
+    {
+      label: 'Novo Funcionário',
       icon: Users,
       onPress: () => router.push('/(tabs)/funcionarios' as any),
     },
-    { 
-      label: 'Criar Pedido', 
+    {
+      label: 'Criar Pedido',
       icon: ShoppingCart,
       onPress: () => router.push('/(tabs)/pedidos' as any),
     },
@@ -170,7 +166,7 @@ export default function DashboardExecutivoScreen() {
   // Despesas por setor
   const expensesBySector = useMemo(() => {
     const sectorTotals: Record<string, number> = {};
-    
+
     currentMonthData.expensesData.forEach(exp => {
       const sector = exp.sector || 'Outros';
       sectorTotals[sector] = (sectorTotals[sector] || 0) + exp.value;
@@ -191,7 +187,7 @@ export default function DashboardExecutivoScreen() {
   // Despesas por categoria
   const expensesByCategory = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
-    
+
     currentMonthData.expensesData.forEach(exp => {
       const category = exp.category || 'Outros';
       categoryTotals[category] = (categoryTotals[category] || 0) + exp.value;
@@ -212,7 +208,7 @@ export default function DashboardExecutivoScreen() {
   // Top 5 despesas
   const topExpenses = useMemo(() => {
     const expensesByName = new Map<string, number>();
-    
+
     currentMonthData.expensesData.forEach(exp => {
       const current = expensesByName.get(exp.name) || 0;
       expensesByName.set(exp.name, current + exp.value);
@@ -288,7 +284,7 @@ export default function DashboardExecutivoScreen() {
       <View style={styles.container}>
         {/* Seletor de Centro de Custo */}
         <CostCenterSelector />
-        
+
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
@@ -500,20 +496,20 @@ export default function DashboardExecutivoScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Comparação com Mês Anterior</Text>
               <View style={styles.divider} />
-              <ComparisonRow 
-                label="Receitas" 
-                value={comparison.receipts} 
-                isPositive={comparison.receipts >= 0} 
+              <ComparisonRow
+                label="Receitas"
+                value={comparison.receipts}
+                isPositive={comparison.receipts >= 0}
               />
-              <ComparisonRow 
-                label="Despesas" 
-                value={comparison.expenses} 
-                isPositive={comparison.expenses <= 0} 
+              <ComparisonRow
+                label="Despesas"
+                value={comparison.expenses}
+                isPositive={comparison.expenses <= 0}
               />
-              <ComparisonRow 
-                label="Saldo" 
-                value={comparison.balance} 
-                isPositive={comparison.balance >= 0} 
+              <ComparisonRow
+                label="Saldo"
+                value={comparison.balance}
+                isPositive={comparison.balance >= 0}
               />
             </View>
           </View>

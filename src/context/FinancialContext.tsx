@@ -8,13 +8,14 @@ import React, {
 } from "react";
 import dayjs from "dayjs";
 import { Alert } from "react-native";
-import { CostCenter } from "./CostCenterContext";
+import { CostCenter , useCostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
 import { useAuth } from "./AuthContext";
-import { useCostCenter } from "./CostCenterContext";
 import { useRealtimeSync } from "@/src/hooks/useRealtimeSync";
 import { cacheManager } from "@/src/lib/cacheManager";
+import { sanitizeName, sanitizeText, sanitizeCurrency, validateAndSanitize } from "@/src/lib/security";
+import { logFinancialOperation } from "@/src/lib/auditLogger";
 
 // ========================
 // TIPOS
@@ -170,13 +171,85 @@ const isDuplicateExpense = (
 
     return (
       existing.name.toLowerCase().trim() ===
-        newExpense.name.toLowerCase().trim() &&
+      newExpense.name.toLowerCase().trim() &&
       existing.value === newExpense.value &&
       existing.category === newExpense.category &&
       (existing.equipmentId ?? undefined) === newExpense.equipmentId &&
       existing.center === newExpense.center
     );
   });
+};
+
+// ========================
+// VALIDAÇÃO DE ENTRADA
+// ========================
+
+/**
+ * Valida e sanitiza dados de uma despesa
+ */
+const validateAndSanitizeExpense = (expense: Omit<Expense, "id">): { isValid: boolean; sanitizedExpense?: Omit<Expense, "id">; error?: string } => {
+  try {
+    // Validação obrigatória
+    if (!expense.name || !expense.date || !expense.value || !expense.category || !expense.center) {
+      return { isValid: false, error: "Campos obrigatórios não preenchidos" };
+    }
+
+    // Sanitização
+    const sanitizedExpense: Omit<Expense, "id"> = {
+      ...expense,
+      name: sanitizeName(expense.name),
+      value: sanitizeCurrency(expense.value),
+      observations: expense.observations ? sanitizeText(expense.observations, 500) : undefined,
+      method: expense.method ? sanitizeName(expense.method) : undefined,
+    };
+
+    // Validação pós-sanitização
+    if (!sanitizedExpense.name.trim()) {
+      return { isValid: false, error: "Nome da despesa é obrigatório" };
+    }
+
+    if (sanitizedExpense.value <= 0) {
+      return { isValid: false, error: "Valor deve ser maior que zero" };
+    }
+
+    return { isValid: true, sanitizedExpense };
+  } catch (error) {
+    return { isValid: false, error: "Erro na validação dos dados" };
+  }
+};
+
+/**
+ * Valida e sanitiza dados de um recebimento
+ */
+const validateAndSanitizeReceipt = (receipt: Omit<Receipt, "id">): { isValid: boolean; sanitizedReceipt?: Omit<Receipt, "id">; error?: string } => {
+  try {
+    // Validação obrigatória
+    if (!receipt.name || !receipt.date || !receipt.value || !receipt.center) {
+      return { isValid: false, error: "Campos obrigatórios não preenchidos" };
+    }
+
+    // Sanitização
+    const sanitizedReceipt: Omit<Receipt, "id"> = {
+      ...receipt,
+      name: sanitizeName(receipt.name),
+      value: sanitizeCurrency(receipt.value),
+      category: receipt.category ? sanitizeName(receipt.category) : undefined,
+      method: receipt.method ? sanitizeName(receipt.method) : undefined,
+    };
+
+    // Validação pós-sanitização
+    if (!sanitizedReceipt.name.trim()) {
+      return { isValid: false, error: "Nome do recebimento é obrigatório" };
+    }
+
+    if (sanitizedReceipt.value <= 0) {
+      return { isValid: false, error: "Valor deve ser maior que zero" };
+    }
+
+    return { isValid: true, sanitizedReceipt };
+  } catch (error) {
+    return { isValid: false, error: "Erro na validação dos dados" };
+  }
 };
 
 // ========================
@@ -257,11 +330,11 @@ function parseReferenceField(reference: string | null): {
 
 function buildReferenceField(observations?: string, debitAdjustment?: ExpenseDebitAdjustment): string | null {
   const parts: string[] = [];
-  
+
   if (observations && observations.trim()) {
     parts.push(observations.trim());
   }
-  
+
   if (debitAdjustment && debitAdjustment.amount > 0) {
     parts.push(`${DEBIT_TAG}${JSON.stringify({
       amount: debitAdjustment.amount,
@@ -493,9 +566,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     filters:
       user && selectedCenter
         ? [
-            { column: "type", value: "DESPESA" },
-            { column: "cost_center_id", value: selectedCenter },
-          ]
+          { column: "type", value: "DESPESA" },
+          { column: "cost_center_id", value: selectedCenter },
+        ]
         : [],
     onInsert: async (row) => {
       if (row.type !== "DESPESA") return;
@@ -616,9 +689,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     filters:
       user && selectedCenter
         ? [
-            { column: "type", value: "RECEITA" },
-            { column: "cost_center_id", value: selectedCenter },
-          ]
+          { column: "type", value: "RECEITA" },
+          { column: "cost_center_id", value: selectedCenter },
+        ]
         : [],
     onInsert: (row) => {
       if (row.type !== "RECEITA") return;
@@ -679,28 +752,37 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const addReceipt = useCallback((receipt: Omit<Receipt, "id">) => {
     (async () => {
       try {
-        const dbDate = toDbDate(receipt.date);
-        if (!dbDate) {
-          console.error("❌ Data de receita inválida:", receipt.date);
+        // Validação e sanitização de entrada
+        const validation = validateAndSanitizeReceipt(receipt);
+        if (!validation.isValid) {
+          Alert.alert("Erro de Validação", validation.error || "Dados inválidos");
           return;
         }
 
-        const isFixed = receipt.isFixed ?? false;
-        const fixedDurationMonths = receipt.fixedDurationMonths;
+        const sanitizedReceipt = validation.sanitizedReceipt!;
+
+        const dbDate = toDbDate(sanitizedReceipt.date);
+        if (!dbDate) {
+          console.error("❌ Data de receita inválida:", sanitizedReceipt.date);
+          return;
+        }
+
+        const isFixed = sanitizedReceipt.isFixed ?? false;
+        const fixedDurationMonths = sanitizedReceipt.fixedDurationMonths;
 
         const payload: any = {
           type: "RECEITA",
           status:
-            receipt.status &&
-            receipt.status.toLowerCase().startsWith("prev")
+            sanitizedReceipt.status &&
+              sanitizedReceipt.status.toLowerCase().startsWith("prev")
               ? "PREVISTO"
               : "CONFIRMADO",
-          cost_center_id: receipt.center,
-          value: receipt.value,
+          cost_center_id: sanitizedReceipt.center,
+          value: sanitizedReceipt.value,
           date: dbDate,
-          category: receipt.category ?? null,
-          description: receipt.name,
-          payment_method: receipt.method ?? null,
+          category: sanitizedReceipt.category ?? null,
+          description: sanitizedReceipt.name,
+          payment_method: sanitizedReceipt.method ?? null,
           reference: null,
           is_fixed: isFixed,
           fixed_duration_months: fixedDurationMonths ?? null,
@@ -732,7 +814,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         if (error || !data) {
           console.error("❌ Erro ao criar receita:", error);
-          
+
           // Verifica se é erro de rede
           if (error && (error.message?.includes('network') || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError'))) {
             Alert.alert(
@@ -823,136 +905,136 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
   const updateReceipt = useCallback(async (receipt: Receipt): Promise<Receipt> => {
     try {
-        // Se for um recebimento fixo, atualiza todas as parcelas (template + geradas)
-        const isFixedReceipt = receipt.isFixed;
-        
-        const dbDate = toDbDate(receipt.date);
-        if (!dbDate) {
-          console.error("❌ Data de receita inválida:", receipt.date);
-          throw new Error("Data de receita inválida");
+      // Se for um recebimento fixo, atualiza todas as parcelas (template + geradas)
+      const isFixedReceipt = receipt.isFixed;
+
+      const dbDate = toDbDate(receipt.date);
+      if (!dbDate) {
+        console.error("❌ Data de receita inválida:", receipt.date);
+        throw new Error("Data de receita inválida");
+      }
+
+      // Mapeia ReceiptStatus para o formato do banco
+      let statusValue = "A_CONFIRMAR";
+      if (receipt.status) {
+        switch (receipt.status) {
+          case "a_confirmar":
+            statusValue = "A_CONFIRMAR";
+            break;
+          case "confirmado":
+            statusValue = "CONFIRMADO";
+            break;
+          case "a_receber":
+            statusValue = "A_RECEBER";
+            break;
+          case "recebido":
+            statusValue = "RECEBIDO";
+            break;
+          default:
+            statusValue = "A_CONFIRMAR";
+        }
+      }
+
+      if (isFixedReceipt) {
+        // Busca o recebimento atual no banco (pode ou não ser fixo)
+        const { data: currentReceipt, error: fetchError } = await supabase
+          .from("financial_transactions")
+          .select("*")
+          .eq("id", receipt.id)
+          .eq("type", "RECEITA")
+          .single();
+
+        if (fetchError) {
+          console.error("❌ Erro ao buscar receita atual:", fetchError);
+          throw new Error("Erro ao buscar receita atual");
         }
 
-        // Mapeia ReceiptStatus para o formato do banco
-        let statusValue = "A_CONFIRMAR";
-        if (receipt.status) {
-          switch (receipt.status) {
-            case "a_confirmar":
-              statusValue = "A_CONFIRMAR";
-              break;
-            case "confirmado":
-              statusValue = "CONFIRMADO";
-              break;
-            case "a_receber":
-              statusValue = "A_RECEBER";
-              break;
-            case "recebido":
-              statusValue = "RECEBIDO";
-              break;
-            default:
-              statusValue = "A_CONFIRMAR";
-          }
-        }
+        const wasFixed = currentReceipt?.is_fixed === true;
+        const isBecomingFixed = !wasFixed && isFixedReceipt;
 
-        if (isFixedReceipt) {
-          // Busca o recebimento atual no banco (pode ou não ser fixo)
-          const { data: currentReceipt, error: fetchError } = await supabase
+        // CASO 1: Receita está SE TORNANDO FIXA pela primeira vez
+        if (isBecomingFixed && receipt.fixedDurationMonths && receipt.fixedDurationMonths > 1) {
+          console.log('🔄 Receita se tornando fixa pela primeira vez, gerando parcelas...');
+
+          // Atualiza a receita atual para ser o template
+          const templatePayload: any = {
+            cost_center_id: receipt.center,
+            value: receipt.value,
+            date: dbDate,
+            category: receipt.category ?? null,
+            description: receipt.name,
+            payment_method: receipt.method ?? null,
+            status: statusValue,
+            is_fixed: true,
+            fixed_duration_months: receipt.fixedDurationMonths,
+            installment_number: 1,
+          };
+
+          const { error: updateError } = await supabase
             .from("financial_transactions")
-            .select("*")
+            .update(templatePayload)
             .eq("id", receipt.id)
-            .eq("type", "RECEITA")
-            .single();
+            .eq("type", "RECEITA");
 
-          if (fetchError) {
-            console.error("❌ Erro ao buscar receita atual:", fetchError);
-            throw new Error("Erro ao buscar receita atual");
+          if (updateError) {
+            console.error("❌ Erro ao atualizar receita para fixa:", updateError);
+            throw new Error("Erro ao atualizar receita para fixa");
           }
 
-          const wasFixed = currentReceipt?.is_fixed === true;
-          const isBecomingFixed = !wasFixed && isFixedReceipt;
+          // Gera as parcelas subsequentes (2, 3, etc)
+          const dateParts = receipt.date.split("/");
+          if (dateParts.length === 3) {
+            const [day, month, year] = dateParts.map(Number);
 
-          // CASO 1: Receita está SE TORNANDO FIXA pela primeira vez
-          if (isBecomingFixed && receipt.fixedDurationMonths && receipt.fixedDurationMonths > 1) {
-            console.log('🔄 Receita se tornando fixa pela primeira vez, gerando parcelas...');
-            
-            // Atualiza a receita atual para ser o template
-            const templatePayload: any = {
-              cost_center_id: receipt.center,
-              value: receipt.value,
-              date: dbDate,
-              category: receipt.category ?? null,
-              description: receipt.name,
-              payment_method: receipt.method ?? null,
-              status: statusValue,
-              is_fixed: true,
-              fixed_duration_months: receipt.fixedDurationMonths,
-              installment_number: 1,
-            };
+            for (let offset = 1; offset < receipt.fixedDurationMonths; offset++) {
+              const targetMonth = month + offset;
+              let targetYear = year;
+              let actualMonth = targetMonth;
 
-            const { error: updateError } = await supabase
-              .from("financial_transactions")
-              .update(templatePayload)
-              .eq("id", receipt.id)
-              .eq("type", "RECEITA");
+              if (targetMonth > 12) {
+                const yearOffset = Math.floor((targetMonth - 1) / 12);
+                targetYear = year + yearOffset;
+                actualMonth = ((targetMonth - 1) % 12) + 1;
+              }
 
-            if (updateError) {
-              console.error("❌ Erro ao atualizar receita para fixa:", updateError);
-              throw new Error("Erro ao atualizar receita para fixa");
-            }
+              const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+              const receiptDay = Math.min(day, lastDayOfMonth);
+              const newReceiptDate = `${String(receiptDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+              const installmentDbDate = toDbDate(newReceiptDate);
 
-            // Gera as parcelas subsequentes (2, 3, etc)
-            const dateParts = receipt.date.split("/");
-            if (dateParts.length === 3) {
-              const [day, month, year] = dateParts.map(Number);
+              if (installmentDbDate) {
+                const installmentPayload: any = {
+                  type: "RECEITA",
+                  status: statusValue,
+                  cost_center_id: receipt.center,
+                  value: receipt.value,
+                  date: installmentDbDate,
+                  category: receipt.category ?? null,
+                  description: receipt.name,
+                  payment_method: receipt.method ?? null,
+                  is_fixed: false,
+                  fixed_duration_months: null,
+                  installment_number: offset + 1,
+                };
 
-              for (let offset = 1; offset < receipt.fixedDurationMonths; offset++) {
-                const targetMonth = month + offset;
-                let targetYear = year;
-                let actualMonth = targetMonth;
+                const { error: installmentError } = await supabase
+                  .from("financial_transactions")
+                  .insert(installmentPayload);
 
-                if (targetMonth > 12) {
-                  const yearOffset = Math.floor((targetMonth - 1) / 12);
-                  targetYear = year + yearOffset;
-                  actualMonth = ((targetMonth - 1) % 12) + 1;
-                }
-
-                const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
-                const receiptDay = Math.min(day, lastDayOfMonth);
-                const newReceiptDate = `${String(receiptDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
-                const installmentDbDate = toDbDate(newReceiptDate);
-
-                if (installmentDbDate) {
-                  const installmentPayload: any = {
-                    type: "RECEITA",
-                    status: statusValue,
-                    cost_center_id: receipt.center,
-                    value: receipt.value,
-                    date: installmentDbDate,
-                    category: receipt.category ?? null,
-                    description: receipt.name,
-                    payment_method: receipt.method ?? null,
-                    is_fixed: false,
-                    fixed_duration_months: null,
-                    installment_number: offset + 1,
-                  };
-
-                  const { error: installmentError } = await supabase
-                    .from("financial_transactions")
-                    .insert(installmentPayload);
-
-                  if (installmentError) {
-                    console.error('❌ Erro ao criar parcela:', installmentError);
-                  } else {
-                    console.log('✅ Parcela criada:', { offset: offset + 1, date: newReceiptDate });
-                  }
+                if (installmentError) {
+                  console.error('❌ Erro ao criar parcela:', installmentError);
+                } else {
+                  console.log('✅ Parcela criada:', { offset: offset + 1, date: newReceiptDate });
                 }
               }
             }
+          }
 
-            // Recarrega todas as receitas
-            const { data: reloadedReceipts, error: reloadError } = await supabase
-              .from("financial_transactions")
-              .select(
-                `
+          // Recarrega todas as receitas
+          const { data: reloadedReceipts, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
                 id,
                 type,
                 status,
@@ -968,110 +1050,110 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 created_at,
                 cost_center_id
               `
-              )
-              .eq("type", "RECEITA")
-              .order("date", { ascending: false });
+            )
+            .eq("type", "RECEITA")
+            .order("date", { ascending: false });
 
-            if (!reloadError && reloadedReceipts) {
-              const mapped: Receipt[] = await Promise.all(
-                (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
-              );
-              setReceipts(mapped);
-              
-              const updatedTemplate = mapped.find((r) => r.id === receipt.id);
-              if (updatedTemplate) {
-                return updatedTemplate;
-              }
+          if (!reloadError && reloadedReceipts) {
+            const mapped: Receipt[] = await Promise.all(
+              (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
+            );
+            setReceipts(mapped);
+
+            const updatedTemplate = mapped.find((r) => r.id === receipt.id);
+            if (updatedTemplate) {
+              return updatedTemplate;
             }
-
-            throw new Error("Erro ao recarregar receitas após conversão para fixa");
           }
 
-          // CASO 2: Receita JÁ ERA FIXA, atualiza template e parcelas
-          // Busca o recebimento template atual no banco
-          const { data: currentTemplate, error: templateError } = await supabase
+          throw new Error("Erro ao recarregar receitas após conversão para fixa");
+        }
+
+        // CASO 2: Receita JÁ ERA FIXA, atualiza template e parcelas
+        // Busca o recebimento template atual no banco
+        const { data: currentTemplate, error: templateError } = await supabase
+          .from("financial_transactions")
+          .select("*")
+          .eq("id", receipt.id)
+          .eq("is_fixed", true)
+          .eq("type", "RECEITA")
+          .single();
+
+        if (templateError) {
+          // Caso especial: nenhum template encontrado (PGRST116)
+          if ((templateError as any).code === "PGRST116") {
+            console.warn(
+              "⚠️ Nenhum template de recebimento fixo encontrado para este ID; tratando como recebimento pontual.",
+              templateError
+            );
+          } else {
+            console.error("❌ Erro ao buscar template do recebimento fixo:", templateError);
+            throw new Error("Erro ao buscar template do recebimento fixo");
+          }
+        }
+
+        if (currentTemplate) {
+          const oldDuration = currentTemplate.fixed_duration_months;
+          const newDuration = receipt.fixedDurationMonths;
+
+          // Busca todas as parcelas relacionadas (template + geradas)
+          const { data: allInstallments, error: installmentsError } = await supabase
             .from("financial_transactions")
             .select("*")
-            .eq("id", receipt.id)
-            .eq("is_fixed", true)
             .eq("type", "RECEITA")
-            .single();
+            .eq("description", receipt.name)
+            .eq("cost_center_id", receipt.center)
+            .order("date", { ascending: true });
 
-          if (templateError) {
-            // Caso especial: nenhum template encontrado (PGRST116)
-            if ((templateError as any).code === "PGRST116") {
-              console.warn(
-                "⚠️ Nenhum template de recebimento fixo encontrado para este ID; tratando como recebimento pontual.",
-                templateError
-              );
-            } else {
-              console.error("❌ Erro ao buscar template do recebimento fixo:", templateError);
-              throw new Error("Erro ao buscar template do recebimento fixo");
-            }
+          if (installmentsError) {
+            console.error("❌ Erro ao buscar parcelas do recebimento fixo:", installmentsError);
+            throw new Error("Erro ao buscar parcelas do recebimento fixo");
           }
 
-          if (currentTemplate) {
-            const oldDuration = currentTemplate.fixed_duration_months;
-            const newDuration = receipt.fixedDurationMonths;
+          // Atualiza o template
+          const templatePayload: any = {
+            cost_center_id: receipt.center,
+            value: receipt.value,
+            date: dbDate,
+            category: receipt.category ?? null,
+            description: receipt.name,
+            payment_method: receipt.method ?? null,
+            status: statusValue,
+            is_fixed: true,
+            fixed_duration_months: receipt.fixedDurationMonths ?? null,
+          };
 
-            // Busca todas as parcelas relacionadas (template + geradas)
-            const { data: allInstallments, error: installmentsError } = await supabase
-              .from("financial_transactions")
-              .select("*")
-              .eq("type", "RECEITA")
-              .eq("description", receipt.name)
-              .eq("cost_center_id", receipt.center)
-              .order("date", { ascending: true });
+          const { error: templateUpdateError } = await supabase
+            .from("financial_transactions")
+            .update(templatePayload)
+            .eq("id", receipt.id)
+            .eq("type", "RECEITA");
 
-            if (installmentsError) {
-              console.error("❌ Erro ao buscar parcelas do recebimento fixo:", installmentsError);
-              throw new Error("Erro ao buscar parcelas do recebimento fixo");
-            }
+          if (templateUpdateError) {
+            console.error("❌ Erro ao atualizar template:", templateUpdateError);
+            throw new Error("Erro ao atualizar template");
+          }
 
-            // Atualiza o template
-            const templatePayload: any = {
-              cost_center_id: receipt.center,
+          // Atualiza todas as parcelas geradas existentes
+          const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
+
+          for (const installment of generatedInstallments) {
+            const installmentPayload: any = {
               value: receipt.value,
-              date: dbDate,
               category: receipt.category ?? null,
               description: receipt.name,
               payment_method: receipt.method ?? null,
-              status: statusValue,
-              is_fixed: true,
-              fixed_duration_months: receipt.fixedDurationMonths ?? null,
             };
 
-            const { error: templateUpdateError } = await supabase
+            await supabase
               .from("financial_transactions")
-              .update(templatePayload)
-              .eq("id", receipt.id)
+              .update(installmentPayload)
+              .eq("id", installment.id)
               .eq("type", "RECEITA");
+          }
 
-            if (templateUpdateError) {
-              console.error("❌ Erro ao atualizar template:", templateUpdateError);
-              throw new Error("Erro ao atualizar template");
-            }
-
-            // Atualiza todas as parcelas geradas existentes
-            const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
-            
-            for (const installment of generatedInstallments) {
-              const installmentPayload: any = {
-                value: receipt.value,
-                category: receipt.category ?? null,
-                description: receipt.name,
-                payment_method: receipt.method ?? null,
-              };
-
-              await supabase
-                .from("financial_transactions")
-                .update(installmentPayload)
-                .eq("id", installment.id)
-                .eq("type", "RECEITA");
-            }
-
-            // Se a duração mudou, ajusta as parcelas
-            if (oldDuration !== newDuration && newDuration) {
+          // Se a duração mudou, ajusta as parcelas
+          if (oldDuration !== newDuration && newDuration) {
             const currentDate = new Date();
             const currentMonth = currentDate.getMonth() + 1;
             const currentYear = currentDate.getFullYear();
@@ -1142,7 +1224,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 if (templateDateParts.length === 3) {
                   const [templateDay, templateMonth, templateYear] = templateDateParts.map(Number);
                   const templateDate = dayjs(`${templateYear}-${String(templateMonth).padStart(2, "0")}-${String(templateDay).padStart(2, "0")}`);
-                  
+
                   const installmentsToDelete = generatedInstallments.filter(
                     (inst) => {
                       // inst.date vem do banco no formato YYYY-MM-DD
@@ -1164,11 +1246,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             }
           }
 
-            // Recarrega todas as receitas
-            const { data: reloadedReceipts, error: reloadError } = await supabase
-              .from("financial_transactions")
-              .select(
-                `
+          // Recarrega todas as receitas
+          const { data: reloadedReceipts, error: reloadError } = await supabase
+            .from("financial_transactions")
+            .select(
+              `
                 id,
                 type,
                 status,
@@ -1184,47 +1266,47 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 created_at,
                 cost_center_id
               `
-              )
-              .eq("type", "RECEITA")
-              .order("date", { ascending: false });
+            )
+            .eq("type", "RECEITA")
+            .order("date", { ascending: false });
 
-            if (!reloadError && reloadedReceipts) {
-              const mapped: Receipt[] = await Promise.all(
-                (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
-              );
-              setReceipts(mapped);
-              
-              // Retorna o template atualizado
-              const updatedTemplate = mapped.find((r) => r.id === receipt.id);
-              if (updatedTemplate) {
-                return updatedTemplate;
-              }
+          if (!reloadError && reloadedReceipts) {
+            const mapped: Receipt[] = await Promise.all(
+              (reloadedReceipts ?? []).map((row: any) => mapRowToReceipt(row))
+            );
+            setReceipts(mapped);
+
+            // Retorna o template atualizado
+            const updatedTemplate = mapped.find((r) => r.id === receipt.id);
+            if (updatedTemplate) {
+              return updatedTemplate;
             }
-
-            throw new Error("Erro ao recarregar receitas após atualização");
           }
+
+          throw new Error("Erro ao recarregar receitas após atualização");
         }
+      }
 
-        // Se não for fixo, atualiza apenas o registro específico
-        const payload: any = {
-          cost_center_id: receipt.center,
-          value: receipt.value,
-          date: dbDate,
-          category: receipt.category ?? null,
-          description: receipt.name,
-          payment_method: receipt.method ?? null,
-          status: statusValue,
-          is_fixed: false,
-          fixed_duration_months: null,
-        };
+      // Se não for fixo, atualiza apenas o registro específico
+      const payload: any = {
+        cost_center_id: receipt.center,
+        value: receipt.value,
+        date: dbDate,
+        category: receipt.category ?? null,
+        description: receipt.name,
+        payment_method: receipt.method ?? null,
+        status: statusValue,
+        is_fixed: false,
+        fixed_duration_months: null,
+      };
 
-        const { data, error } = await supabase
-          .from("financial_transactions")
-          .update(payload)
-          .eq("id", receipt.id)
-          .eq("type", "RECEITA") // Garante que só atualiza receitas
-          .select(
-            `
+      const { data, error } = await supabase
+        .from("financial_transactions")
+        .update(payload)
+        .eq("id", receipt.id)
+        .eq("type", "RECEITA") // Garante que só atualiza receitas
+        .select(
+          `
             id,
             type,
             status,
@@ -1240,30 +1322,30 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             created_at,
             cost_center_id
           `
-          )
-          .single();
+        )
+        .single();
 
-        if (error) {
-          console.error("❌ Erro ao atualizar receita:", error);
-          console.error("❌ Status tentado:", statusValue);
-          console.error("❌ Payload completo:", payload);
-          throw new Error(`Erro ao atualizar receita: ${error.message || 'Erro desconhecido'}`);
-        }
+      if (error) {
+        console.error("❌ Erro ao atualizar receita:", error);
+        console.error("❌ Status tentado:", statusValue);
+        console.error("❌ Payload completo:", payload);
+        throw new Error(`Erro ao atualizar receita: ${error.message || 'Erro desconhecido'}`);
+      }
 
-        if (!data) {
-          console.error("❌ Nenhum dado retornado ao atualizar receita");
-          throw new Error('Nenhum dado retornado ao atualizar receita');
-        }
+      if (!data) {
+        console.error("❌ Nenhum dado retornado ao atualizar receita");
+        throw new Error('Nenhum dado retornado ao atualizar receita');
+      }
 
-        const updated = mapRowToReceipt(data);
-        
-        // Atualiza o estado local
-        setReceipts((prev) =>
-          prev.map((r) => (r.id === receipt.id ? updated : r))
-        );
-        
-        console.log("✅ Receita atualizada com sucesso:", updated);
-        return updated as Receipt;
+      const updated = mapRowToReceipt(data);
+
+      // Atualiza o estado local
+      setReceipts((prev) =>
+        prev.map((r) => (r.id === receipt.id ? updated : r))
+      );
+
+      console.log("✅ Receita atualizada com sucesso:", updated);
+      return updated as Receipt;
     } catch (e) {
       console.error("❌ Erro inesperado ao atualizar receita:", e);
       throw e;
@@ -1329,25 +1411,34 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
     (async () => {
       try {
+        // Validação e sanitização de entrada
+        const validation = validateAndSanitizeExpense(expense);
+        if (!validation.isValid) {
+          Alert.alert("Erro de Validação", validation.error || "Dados inválidos");
+          return;
+        }
+
+        const sanitizedExpense = validation.sanitizedExpense!;
+
         // Evita cadastrar despesas duplicadas no mesmo mês
         const allExpenses = getAllExpenses();
         if (
           isDuplicateExpense(allExpenses, {
-            name: expense.name,
-            value: expense.value,
-            category: expense.category,
-            equipmentId: expense.equipmentId,
-            date: expense.date,
-            center: expense.center,
+            name: sanitizedExpense.name,
+            value: sanitizedExpense.value,
+            category: sanitizedExpense.category,
+            equipmentId: sanitizedExpense.equipmentId,
+            date: sanitizedExpense.date,
+            center: sanitizedExpense.center,
           })
         ) {
           Alert.alert(
             "Despesa Duplicada",
             `Já existe uma despesa idêntica cadastrada em ${expense.date}:\n\n` +
-              `• ${expense.name}\n` +
-              `• ${formatCurrency(expense.value)}\n` +
-              `• ${CATEGORY_LABELS[expense.category]}\n\n` +
-              "Não é possível cadastrar despesas duplicadas no mesmo mês.",
+            `• ${expense.name}\n` +
+            `• ${formatCurrency(expense.value)}\n` +
+            `• ${CATEGORY_LABELS[expense.category]}\n\n` +
+            "Não é possível cadastrar despesas duplicadas no mesmo mês.",
             [{ text: "OK" }],
           );
           return;
@@ -1378,8 +1469,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         // Se for despesa fixa, sempre começa como CONFIRMADO
         // Se não for fixa, usa o status informado ou CONFIRMAR como padrão
-        const finalStatus = expense.isFixed 
-          ? "CONFIRMADO" 
+        const finalStatus = expense.isFixed
+          ? "CONFIRMADO"
           : statusToDb(expense.status);
 
         const payload: any = {
@@ -1400,8 +1491,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             expense.installmentNumber != null
               ? expense.installmentNumber
               : expense.isFixed
-              ? 1
-              : null,
+                ? 1
+                : null,
         };
 
         const { data, error } = await supabase
@@ -1431,7 +1522,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         if (error || !data) {
           console.error("❌ Erro ao criar despesa:", error);
-          
+
           // Verifica se é erro de rede
           if (error && (error.message?.includes('network') || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError'))) {
             Alert.alert(
@@ -1469,86 +1560,86 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         if (expense.isFixed) {
           // Despesa fixa sempre tem duração definida (validação acima)
           if (expense.fixedDurationMonths && expense.fixedDurationMonths > 1) {
-          if (!expense.date || typeof expense.date !== 'string') {
-            console.error("❌ Data de despesa inválida para gerar parcelas:", expense.date);
-            return;
-          }
-          
-          const dateParts = expense.date.split("/");
-          if (dateParts.length !== 3) {
-            console.error("❌ Formato de data inválido:", expense.date);
-            return;
-          }
-          
-          const [day, month, year] = dateParts.map(Number);
-          if (isNaN(day) || isNaN(month) || isNaN(year)) {
-            console.error("❌ Data de despesa contém valores inválidos:", expense.date);
-            return;
-          }
-          
-          const expenseDate = new Date(year, month - 1, day);
-          if (isNaN(expenseDate.getTime())) {
-            console.error("❌ Data de despesa inválida:", expense.date);
-            return;
-          }
-          
-          const creationMonth = expenseDate.getMonth() + 1;
-          const creationYear = expenseDate.getFullYear();
-          const creationDay = expenseDate.getDate();
-
-          // Gera as parcelas restantes (começando do mês seguinte ao template)
-          for (let offset = 1; offset < expense.fixedDurationMonths; offset++) {
-            const targetMonth = creationMonth + offset;
-            let targetYear = creationYear;
-            let actualMonth = targetMonth;
-
-            if (targetMonth > 12) {
-              const yearOffset = Math.floor((targetMonth - 1) / 12);
-              targetYear = creationYear + yearOffset;
-              actualMonth = ((targetMonth - 1) % 12) + 1;
+            if (!expense.date || typeof expense.date !== 'string') {
+              console.error("❌ Data de despesa inválida para gerar parcelas:", expense.date);
+              return;
             }
 
-            const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
-            const expenseDay = Math.min(creationDay, lastDayOfMonth);
-            const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
-            const dbDate = toDbDate(newExpenseDate);
-
-            if (!dbDate) {
-              console.error("❌ Erro ao gerar data para parcela:", newExpenseDate);
-              continue;
+            const dateParts = expense.date.split("/");
+            if (dateParts.length !== 3) {
+              console.error("❌ Formato de data inválido:", expense.date);
+              return;
             }
 
-            const installmentPayload: any = {
-              type: "DESPESA",
-              status: "CONFIRMADO",
-              cost_center_id: expense.center,
-              equipment_id: expense.equipmentId ?? null,
-              value: expense.value,
-              date: dbDate,
-              category: expense.category ?? "diversos",
-              description: expense.name,
-              payment_method: expense.method ?? null,
-              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
-              is_fixed: false,
-              sector: expense.sector ?? null,
-              fixed_duration_months: null,
-              installment_number: offset + 1, // Parcela 2, 3, 4... (template é parcela 1)
-            };
+            const [day, month, year] = dateParts.map(Number);
+            if (isNaN(day) || isNaN(month) || isNaN(year)) {
+              console.error("❌ Data de despesa contém valores inválidos:", expense.date);
+              return;
+            }
 
-            const { error: installError } = await supabase
+            const expenseDate = new Date(year, month - 1, day);
+            if (isNaN(expenseDate.getTime())) {
+              console.error("❌ Data de despesa inválida:", expense.date);
+              return;
+            }
+
+            const creationMonth = expenseDate.getMonth() + 1;
+            const creationYear = expenseDate.getFullYear();
+            const creationDay = expenseDate.getDate();
+
+            // Gera as parcelas restantes (começando do mês seguinte ao template)
+            for (let offset = 1; offset < expense.fixedDurationMonths; offset++) {
+              const targetMonth = creationMonth + offset;
+              let targetYear = creationYear;
+              let actualMonth = targetMonth;
+
+              if (targetMonth > 12) {
+                const yearOffset = Math.floor((targetMonth - 1) / 12);
+                targetYear = creationYear + yearOffset;
+                actualMonth = ((targetMonth - 1) % 12) + 1;
+              }
+
+              const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+              const expenseDay = Math.min(creationDay, lastDayOfMonth);
+              const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+              const dbDate = toDbDate(newExpenseDate);
+
+              if (!dbDate) {
+                console.error("❌ Erro ao gerar data para parcela:", newExpenseDate);
+                continue;
+              }
+
+              const installmentPayload: any = {
+                type: "DESPESA",
+                status: "CONFIRMADO",
+                cost_center_id: expense.center,
+                equipment_id: expense.equipmentId ?? null,
+                value: expense.value,
+                date: dbDate,
+                category: expense.category ?? "diversos",
+                description: expense.name,
+                payment_method: expense.method ?? null,
+                reference: buildReferenceField(expense.observations, expense.debitAdjustment),
+                is_fixed: false,
+                sector: expense.sector ?? null,
+                fixed_duration_months: null,
+                installment_number: offset + 1, // Parcela 2, 3, 4... (template é parcela 1)
+              };
+
+              const { error: installError } = await supabase
+                .from("financial_transactions")
+                .insert(installmentPayload);
+
+              if (installError) {
+                console.error(`❌ Erro ao gerar parcela ${offset + 1}/${expense.fixedDurationMonths}:`, installError);
+              }
+            }
+
+            // Recarrega todas as despesas para incluir as parcelas geradas
+            const { data: allExpensesData, error: reloadError } = await supabase
               .from("financial_transactions")
-              .insert(installmentPayload);
-
-            if (installError) {
-              console.error(`❌ Erro ao gerar parcela ${offset + 1}/${expense.fixedDurationMonths}:`, installError);
-            }
-          }
-
-          // Recarrega todas as despesas para incluir as parcelas geradas
-          const { data: allExpensesData, error: reloadError } = await supabase
-            .from("financial_transactions")
-            .select(
-              `
+              .select(
+                `
               id,
               type,
               status,
@@ -1566,17 +1657,17 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               created_at,
               cost_center_id
             `
-            )
-            .eq("type", "DESPESA")
-            .order("created_at", { ascending: false });
+              )
+              .eq("type", "DESPESA")
+              .order("created_at", { ascending: false });
 
-          if (!reloadError && allExpensesData) {
-            const mapped: Expense[] = await Promise.all(
-              (allExpensesData ?? []).map((row: any) => mapRowToExpense(row))
-            );
-            setExpenses(mapped);
-            return; // Não adiciona ao estado novamente (já recarregou todas)
-          }
+            if (!reloadError && allExpensesData) {
+              const mapped: Expense[] = await Promise.all(
+                (allExpensesData ?? []).map((row: any) => mapRowToExpense(row))
+              );
+              setExpenses(mapped);
+              return; // Não adiciona ao estado novamente (já recarregou todas)
+            }
           }
           // Não adiciona a template ao estado (ela não deve aparecer na lista)
           return;
@@ -1641,6 +1732,19 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         if (!expense.isFixed || !expense.fixedDurationMonths || expense.fixedDurationMonths <= 1) {
           const newExpense = await mapRowToExpense(data);
           setExpenses((prev) => [newExpense, ...prev]);
+
+          // Audit logging para operação crítica
+          if (user?.id) {
+            await logFinancialOperation(
+              user.id,
+              'CREATE',
+              'EXPENSE',
+              data.id,
+              sanitizedExpense.center,
+              undefined, // oldData
+              sanitizedExpense // newData
+            );
+          }
         }
       } catch (e) {
         console.error("❌ Erro inesperado ao criar despesa:", e);
@@ -1868,11 +1972,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         if (isFixedExpense) {
           // Verifica se é uma parcela gerada (não template)
           const isGeneratedInstallment = currentExpense.is_fixed === false && currentExpense.installment_number && currentExpense.installment_number > 1;
-          
+
           if (isGeneratedInstallment) {
             // Se é uma parcela gerada, apenas atualiza ela sem mexer no installment_number
             console.log(`📝 Atualizando parcela ${currentExpense.installment_number} sem alterar numeração`);
-            
+
             const installmentPayload: any = {
               cost_center_id: expense.center,
               equipment_id: expense.equipmentId ?? null,
@@ -1915,7 +2019,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
             return;
           }
-          
+
           // Busca a despesa template atual no banco
           const { data: currentTemplate, error: templateError } = await supabase
             .from("financial_transactions")
@@ -2012,9 +2116,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             // Recarrega todas as despesas
             const { data: reloadedExpenses, error: reloadError } = await supabase
               .from("financial_transactions")
-              .select("*"            )
-            .eq("type", "DESPESA")
-            .order("created_at", { ascending: false });
+              .select("*")
+              .eq("type", "DESPESA")
+              .order("created_at", { ascending: false });
 
             if (!reloadError && reloadedExpenses) {
               const mapped: Expense[] = await Promise.all(
@@ -2029,45 +2133,45 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             const oldDuration = currentTemplate.fixed_duration_months;
             const newDuration = expense.fixedDurationMonths;
 
-          // Busca todas as parcelas relacionadas (template + geradas)
-          // Usa o nome ANTIGO do template para encontrar todas as parcelas
-          const oldName = currentTemplate.description;
-          const { data: allInstallments, error: installmentsError } = await supabase
-            .from("financial_transactions")
-            .select("*")
-            .eq("type", "DESPESA")
-            .eq("description", oldName)
-            .eq("cost_center_id", expense.center)
-            .order("created_at", { ascending: false });
+            // Busca todas as parcelas relacionadas (template + geradas)
+            // Usa o nome ANTIGO do template para encontrar todas as parcelas
+            const oldName = currentTemplate.description;
+            const { data: allInstallments, error: installmentsError } = await supabase
+              .from("financial_transactions")
+              .select("*")
+              .eq("type", "DESPESA")
+              .eq("description", oldName)
+              .eq("cost_center_id", expense.center)
+              .order("created_at", { ascending: false });
 
-          if (installmentsError) {
-            console.error("❌ Erro ao buscar parcelas da despesa fixa:", installmentsError);
-            return;
-          }
+            if (installmentsError) {
+              console.error("❌ Erro ao buscar parcelas da despesa fixa:", installmentsError);
+              return;
+            }
 
-          // Atualiza o template
-          const templatePayload: any = {
-            cost_center_id: expense.center,
-            equipment_id: expense.equipmentId ?? null,
-            value: expense.value,
-            date: dbDate,
-            category: expense.category ?? "diversos",
-            description: expense.name,
-            payment_method: expense.method ?? null,
-            reference: buildReferenceField(expense.observations, expense.debitAdjustment),
-            status: statusToDb(expense.status),
-            is_fixed: true,
-            sector: expense.sector ?? null,
-            fixed_duration_months: expense.fixedDurationMonths ?? null,
-            installment_number: 1,
-          };
+            // Atualiza o template
+            const templatePayload: any = {
+              cost_center_id: expense.center,
+              equipment_id: expense.equipmentId ?? null,
+              value: expense.value,
+              date: dbDate,
+              category: expense.category ?? "diversos",
+              description: expense.name,
+              payment_method: expense.method ?? null,
+              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
+              status: statusToDb(expense.status),
+              is_fixed: true,
+              sector: expense.sector ?? null,
+              fixed_duration_months: expense.fixedDurationMonths ?? null,
+              installment_number: 1,
+            };
 
-          const { data: updatedTemplate, error: templateUpdateError } = await supabase
-            .from("financial_transactions")
-            .update(templatePayload)
-            .eq("id", expense.id)
-            .select(
-              `
+            const { data: updatedTemplate, error: templateUpdateError } = await supabase
+              .from("financial_transactions")
+              .update(templatePayload)
+              .eq("id", expense.id)
+              .select(
+                `
               id,
               type,
               status,
@@ -2085,69 +2189,69 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               created_at,
               cost_center_id
             `
-            )
-            .single();
+              )
+              .single();
 
-          if (templateUpdateError || !updatedTemplate) {
-            console.error("❌ Erro ao atualizar template:", templateUpdateError);
-            return;
-          }
-
-          // Verifica se a data do template foi alterada
-          const oldTemplateDate = currentTemplate.date;
-          const dateChanged = oldTemplateDate !== dbDate;
-
-          // Atualiza todas as parcelas geradas existentes
-          const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
-          const updatedInstallments: any[] = [];
-          
-          // Se a data mudou, calcula a nova data base (dia/mês/ano)
-          let newDay = 0, newMonth = 0, newYear = 0;
-          if (dateChanged) {
-            const [day, month, year] = expense.date.split('/').map(Number);
-            newDay = day;
-            newMonth = month;
-            newYear = year;
-          }
-          
-          for (const installment of generatedInstallments) {
-            const installmentPayload: any = {
-              value: expense.value,
-              category: expense.category ?? "diversos",
-              description: expense.name,
-              payment_method: expense.method ?? null,
-              reference: buildReferenceField(expense.observations, expense.debitAdjustment),
-              sector: expense.sector ?? null,
-            };
-
-            // Se a data do template mudou, atualiza a data da parcela
-            if (dateChanged) {
-              const installmentNumber = installment.installment_number ?? 1;
-              // Calcula nova data (mês base + offset da parcela - 1, pois a primeira parcela é o template)
-              let targetMonth = newMonth + (installmentNumber - 1);
-              let targetYear = newYear;
-              
-              while (targetMonth > 12) {
-                targetMonth -= 12;
-                targetYear++;
-              }
-              
-              const lastDayOfMonth = new Date(targetYear, targetMonth, 0).getDate();
-              const day = Math.min(newDay, lastDayOfMonth);
-              const newDateStr = `${String(day).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${targetYear}`;
-              const newDateDb = toDbDate(newDateStr);
-              
-              if (newDateDb) {
-                installmentPayload.date = newDateDb;
-              }
+            if (templateUpdateError || !updatedTemplate) {
+              console.error("❌ Erro ao atualizar template:", templateUpdateError);
+              return;
             }
 
-            const { data: updatedInstallment } = await supabase
-              .from("financial_transactions")
-              .update(installmentPayload)
-              .eq("id", installment.id)
-              .select(
-                `
+            // Verifica se a data do template foi alterada
+            const oldTemplateDate = currentTemplate.date;
+            const dateChanged = oldTemplateDate !== dbDate;
+
+            // Atualiza todas as parcelas geradas existentes
+            const generatedInstallments = allInstallments?.filter((inst) => !inst.is_fixed) || [];
+            const updatedInstallments: any[] = [];
+
+            // Se a data mudou, calcula a nova data base (dia/mês/ano)
+            let newDay = 0, newMonth = 0, newYear = 0;
+            if (dateChanged) {
+              const [day, month, year] = expense.date.split('/').map(Number);
+              newDay = day;
+              newMonth = month;
+              newYear = year;
+            }
+
+            for (const installment of generatedInstallments) {
+              const installmentPayload: any = {
+                value: expense.value,
+                category: expense.category ?? "diversos",
+                description: expense.name,
+                payment_method: expense.method ?? null,
+                reference: buildReferenceField(expense.observations, expense.debitAdjustment),
+                sector: expense.sector ?? null,
+              };
+
+              // Se a data do template mudou, atualiza a data da parcela
+              if (dateChanged) {
+                const installmentNumber = installment.installment_number ?? 1;
+                // Calcula nova data (mês base + offset da parcela - 1, pois a primeira parcela é o template)
+                let targetMonth = newMonth + (installmentNumber - 1);
+                let targetYear = newYear;
+
+                while (targetMonth > 12) {
+                  targetMonth -= 12;
+                  targetYear++;
+                }
+
+                const lastDayOfMonth = new Date(targetYear, targetMonth, 0).getDate();
+                const day = Math.min(newDay, lastDayOfMonth);
+                const newDateStr = `${String(day).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${targetYear}`;
+                const newDateDb = toDbDate(newDateStr);
+
+                if (newDateDb) {
+                  installmentPayload.date = newDateDb;
+                }
+              }
+
+              const { data: updatedInstallment } = await supabase
+                .from("financial_transactions")
+                .update(installmentPayload)
+                .eq("id", installment.id)
+                .select(
+                  `
                 id,
                 type,
                 status,
@@ -2165,86 +2269,86 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                 created_at,
                 cost_center_id
               `
-              )
-              .single();
+                )
+                .single();
 
-            if (updatedInstallment) {
-              updatedInstallments.push(updatedInstallment);
+              if (updatedInstallment) {
+                updatedInstallments.push(updatedInstallment);
+              }
             }
-          }
 
-          // Nota: O estado será atualizado ao recarregar todas as despesas no final
+            // Nota: O estado será atualizado ao recarregar todas as despesas no final
 
-          // Se a duração mudou, ajusta as parcelas
-          if (oldDuration !== newDuration && newDuration) {
-            const currentDate = new Date();
-            const currentMonth = currentDate.getMonth() + 1;
-            const currentYear = currentDate.getFullYear();
+            // Se a duração mudou, ajusta as parcelas
+            if (oldDuration !== newDuration && newDuration) {
+              const currentDate = new Date();
+              const currentMonth = currentDate.getMonth() + 1;
+              const currentYear = currentDate.getFullYear();
 
-            // Parse da data do template
-            const dateParts = expense.date.split("/");
-            if (dateParts.length === 3) {
-              const [day, month, year] = dateParts.map(Number);
-              const creationMonth = month;
-              const creationYear = year;
-              const creationDay = day;
+              // Parse da data do template
+              const dateParts = expense.date.split("/");
+              if (dateParts.length === 3) {
+                const [day, month, year] = dateParts.map(Number);
+                const creationMonth = month;
+                const creationYear = year;
+                const creationDay = day;
 
-              if (newDuration > oldDuration) {
-                // Aumentou a duração: cria novas parcelas
-                const existingCount = generatedInstallments.length;
-                for (let offset = existingCount; offset < newDuration; offset++) {
-                  const targetMonth = creationMonth + offset;
-                  let targetYear = creationYear;
-                  let actualMonth = targetMonth;
+                if (newDuration > oldDuration) {
+                  // Aumentou a duração: cria novas parcelas
+                  const existingCount = generatedInstallments.length;
+                  for (let offset = existingCount; offset < newDuration; offset++) {
+                    const targetMonth = creationMonth + offset;
+                    let targetYear = creationYear;
+                    let actualMonth = targetMonth;
 
-                  if (targetMonth > 12) {
-                    const yearOffset = Math.floor((targetMonth - 1) / 12);
-                    targetYear = creationYear + yearOffset;
-                    actualMonth = ((targetMonth - 1) % 12) + 1;
-                  }
+                    if (targetMonth > 12) {
+                      const yearOffset = Math.floor((targetMonth - 1) / 12);
+                      targetYear = creationYear + yearOffset;
+                      actualMonth = ((targetMonth - 1) % 12) + 1;
+                    }
 
-                  const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
-                  const expenseDay = Math.min(creationDay, lastDayOfMonth);
-                  const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
-                  const installmentDbDate = toDbDate(newExpenseDate);
+                    const lastDayOfMonth = new Date(targetYear, actualMonth, 0).getDate();
+                    const expenseDay = Math.min(creationDay, lastDayOfMonth);
+                    const newExpenseDate = `${String(expenseDay).padStart(2, "0")}/${String(actualMonth).padStart(2, "0")}/${targetYear}`;
+                    const installmentDbDate = toDbDate(newExpenseDate);
 
-                  if (installmentDbDate) {
-                    // Verifica se já existe
-                  // Usa o novo nome para verificar se já existe uma parcela com o novo nome
-                  // (se o nome mudou, não vai encontrar, então cria nova)
-                  const { data: existing } = await supabase
-                    .from("financial_transactions")
-                    .select("id")
-                    .eq("type", "DESPESA")
-                    .eq("description", expense.name)
-                    .eq("cost_center_id", expense.center)
-                    .eq("is_fixed", false)
-                    .eq("date", installmentDbDate)
-                    .maybeSingle();
-
-                    if (!existing) {
-                      const installmentPayload: any = {
-                        type: "DESPESA",
-                        status: "CONFIRMADO",
-                        cost_center_id: expense.center,
-                        equipment_id: expense.equipmentId ?? null,
-                        value: expense.value,
-                        date: installmentDbDate,
-                        category: expense.category ?? "diversos",
-                        description: expense.name,
-                        payment_method: expense.method ?? null,
-                        reference: buildReferenceField(expense.observations, expense.debitAdjustment),
-                        is_fixed: false,
-                        sector: expense.sector ?? null,
-                        fixed_duration_months: null,
-                        installment_number: offset + 1,
-                      };
-
-                      const { data: newInstallment } = await supabase
+                    if (installmentDbDate) {
+                      // Verifica se já existe
+                      // Usa o novo nome para verificar se já existe uma parcela com o novo nome
+                      // (se o nome mudou, não vai encontrar, então cria nova)
+                      const { data: existing } = await supabase
                         .from("financial_transactions")
-                        .insert(installmentPayload)
-                        .select(
-                          `
+                        .select("id")
+                        .eq("type", "DESPESA")
+                        .eq("description", expense.name)
+                        .eq("cost_center_id", expense.center)
+                        .eq("is_fixed", false)
+                        .eq("date", installmentDbDate)
+                        .maybeSingle();
+
+                      if (!existing) {
+                        const installmentPayload: any = {
+                          type: "DESPESA",
+                          status: "CONFIRMADO",
+                          cost_center_id: expense.center,
+                          equipment_id: expense.equipmentId ?? null,
+                          value: expense.value,
+                          date: installmentDbDate,
+                          category: expense.category ?? "diversos",
+                          description: expense.name,
+                          payment_method: expense.method ?? null,
+                          reference: buildReferenceField(expense.observations, expense.debitAdjustment),
+                          is_fixed: false,
+                          sector: expense.sector ?? null,
+                          fixed_duration_months: null,
+                          installment_number: offset + 1,
+                        };
+
+                        const { data: newInstallment } = await supabase
+                          .from("financial_transactions")
+                          .insert(installmentPayload)
+                          .select(
+                            `
                           id,
                           type,
                           status,
@@ -2262,54 +2366,54 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
                           created_at,
                           cost_center_id
                         `
-                        )
-                        .single();
+                          )
+                          .single();
 
-                      // Nota: O estado será atualizado ao recarregar todas as despesas no final
+                        // Nota: O estado será atualizado ao recarregar todas as despesas no final
+                      }
                     }
                   }
-                }
-              } else if (newDuration < oldDuration) {
-                // Diminuiu a duração: remove parcelas excedentes
-                const installmentsToDelete = generatedInstallments.filter(
-                  (inst) => (inst.installment_number ?? 0) > newDuration
-                );
+                } else if (newDuration < oldDuration) {
+                  // Diminuiu a duração: remove parcelas excedentes
+                  const installmentsToDelete = generatedInstallments.filter(
+                    (inst) => (inst.installment_number ?? 0) > newDuration
+                  );
 
-                for (const instToDelete of installmentsToDelete) {
-                  await supabase
-                    .from("financial_transactions")
-                    .delete()
-                    .eq("id", instToDelete.id);
-                  
-                  // Nota: O estado será atualizado ao recarregar todas as despesas no final
+                  for (const instToDelete of installmentsToDelete) {
+                    await supabase
+                      .from("financial_transactions")
+                      .delete()
+                      .eq("id", instToDelete.id);
+
+                    // Nota: O estado será atualizado ao recarregar todas as despesas no final
+                  }
                 }
               }
             }
-          }
 
-          // ✅ RECARREGA TODAS AS DESPESAS (evita duplicatas)
-          console.log("🔄 Recarregando todas as despesas após edição de despesa fixa...");
-          
-          const { data: reloadedExpenses, error: reloadError } = await supabase
-            .from("financial_transactions")
-            .select(`
+            // ✅ RECARREGA TODAS AS DESPESAS (evita duplicatas)
+            console.log("🔄 Recarregando todas as despesas após edição de despesa fixa...");
+
+            const { data: reloadedExpenses, error: reloadError } = await supabase
+              .from("financial_transactions")
+              .select(`
               id, type, status, date, value, category, description,
               payment_method, reference, equipment_id, is_fixed,
               sector, fixed_duration_months, installment_number,
               created_at, cost_center_id
             `)
-            .eq("type", "DESPESA")
-            .order("created_at", { ascending: false });
+              .eq("type", "DESPESA")
+              .order("created_at", { ascending: false });
 
-          if (!reloadError && reloadedExpenses) {
-            const mapped: Expense[] = await Promise.all(
-              reloadedExpenses.map((row: any) => mapRowToExpense(row))
-            );
-            setExpenses(mapped);
-            console.log(`✅ ${mapped.length} despesas recarregadas com sucesso`);
-          }
+            if (!reloadError && reloadedExpenses) {
+              const mapped: Expense[] = await Promise.all(
+                reloadedExpenses.map((row: any) => mapRowToExpense(row))
+              );
+              setExpenses(mapped);
+              console.log(`✅ ${mapped.length} despesas recarregadas com sucesso`);
+            }
 
-          return;
+            return;
           } // Fecha o else do currentTemplate
         } // Fecha o if (isFixedExpense)
 
@@ -2515,7 +2619,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
           // ✅ CORREÇÃO PRINCIPAL: Recarrega TODAS as despesas
           console.log("🔄 Recarregando todas as despesas após edição...");
-          
+
           const { data: allExpenses, error: reloadError } = await supabase
             .from("financial_transactions")
             .select(`
@@ -2536,7 +2640,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             const mapped: Expense[] = await Promise.all(
               allExpenses.map((row: any) => mapRowToExpense(row))
             );
-            
+
             // ✅ SUBSTITUI TODA A LISTA (evita duplicatas)
             setExpenses(mapped);
             console.log(`✅ ${mapped.length} despesas recarregadas com sucesso`);
@@ -2892,8 +2996,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         // Recarrega despesas após gerar parcelas
         const { data: reloadedExpenses, error: reloadError } = await supabase
           .from("financial_transactions")
-        .select(
-          `
+          .select(
+            `
           id,
           type,
           status,
@@ -2911,9 +3015,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           created_at,
           cost_center_id
         `
-            )
-            .eq("type", "DESPESA")
-            .order("created_at", { ascending: false });
+          )
+          .eq("type", "DESPESA")
+          .order("created_at", { ascending: false });
 
         if (!reloadError && reloadedExpenses) {
           const mapped: Expense[] = await Promise.all(

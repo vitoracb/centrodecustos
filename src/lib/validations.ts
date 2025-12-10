@@ -135,7 +135,7 @@ export async function validateFileSize(
 export function validateFileType(
   mimeType: string | null | undefined,
   allowedTypes: string[],
-  fileName?: string
+  fileName?: string | null
 ): { isValid: boolean; errorMessage?: string } {
   if (!mimeType && !fileName) {
     return { isValid: false, errorMessage: 'Tipo de arquivo não identificado' };
@@ -197,7 +197,7 @@ export function validateFileType(
 export async function validateFile(
   fileUri: string,
   mimeType: string | null | undefined,
-  fileName?: string,
+  fileName?: string | null,
   allowedTypes: string[] = ['application/pdf', 'image/*'],
   maxSizeMB: number = 80
 ): Promise<{ isValid: boolean; errorMessage?: string }> {

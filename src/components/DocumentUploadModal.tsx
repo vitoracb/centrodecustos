@@ -9,14 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActionSheetIOS,
+  Alert
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { FileText, Image as ImageIcon, Sparkles } from 'lucide-react-native';
+import { FileText, Image as ImageIcon } from 'lucide-react-native';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
-import { Alert } from 'react-native';
 
 interface DocumentData {
   name: string;
@@ -75,7 +75,7 @@ export const DocumentUploadModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -118,7 +118,7 @@ export const DocumentUploadModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -170,7 +170,7 @@ export const DocumentUploadModal = ({
     // Se tirou a foto, processa
     if (result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -241,19 +241,19 @@ export const DocumentUploadModal = ({
     if (!currentFile || !name.trim()) {
       return;
     }
-    
+
     // Validação de data
     const formattedDate = dayjs(date).format('DD/MM/YYYY');
     const dateValidation = validateDate(formattedDate, {
       allowFuture: true,
       allowPast: true,
     });
-    
+
     if (!dateValidation.isValid) {
       Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
       return;
     }
-    
+
     onSubmit({
       name,
       date: formattedDate,

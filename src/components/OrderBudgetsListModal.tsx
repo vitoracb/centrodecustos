@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  FlatList,
 } from 'react-native';
 import { X, FileText, Image as ImageIcon } from 'lucide-react-native';
 import { OrderDocument } from '../context/OrderContext';
@@ -27,8 +26,8 @@ export const OrderBudgetsListModal: React.FC<OrderBudgetsListModalProps> = ({
   onBudgetPress,
 }) => {
   const isImage = (mimeType: string | null) => mimeType?.startsWith('image/') ?? false;
-  const isPdf = (mimeType: string | null) => 
-    mimeType === 'application/pdf' || 
+  const isPdf = (mimeType: string | null) =>
+    mimeType === 'application/pdf' ||
     (mimeType === null && false);
 
   const getFileTypeIcon = (mimeType: string | null) => {

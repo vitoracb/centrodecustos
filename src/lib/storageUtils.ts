@@ -141,10 +141,10 @@ export async function uploadFileToStorage(
  * @returns Array de URLs públicas dos arquivos (null para arquivos que falharam)
  */
 export async function uploadMultipleFilesToStorage(
-  files: Array<{ fileUri: string; fileName: string; mimeType?: string | null }>,
+  files: { fileUri: string; fileName: string; mimeType?: string | null }[],
   bucket: string = 'expense-documents',
   folder: string = 'expenses'
-): Promise<Array<string | null>> {
+): Promise<(string | null)[]> {
   const uploadPromises = files.map((file) =>
     uploadFileToStorage(file.fileUri, file.fileName, file.mimeType, bucket, folder)
   );

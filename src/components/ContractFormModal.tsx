@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActionSheetIOS,
-} from 'react-native';
+ Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as DocumentPicker from 'expo-document-picker';
@@ -17,7 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { FileText, Camera } from 'lucide-react-native';
 import { ContractCategory } from '../context/ContractContext';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
-import { Alert } from 'react-native';
+import { sanitizeName, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
 const CATEGORY_LABELS: Record<ContractCategory, string> = {
   principal: 'Principal',
@@ -122,21 +122,30 @@ export const ContractFormModal = ({
       Alert.alert('Campo obrigatório', 'Por favor, preencha o nome do contrato.');
       return;
     }
-    
+
+    // Validação de segurança
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+
     // Validação de data
     const formattedDate = dayjs(date).format('DD/MM/YYYY');
     const dateValidation = validateDate(formattedDate, {
       allowFuture: true,
       allowPast: true,
     });
-    
+
     if (!dateValidation.isValid) {
       Alert.alert('Data inválida', dateValidation.errorMessage || 'Por favor, verifique a data informada.');
       return;
     }
-    
+
+    // Sanitização
+    const sanitizedName = sanitizeName(name);
+
     onSubmit({
-      name: name.trim(),
+      name: sanitizedName || 'Contrato sem nome',
       category,
       date: formattedDate,
       docs: documents.length,

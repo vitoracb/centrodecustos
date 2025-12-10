@@ -10,12 +10,11 @@ import {
   Platform,
   ActionSheetIOS,
   Image,
-} from 'react-native';
+ Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import * as ImagePicker from 'expo-image-picker';
 import { validateDate, validateFile, checkFileSizeAndAlert } from '../lib/validations';
-import { Alert } from 'react-native';
 
 interface PhotoUploadModalProps {
   visible: boolean;

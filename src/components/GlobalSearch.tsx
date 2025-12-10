@@ -39,7 +39,7 @@ export const GlobalSearch = () => {
 
   // Debounce: aguarda 300ms após o usuário parar de digitar
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  
+
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
@@ -92,7 +92,7 @@ export const GlobalSearch = () => {
     Object.keys(centerDocs).forEach((equipmentId) => {
       const docs = centerDocs[equipmentId].filter((d) => !d.deletedAt);
       const uniqueEmployees = new Set(docs.map((d) => d.employee));
-      
+
       uniqueEmployees.forEach((employeeName) => {
         if (employeeName.toLowerCase().includes(query)) {
           // Buscar o equipamento relacionado
@@ -146,7 +146,6 @@ export const GlobalSearch = () => {
         const categoryLabels: Record<string, string> = {
           manutencao: 'Manutenção',
           funcionario: 'Funcionário',
-          gestor: 'Gestor',
           gestor: 'Gestor',
           terceirizados: 'Terceirizados',
           diversos: 'Diversos',
@@ -267,7 +266,7 @@ export const GlobalSearch = () => {
         activeOpacity={0.7}
       >
         <Search size={18} color="#6C6C70" />
-                <Text style={styles.searchPlaceholder}>Buscar equipamentos, funcionários, contratos, despesas, recebimentos, pedidos...</Text>
+        <Text style={styles.searchPlaceholder}>Buscar equipamentos, funcionários, contratos, despesas, recebimentos, pedidos...</Text>
       </TouchableOpacity>
 
       <Modal
@@ -467,7 +466,7 @@ export const GlobalSearch = () => {
                 ) : (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyStateText}>
-                      Nenhum resultado encontrado para "{debouncedQuery}"
+                      Nenhum resultado encontrado para &quot;{debouncedQuery}&quot;
                     </Text>
                   </View>
                 )

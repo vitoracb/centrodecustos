@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpenseDocument } from '../context/FinancialContext';
-import { FileText, X, Plus, Image as ImageIcon, Trash2 } from 'lucide-react-native';
+import { FileText, X, Plus, Camera, Trash2 } from 'lucide-react-native';
+import { logger } from '../lib/logger';
 
 interface ExpenseDocumentsModalProps {
   visible: boolean;
@@ -69,8 +70,7 @@ export const ExpenseDocumentsModal = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
-                console.log('🔵 [ExpenseDocumentsModal] Botão DOCUMENTO clicado');
-                console.log('🔵 onAddDocument existe?', !!onAddDocument);
+                logger.debug('📘 [ExpenseDocumentsModal] Botão DOCUMENTO clicado');
                 if (onAddDocument) {
                   onAddDocument();
                 }
@@ -90,8 +90,7 @@ export const ExpenseDocumentsModal = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
-                console.log('📸 [ExpenseDocumentsModal] Botão FOTO clicado');
-                console.log('📸 onAddPhoto existe?', !!onAddPhoto);
+                logger.debug('📸 [ExpenseDocumentsModal] Botão FOTO clicado');
                 if (onAddPhoto) {
                   onAddPhoto();
                 }
@@ -102,7 +101,7 @@ export const ExpenseDocumentsModal = ({
               {isUploading ? (
                 <ActivityIndicator size="small" color="#0A84FF" />
               ) : (
-                <ImageIcon size={18} color="#0A84FF" />
+                <Camera size={18} color="#0A84FF" />
               )}
             </TouchableOpacity>
           )}
@@ -168,15 +167,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: 12,
+    paddingTop: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
   },

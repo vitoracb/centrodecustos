@@ -34,7 +34,6 @@ const PAGE_SIZE = 10;
 export const EquipamentosScreen = () => {
   const { selectedCenter, costCenters } = useCostCenter();
   const {
-    getEquipmentsByCenter,
     addEquipment,
     updateEquipment,
     deleteEquipment,
@@ -44,7 +43,7 @@ export const EquipamentosScreen = () => {
   } = useEquipment();
   const { canCreate, canEdit, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -66,11 +65,12 @@ export const EquipamentosScreen = () => {
     year: number;
     purchaseDate: string;
     nextReview: string;
+    hoursUntilRevision?: number;
   } | null>(null);
   const [equipmentPage, setEquipmentPage] = useState(1);
   const selectedCenterName =
     costCenters.find((cc) => cc.code === selectedCenter)?.name || selectedCenter;
-  
+
   // Pega todos os equipamentos (para filtrar por centro de custo também)
   const allEquipments = useMemo(
     () => getAllEquipments(),
@@ -152,7 +152,7 @@ export const EquipamentosScreen = () => {
     }
   };
 
-  const handleEdit = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
+  const handleEdit = (equipment: typeof filteredEquipments[0], event: GestureResponderEvent) => {
     event.stopPropagation();
     setEditingEquipment({
       id: equipment.id,
@@ -161,11 +161,12 @@ export const EquipamentosScreen = () => {
       year: equipment.year,
       purchaseDate: equipment.purchaseDate,
       nextReview: equipment.nextReview,
+      hoursUntilRevision: equipment.hoursUntilRevision,
     });
     setIsFormVisible(true);
   };
 
-  const handleDelete = (equipment: typeof equipmentList[0], event: GestureResponderEvent) => {
+  const handleDelete = (equipment: typeof filteredEquipments[0], event: GestureResponderEvent) => {
     event.stopPropagation();
     Alert.alert(
       'Excluir equipamento',
@@ -234,221 +235,216 @@ export const EquipamentosScreen = () => {
                   />
                 </TouchableOpacity>
               </View>
-          </View>
-
-          {shouldShowSkeleton ? (
-            <EquipmentListSkeleton />
-          ) : paginatedEquipments.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                {hasActiveFilters 
-                  ? 'Nenhum equipamento encontrado com os filtros aplicados'
-                  : 'Nenhum equipamento cadastrado'}
-              </Text>
             </View>
-          ) : (
-            paginatedEquipments.map((equipment) => (
-              <TouchableOpacity
-                key={equipment.id}
-                style={styles.card}
-                activeOpacity={0.9}
-                onPress={() => {
-                  try {
-                    if (!equipment || !equipment.id) {
-                      console.error('Equipment card press without valid id:', equipment);
-                      Alert.alert('Erro', 'Equipamento inválido');
-                      return;
-                    }
 
-                    console.log('==================');
-                    console.log(' [Equipment] Clicked on:', equipment.name);
-                    console.log(' [Equipment] ID:', equipment.id);
-                    console.log(' [Equipment] Data:', JSON.stringify(equipment));
-                    console.log('==================');
-
-                    router.push({
-                      pathname: '/equipamentos/[id]' as any,
-                      params: {
-                        id: equipment.id,
-                        name: equipment.name,
-                        brand: equipment.brand,
-                        year: String(equipment.year),
-                        purchaseDate: equipment.purchaseDate,
-                        nextReview: equipment.nextReview,
-                        center: selectedCenterName,
-                      },
-                    });
-                  } catch (error) {
-                    console.error('Error navigating to equipment detail:', error);
-                    Alert.alert('Erro', 'Não foi possível abrir o equipamento');
-                  }
-                }}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardHeaderLeft}>
-                    <View style={styles.cardTitleRow}>
-                      <View style={styles.cardIconWrapper}>
-                        <Tractor size={18} color="#0A84FF" />
-                      </View>
-                      <Text style={styles.cardTitle}>{equipment.name}</Text>
-                      <TouchableOpacity
-                      style={[
-                        styles.statusBadge,
-                        equipment.status === 'ativo'
-                          ? styles.statusBadgeActive
-                          : styles.statusBadgeInactive,
-                      ]}
-                      onPress={(event) => {
-                        if (!canEdit) return;
-                        event.stopPropagation();
-                        const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
-                        updateEquipment(equipment.id, { status: newStatus });
-                      }}
-                      activeOpacity={canEdit ? 0.7 : 1}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          equipment.status === 'ativo'
-                            ? styles.statusTextActive
-                            : styles.statusTextInactive,
-                        ]}
-                      >
-                        {equipment.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.cardSubtitle}>
-                    {equipment.brand} · Ano {equipment.year}
-                  </Text>
-                </View>
-                <View style={styles.cardHeaderRight}>
-                  {canEdit && (
-                    <TouchableOpacity
-                      style={styles.editButton}
-                      onPress={(event) => handleEdit(equipment, event)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Edit3 size={18} color="#0A84FF" />
-                    </TouchableOpacity>
-                  )}
-                  {canDelete && (
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={(event) => handleDelete(equipment, event)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Trash2 size={18} color="#FF3B30" />
-                    </TouchableOpacity>
-                  )}
-                  <ChevronRight size={18} color="#C7C7CC" />
-                </View>
+            {shouldShowSkeleton ? (
+              <EquipmentListSkeleton />
+            ) : paginatedEquipments.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {hasActiveFilters
+                    ? 'Nenhum equipamento encontrado com os filtros aplicados'
+                    : 'Nenhum equipamento cadastrado'}
+                </Text>
               </View>
-              <View style={styles.cardMeta}>
-                <View>
-                  <Text style={styles.metaLabel}>Horas Atuais</Text>
-                  <Text style={styles.metaValue}>
-                    {equipment.currentHours.toLocaleString('pt-BR')}h
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.metaLabel}>Horas p/ Revisão</Text>
-                  <Text style={styles.metaValue}>
-                    {equipment.hoursUntilRevision.toLocaleString('pt-BR')}h
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.metaLabel}>Hora da Revisão</Text>
-                  <Text style={styles.metaValue}>
-                    {(equipment.currentHours + equipment.hoursUntilRevision).toLocaleString('pt-BR')}h
-                  </Text>
-                </View>
-              </View>
-              {(() => {
-                const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
-                const isPastRevision = equipment.hoursUntilRevision <= 0;
-                
-                if (isNearRevision || isPastRevision) {
-                  return (
-                    <View style={[
-                      styles.revisionAlert,
-                      isPastRevision && styles.revisionAlertError,
-                    ]}>
-                      <Text style={[
-                        styles.revisionAlertText,
-                        isPastRevision && styles.revisionAlertTextError,
-                      ]}>
-                      {isPastRevision 
-                        ? `⚠️ REVISÃO URGENTE!` 
-                        : `🔔 Faltam ${equipment.hoursUntilRevision.toFixed(0)}h para revisão`
+            ) : (
+              paginatedEquipments.map((equipment) => (
+                <TouchableOpacity
+                  key={equipment.id}
+                  style={styles.card}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    try {
+                      if (!equipment || !equipment.id) {
+                        console.error('Equipment card press without valid id:', equipment);
+                        Alert.alert('Erro', 'Equipamento inválido');
+                        return;
                       }
+
+                      router.push({
+                        pathname: '/equipamentos/[id]' as any,
+                        params: {
+                          id: equipment.id,
+                          name: equipment.name,
+                          brand: equipment.brand,
+                          year: String(equipment.year),
+                          purchaseDate: equipment.purchaseDate,
+                          nextReview: equipment.nextReview,
+                          center: selectedCenterName,
+                        },
+                      });
+                    } catch (error) {
+                      console.error('Error navigating to equipment detail:', error);
+                      Alert.alert('Erro', 'Não foi possível abrir o equipamento');
+                    }
+                  }}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <View style={styles.cardTitleRow}>
+                        <View style={styles.cardIconWrapper}>
+                          <Tractor size={18} color="#0A84FF" />
+                        </View>
+                        <Text style={styles.cardTitle}>{equipment.name}</Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.statusBadge,
+                            equipment.status === 'ativo'
+                              ? styles.statusBadgeActive
+                              : styles.statusBadgeInactive,
+                          ]}
+                          onPress={(event) => {
+                            if (!canEdit) return;
+                            event.stopPropagation();
+                            const newStatus = equipment.status === 'ativo' ? 'inativo' : 'ativo';
+                            updateEquipment(equipment.id, { status: newStatus });
+                          }}
+                          activeOpacity={canEdit ? 0.7 : 1}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              equipment.status === 'ativo'
+                                ? styles.statusTextActive
+                                : styles.statusTextInactive,
+                            ]}
+                          >
+                            {equipment.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.cardSubtitle}>
+                        {equipment.brand} · Ano {equipment.year}
                       </Text>
                     </View>
-                  );
-                }
-                return null;
-              })()}
-            </TouchableOpacity>
-            ))
-          )}
-          {!shouldShowSkeleton && hasMoreEquipments && (
-            <TouchableOpacity
-              style={styles.loadMoreButton}
-              onPress={handleLoadMoreEquipments}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.loadMoreText}>Carregar mais</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-      {canCreate && (
-        <EquipmentFormModal
-          visible={isFormVisible}
-          onClose={() => {
-            setIsFormVisible(false);
-            setEditingEquipment(null);
-          }}
-          onSubmit={(data) => {
-            if (editingEquipment) {
-              updateEquipment(editingEquipment.id, {
-                name: data.name,
-                brand: data.brand,
-                year: Number(data.year) || new Date().getFullYear(),
-                purchaseDate: data.purchaseDate,
-                hoursUntilRevision: data.hoursUntilRevision,
-              });
-            } else {
-              addEquipment({
-                name: data.name,
-                brand: data.brand,
-                year: Number(data.year) || new Date().getFullYear(),
-                purchaseDate: data.purchaseDate,
-                center: selectedCenter,
-                status: 'ativo',
-                currentHours: 0,
-                hoursUntilRevision: data.hoursUntilRevision,
-              });
-            }
-            setIsFormVisible(false);
-            setEditingEquipment(null);
-          }}
-          initialData={editingEquipment ? {
-            name: editingEquipment.name,
-            brand: editingEquipment.brand,
-            year: String(editingEquipment.year),
-            purchaseDate: editingEquipment.purchaseDate,
-            hoursUntilRevision: editingEquipment.hoursUntilRevision,
-          } : undefined}
+                    <View style={styles.cardHeaderRight}>
+                      {canEdit && (
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={(event) => handleEdit(equipment, event)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Edit3 size={18} color="#0A84FF" />
+                        </TouchableOpacity>
+                      )}
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={(event) => handleDelete(equipment, event)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Trash2 size={18} color="#FF3B30" />
+                        </TouchableOpacity>
+                      )}
+                      <ChevronRight size={18} color="#C7C7CC" />
+                    </View>
+                  </View>
+                  <View style={styles.cardMeta}>
+                    <View>
+                      <Text style={styles.metaLabel}>Horas Atuais</Text>
+                      <Text style={styles.metaValue}>
+                        {equipment.currentHours.toLocaleString('pt-BR')}h
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.metaLabel}>Horas p/ Revisão</Text>
+                      <Text style={styles.metaValue}>
+                        {equipment.hoursUntilRevision.toLocaleString('pt-BR')}h
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.metaLabel}>Hora da Revisão</Text>
+                      <Text style={styles.metaValue}>
+                        {(equipment.currentHours + equipment.hoursUntilRevision).toLocaleString('pt-BR')}h
+                      </Text>
+                    </View>
+                  </View>
+                  {(() => {
+                    const isNearRevision = equipment.hoursUntilRevision <= 50 && equipment.hoursUntilRevision > 0;
+                    const isPastRevision = equipment.hoursUntilRevision <= 0;
+
+                    if (isNearRevision || isPastRevision) {
+                      return (
+                        <View style={[
+                          styles.revisionAlert,
+                          isPastRevision && styles.revisionAlertError,
+                        ]}>
+                          <Text style={[
+                            styles.revisionAlertText,
+                            isPastRevision && styles.revisionAlertTextError,
+                          ]}>
+                            {isPastRevision
+                              ? `⚠️ REVISÃO URGENTE!`
+                              : `🔔 Faltam ${equipment.hoursUntilRevision.toFixed(0)}h para revisão`
+                            }
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                </TouchableOpacity>
+              ))
+            )}
+            {!shouldShowSkeleton && hasMoreEquipments && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMoreEquipments}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.loadMoreText}>Carregar mais</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+        {canCreate && (
+          <EquipmentFormModal
+            visible={isFormVisible}
+            onClose={() => {
+              setIsFormVisible(false);
+              setEditingEquipment(null);
+            }}
+            onSubmit={(data) => {
+              if (editingEquipment) {
+                updateEquipment(editingEquipment.id, {
+                  name: data.name,
+                  brand: data.brand,
+                  year: Number(data.year) || new Date().getFullYear(),
+                  purchaseDate: data.purchaseDate,
+                  hoursUntilRevision: data.hoursUntilRevision,
+                });
+              } else {
+                addEquipment({
+                  name: data.name,
+                  brand: data.brand,
+                  year: Number(data.year) || new Date().getFullYear(),
+                  purchaseDate: data.purchaseDate,
+                  nextReview: '', // Campo deprecado, mas obrigatório para compatibilidade
+                  center: selectedCenter,
+                  status: 'ativo',
+                  currentHours: 0,
+                  hoursUntilRevision: data.hoursUntilRevision,
+                });
+              }
+              setIsFormVisible(false);
+              setEditingEquipment(null);
+            }}
+            initialData={editingEquipment ? {
+              name: editingEquipment.name,
+              brand: editingEquipment.brand,
+              year: String(editingEquipment.year),
+              purchaseDate: editingEquipment.purchaseDate,
+              hoursUntilRevision: editingEquipment.hoursUntilRevision,
+            } : undefined}
+          />
+        )}
+        <EquipmentFilterModal
+          visible={isFilterModalVisible}
+          onClose={() => setFilterModalVisible(false)}
+          onApply={(newFilters) => setFilters(newFilters)}
+          initialFilters={filters}
         />
-      )}
-      <EquipmentFilterModal
-        visible={isFilterModalVisible}
-        onClose={() => setFilterModalVisible(false)}
-        onApply={(newFilters) => setFilters(newFilters)}
-        initialFilters={filters}
-      />
       </View>
     </SafeAreaView>
   );

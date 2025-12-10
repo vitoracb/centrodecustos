@@ -31,13 +31,20 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      console.log('[ResetPassword] Processando URL:', url);
+      console.log('[ResetPassword] ===== PROCESSANDO DEEP LINK =====');
+      console.log('[ResetPassword] URL completa:', url);
+      console.log('[ResetPassword] URL length:', url.length);
 
       // Supabase envia o access_token e refresh_token no fragmento da URL (#)
       // Exemplo: com.centrodecustos://reset-password#access_token=...&refresh_token=...&type=recovery
-      const [, fragment] = url.split('#');
+      // ou: nowtrading-centrodecustos://reset-password#access_token=...
+      const [baseUrl, fragment] = url.split('#');
+      console.log('[ResetPassword] Base URL:', baseUrl);
+      console.log('[ResetPassword] Fragmento presente:', !!fragment);
+
       if (!fragment) {
-        console.log('[ResetPassword] URL sem fragmento de auth:', url);
+        console.log('[ResetPassword] URL sem fragmento de auth - link pode ter expirado ou ser inválido');
+        console.log('[ResetPassword] URL completa recebida:', url);
         setInitializingSession(false);
         return;
       }
@@ -108,6 +115,16 @@ export default function ResetPasswordScreen() {
       Alert.alert('Aguarde', 'Estamos validando o link de recuperação. Tente novamente em instantes.');
       return;
     }
+
+    // Verifica se a sessão foi estabelecida corretamente
+    if (!sessionReady) {
+      Alert.alert(
+        'Link não validado',
+        'O link de recuperação não foi processado corretamente. Por favor, clique novamente no link do email ou solicite um novo link na tela de login.',
+      );
+      return;
+    }
+
     if (!password || !confirmPassword) {
       Alert.alert('Campos obrigatórios', 'Preencha e confirme a nova senha.');
       return;
@@ -125,6 +142,12 @@ export default function ResetPasswordScreen() {
 
     setLoading(true);
     try {
+      // Verifica se há uma sessão ativa
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Auth session missing!');
+      }
+
       const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
@@ -136,10 +159,20 @@ export default function ResetPasswordScreen() {
 
       setPasswordUpdated(true);
     } catch (error: any) {
-      Alert.alert(
-        'Erro ao atualizar senha',
-        error?.message || 'Não foi possível atualizar a senha. Solicite um novo link de recuperação.'
-      );
+      console.log('[ResetPassword] Erro ao atualizar senha:', error?.message);
+
+      // Mensagem específica para sessão ausente
+      if (error?.message?.includes('session') || error?.message?.includes('Auth')) {
+        Alert.alert(
+          'Erro ao atualizar senha',
+          'O link de recuperação expirou ou é inválido. Por favor, solicite um novo link na tela de login.'
+        );
+      } else {
+        Alert.alert(
+          'Erro ao atualizar senha',
+          error?.message || 'Não foi possível atualizar a senha. Solicite um novo link de recuperação.'
+        );
+      }
     } finally {
       setLoading(false);
     }

@@ -9,12 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
+ Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import dayjs from 'dayjs';
 import { CostCenter, useCostCenter } from '../context/CostCenterContext';
+import { sanitizeName, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
-const centerLabels = {
+const centerLabels: Record<string, string> = {
   valenca: 'Valença',
   cna: 'CNA',
   cabralia: 'Cabrália',
@@ -76,15 +77,34 @@ export const EquipmentFormModal = ({
 
   const handleSave = () => {
     const hoursUntilRevisionValue = parseFloat(hoursUntilRevision.replace(',', '.'));
-    
+
     if (isNaN(hoursUntilRevisionValue) || hoursUntilRevisionValue < 0) {
-      // Validação básica - você pode adicionar um alerta aqui se quiser
+      Alert.alert('Campo inválido', 'Por favor, informe um valor válido para horas até revisão.');
       return;
     }
-    
+
+    if (!name.trim()) {
+      Alert.alert('Campo obrigatório', 'Por favor, preencha o nome do equipamento.');
+      return;
+    }
+
+    // Validação de segurança
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+    if (brand && (hasSQLInjectionPatterns(brand) || hasXSSPatterns(brand))) {
+      Alert.alert('Entrada inválida', 'A marca contém caracteres não permitidos.');
+      return;
+    }
+
+    // Sanitização
+    const sanitizedName = sanitizeName(name);
+    const sanitizedBrand = sanitizeName(brand);
+
     onSubmit?.({
-      name,
-      brand,
+      name: sanitizedName || 'Equipamento sem nome',
+      brand: sanitizedBrand || '',
       year,
       purchaseDate: dayjs(purchaseDate).format('DD/MM/YYYY'),
       hoursUntilRevision: hoursUntilRevisionValue,

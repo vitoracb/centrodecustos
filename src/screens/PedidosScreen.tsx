@@ -9,7 +9,6 @@ import {
   Dimensions,
   Modal,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,8 +18,6 @@ import {
   Trash2,
   UploadCloud,
   ChevronDown,
-  Edit3,
-  Check,
   X,
   Filter,
   ShoppingCart,
@@ -106,11 +103,11 @@ export default function PedidosScreen() {
   } = useOrders();
   const { canCreate, canEdit, canDelete, isAdmin } = usePermissions();
   const { getEquipmentsByCenter } = useEquipment();
-  
+
   // Obtém o nome do centro de custo selecionado
   const selectedCenterName = costCenters.find(cc => cc.code === selectedCenter)?.name || selectedCenter;
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -130,7 +127,7 @@ export default function PedidosScreen() {
     uri: string;
     name?: string;
     mimeType?: string | null;
-    files?: Array<{ fileUri: string; fileName: string; mimeType: string | null }>;
+    files?: { fileUri: string; fileName: string; mimeType: string | null }[];
     initialIndex?: number;
   } | null>(null);
   const [openDropdownOrderId, setOpenDropdownOrderId] = useState<string | null>(null);
@@ -215,7 +212,7 @@ export default function PedidosScreen() {
         );
     }
   }, [getOrdersByCenter, selectedCenter, orderFilters, ordersSortOption]);
-  
+
   // Encontra o pedido com dropdown aberto
   const orderWithOpenDropdown = filteredOrders.find(order => order.id === openDropdownOrderId);
   const orcamentosForModal = orderWithOpenDropdown?.documents?.filter(doc => {
@@ -253,23 +250,23 @@ export default function PedidosScreen() {
 
   const handleBudgetSelect = (order: Order, documentIndex?: number) => {
     setOpenDropdownOrderId(null);
-    
+
     // Se o pedido foi aprovado, mostra apenas o orçamento aprovado
     // Se não foi aprovado, mostra todos os orçamentos enviados
     let orcamentos = order.documents?.filter(doc => doc.type === "orcamento") || [];
-    
+
     if (order.status === 'orcamento_aprovado') {
       // Filtra apenas documentos aprovados
       orcamentos = orcamentos.filter(doc => doc.approved === true);
     }
-    
+
     // Filtra apenas documentos com fileUri válido
     orcamentos = orcamentos.filter(doc => doc.fileUri && doc.fileUri.trim() !== '');
-    
+
     if (orcamentos.length === 0) {
       Alert.alert(
         'Nenhum orçamento disponível',
-        order.status === 'orcamento_aprovado' 
+        order.status === 'orcamento_aprovado'
           ? 'Nenhum orçamento aprovado encontrado ou o arquivo não está disponível.'
           : 'Ainda não há um orçamento enviado para este pedido ou os arquivos não estão disponíveis.',
       );
@@ -279,7 +276,7 @@ export default function PedidosScreen() {
     // Se documentIndex não foi fornecido, usa o primeiro (ou último se houver múltiplos)
     const index = documentIndex !== undefined ? documentIndex : (orcamentos.length > 1 ? orcamentos.length - 1 : 0);
     const selectedDoc = orcamentos[index];
-    
+
     if (!selectedDoc || !selectedDoc.fileUri) {
       Alert.alert(
         'Erro',
@@ -294,7 +291,7 @@ export default function PedidosScreen() {
       fileName: doc.fileName || 'Orçamento',
       mimeType: doc.mimeType || null,
     }));
-    
+
     setPreviewFile({
       uri: selectedDoc.fileUri,
       name: selectedDoc.fileName || 'Orçamento',
@@ -302,7 +299,7 @@ export default function PedidosScreen() {
       files: files.length > 0 ? files : undefined,
       initialIndex: index,
     });
-    
+
     // Guarda o pedido atual para poder aprovar depois
     setCurrentOrderForPreview(order);
     setPreviewVisible(true);
@@ -322,23 +319,23 @@ export default function PedidosScreen() {
     }
 
     // Encontra o documento atual sendo visualizado
-    const orcamentos = currentOrderForPreview.documents?.filter(doc => 
-      doc.type === "orcamento" && 
-      doc.fileUri && 
+    const orcamentos = currentOrderForPreview.documents?.filter(doc =>
+      doc.type === "orcamento" &&
+      doc.fileUri &&
       doc.fileUri.trim() !== ''
     ) || [];
-    
+
     // Usa o fileUri atual passado pelo modal (após navegação) ou o fileUri do previewFile
     const targetFileUri = currentFileUri || previewFile.uri;
-    
+
     // Tenta encontrar o documento pelo fileUri atual (mais confiável que índice)
     let currentDoc = orcamentos.find(doc => doc.fileUri === targetFileUri);
-    
+
     // Se não encontrou pelo fileUri, tenta pelo índice (fallback)
     if (!currentDoc && currentIndex !== undefined && currentIndex >= 0 && currentIndex < orcamentos.length) {
       currentDoc = orcamentos[currentIndex];
     }
-    
+
     // Se ainda não encontrou, usa o índice inicial como último recurso
     if (!currentDoc) {
       const fallbackIndex = previewFile.initialIndex !== undefined ? previewFile.initialIndex : 0;
@@ -352,7 +349,7 @@ export default function PedidosScreen() {
 
     // Obtém o ID do documento
     let documentId = currentDoc.id;
-    
+
     if (!documentId) {
       Alert.alert('Erro', 'Não foi possível identificar o documento para aprovar. O documento pode não ter sido salvo ainda.');
       return;
@@ -553,35 +550,35 @@ export default function PedidosScreen() {
               paginatedOrders.map((order) => {
                 // Se o pedido foi aprovado, mostra apenas o orçamento aprovado
                 // Se não foi aprovado, mostra todos os orçamentos enviados
-                let orcamentos = order.documents?.filter(doc => 
-                  doc.type === "orcamento" && 
-                  doc.fileUri && 
+                let orcamentos = order.documents?.filter(doc =>
+                  doc.type === "orcamento" &&
+                  doc.fileUri &&
                   doc.fileUri.trim() !== ''
                 ) || [];
-                
+
                 if (order.status === 'orcamento_aprovado') {
                   orcamentos = orcamentos.filter(doc => doc.approved === true);
                 }
-                
+
                 const hasBudget = orcamentos.length > 0;
-                
+
                 // Encontra o último orçamento enviado (mais recente)
                 // Considera todos os orçamentos enviados (não apenas aprovados)
-                const todosOrcamentosEnviados = order.documents?.filter(doc => 
-                  doc.type === "orcamento" && 
-                  doc.fileUri && 
+                const todosOrcamentosEnviados = order.documents?.filter(doc =>
+                  doc.type === "orcamento" &&
+                  doc.fileUri &&
                   doc.fileUri.trim() !== '' &&
                   doc.createdAt // Garante que tem data
                 ) || [];
-                
+
                 const ultimoOrcamento = todosOrcamentosEnviados.length > 0
                   ? todosOrcamentosEnviados.reduce((latest, current) => {
-                      const latestDate = latest.createdAt || 0;
-                      const currentDate = current.createdAt || 0;
-                      return currentDate > latestDate ? current : latest;
-                    })
+                    const latestDate = latest.createdAt || 0;
+                    const currentDate = current.createdAt || 0;
+                    return currentDate > latestDate ? current : latest;
+                  })
                   : null;
-                
+
                 // Formata a data do último orçamento
                 const dataUltimoOrcamento = ultimoOrcamento?.createdAt
                   ? dayjs(ultimoOrcamento.createdAt).format('DD/MM/YYYY')
@@ -662,7 +659,7 @@ export default function PedidosScreen() {
                             style={styles.actionPill}
                             onPress={(e) => {
                               e.stopPropagation();
-                              
+
                               // Se há apenas 1 orçamento, abre diretamente
                               // Se há múltiplos, mostra o dropdown
                               if (orcamentos.length === 1) {

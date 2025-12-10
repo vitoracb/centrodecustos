@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleProp, ViewStyle } from 'react-native';
+import { Animated, StyleProp, ViewStyle, DimensionValue } from 'react-native';
 
 type SkeletonPlaceholderProps = {
-  width?: number | string;
+  width?: DimensionValue;
   height?: number;
   borderRadius?: number;
   style?: StyleProp<ViewStyle>;

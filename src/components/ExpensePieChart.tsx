@@ -105,7 +105,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
   const innerRadius = 0;
 
   // Calcular os arcos do gráfico (se houver dados)
-  let arcs: Array<{
+  let arcs: {
     category: ExpenseCategory;
     value: number;
     percentage: number;
@@ -113,7 +113,7 @@ export const ExpensePieChart = ({ expenses, mode: externalMode, selectedPeriod: 
     labelX: number;
     labelY: number;
     color: string;
-  }> = [];
+  }[] = [];
 
   if (chartData && chartData.data.length > 0) {
     let currentAngle = -90; // Começar do topo

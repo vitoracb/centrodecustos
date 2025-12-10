@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { X } from 'lucide-react-native';
+import { sanitizeName, sanitizeCode, hasSQLInjectionPatterns, hasXSSPatterns } from '../lib/security';
 
 interface CostCenterFormModalProps {
   visible: boolean;
@@ -46,6 +47,16 @@ export const CostCenterFormModal = ({
       return;
     }
 
+    // Validação de segurança
+    if (hasSQLInjectionPatterns(name) || hasXSSPatterns(name)) {
+      Alert.alert('Entrada inválida', 'O nome contém caracteres não permitidos.');
+      return;
+    }
+    if (hasSQLInjectionPatterns(code) || hasXSSPatterns(code)) {
+      Alert.alert('Entrada inválida', 'O código contém caracteres não permitidos.');
+      return;
+    }
+
     // Validação do código (apenas letras, números e underscore)
     const codeRegex = /^[a-zA-Z0-9_]+$/;
     if (!codeRegex.test(code.trim())) {
@@ -56,9 +67,13 @@ export const CostCenterFormModal = ({
       return;
     }
 
+    // Sanitização
+    const sanitizedName = sanitizeName(name);
+    const sanitizedCode = sanitizeCode(code);
+
     try {
       setLoading(true);
-      await onSubmit(name.trim(), code.trim());
+      await onSubmit(sanitizedName || 'Centro sem nome', sanitizedCode);
       onClose();
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Não foi possível adicionar o centro de custo.');

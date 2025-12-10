@@ -82,7 +82,7 @@ const capitalize = (str: string): string => {
 
 // Gera um gráfico de pizza em SVG (compatível com PDF via expo-print)
 const generatePieChartSVG = (
-  data: Array<{ label: string; value: number; color: string }>,
+  data: { label: string; value: number; color: string }[],
   size: number = 180,
 ): string => {
   const total = data.reduce((sum, item) => sum + item.value, 0);
