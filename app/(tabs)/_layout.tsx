@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated, Pressable } from 'react-native';
 import {
   LayoutDashboard,
   Tractor,
@@ -8,10 +8,74 @@ import {
   Users,
   FileText,
 } from 'lucide-react-native';
-import { useContext } from 'react';
+import { useContext, useRef, useEffect } from 'react';
 import { OrderContext } from '@/src/context/OrderContext';
 import { EquipmentContext } from '@/src/context/EquipmentContext';
 import { CostCenterContext } from '@/src/context/CostCenterContext';
+
+// Componente de ícone animado para a tab bar
+const AnimatedTabIcon = ({
+  children,
+  focused,
+  badge,
+}: {
+  children: React.ReactNode;
+  focused: boolean;
+  badge?: number;
+}) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0.7)).current;
+
+  useEffect(() => {
+    if (focused) {
+      // Animação de bounce quando selecionado
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.15,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(opacityAnim, {
+        toValue: 0.7,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [focused, scaleAnim, opacityAnim]);
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ scale: scaleAnim }],
+        opacity: opacityAnim,
+        position: 'relative',
+      }}
+    >
+      {children}
+      {badge !== undefined && badge > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {badge > 9 ? '9+' : badge}
+          </Text>
+        </View>
+      )}
+    </Animated.View>
+  );
+};
 
 export default function TabLayout() {
   // Usa useContext diretamente com fallback seguro para todos os contexts
@@ -33,17 +97,34 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopWidth: 1,
-          borderTopColor: '#e0e0e0',
+          borderTopWidth: 0,
+          borderTopColor: 'transparent',
+          elevation: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          height: 85,
+          paddingBottom: 20,
+          paddingTop: 10,
         },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        // Transição suave entre telas
+        animation: 'fade',
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ size, color }) => (
-            <LayoutDashboard size={size} color={color} />
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <LayoutDashboard size={size} color={color} />
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -51,17 +132,10 @@ export default function TabLayout() {
         name="equipamentos"
         options={{
           title: 'Equipamentos',
-          tabBarIcon: ({ size, color }) => (
-            <View style={{ position: 'relative' }}>
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused} badge={revisionCount}>
               <Tractor size={size} color={color} />
-              {revisionCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {revisionCount > 9 ? '9+' : revisionCount}
-                  </Text>
-                </View>
-              )}
-            </View>
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -69,8 +143,10 @@ export default function TabLayout() {
         name="financeiro"
         options={{
           title: 'Financeiro',
-          tabBarIcon: ({ size, color }) => (
-            <DollarSign size={size} color={color} />
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <DollarSign size={size} color={color} />
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -78,17 +154,10 @@ export default function TabLayout() {
         name="pedidos"
         options={{
           title: 'Pedidos',
-          tabBarIcon: ({ size, color }) => (
-            <View style={{ position: 'relative' }}>
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused} badge={notificationCount}>
               <ShoppingCart size={size} color={color} />
-              {notificationCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {notificationCount > 9 ? '9+' : notificationCount}
-                  </Text>
-                </View>
-              )}
-            </View>
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -96,8 +165,10 @@ export default function TabLayout() {
         name="funcionarios"
         options={{
           title: 'Funcionários',
-          tabBarIcon: ({ size, color }) => (
-            <Users size={size} color={color} />
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <Users size={size} color={color} />
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -105,8 +176,10 @@ export default function TabLayout() {
         name="contratos"
         options={{
           title: 'Contratos',
-          tabBarIcon: ({ size, color }) => (
-            <FileText size={size} color={color} />
+          tabBarIcon: ({ size, color, focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <FileText size={size} color={color} />
+            </AnimatedTabIcon>
           ),
         }}
       />
@@ -153,20 +226,21 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute',
     top: -6,
-    right: -8,
+    right: -10,
     backgroundColor: '#FF3B30',
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     borderWidth: 2,
     borderColor: '#ffffff',
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
 });
+
