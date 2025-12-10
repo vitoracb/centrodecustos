@@ -97,21 +97,8 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopWidth: 0,
-          borderTopColor: 'transparent',
-          elevation: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          height: 85,
-          paddingBottom: 20,
-          paddingTop: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: 4,
+          borderTopWidth: 1,
+          borderTopColor: '#e0e0e0',
         },
         // Transição suave entre telas
         animation: 'fade',
