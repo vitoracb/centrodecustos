@@ -18,6 +18,7 @@ import { usePermissions } from '../context/PermissionsContext';
 import { UserPlus, Trash2, FileText, ChevronDown, Edit3, User } from 'lucide-react-native';
 import { EmployeeDocumentModal } from '../components/EmployeeDocumentModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { EmployeeListSkeleton } from '../components/skeletons/EmployeeListSkeleton';
 
 
 export const FuncionariosScreen = () => {
@@ -29,7 +30,8 @@ export const FuncionariosScreen = () => {
     updateEmployeeDocument,
     deleteEmployeeDocument,
     deleteEmployee,
-    loadDocuments
+    loadDocuments,
+    loading,
   } = useEmployees();
   const { canCreate, canEdit, canDelete } = usePermissions();
 
@@ -198,7 +200,9 @@ export const FuncionariosScreen = () => {
               )}
             </View>
 
-            {Object.keys(documentsByEmployee).length > 0 ? (
+            {loading && !refreshing ? (
+              <EmployeeListSkeleton />
+            ) : Object.keys(documentsByEmployee).length > 0 ? (
               Object.entries(documentsByEmployee).map(([employeeName, employeeDocs]) => (
                 <View key={employeeName} style={styles.employeeGroup}>
                   <View style={styles.employeeHeader}>

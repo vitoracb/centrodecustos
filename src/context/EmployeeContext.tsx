@@ -29,6 +29,7 @@ type DocumentsByCenter = Record<CostCenter, Record<string, EmployeeDocument[]>>;
 
 interface EmployeeContextType {
   documentsByCenter: DocumentsByCenter;
+  loading: boolean;
   addEmployeeDocument: (document: Omit<EmployeeDocument, 'id'>) => void;
   updateEmployeeDocument: (id: string, document: Partial<EmployeeDocument>) => void;
   deleteEmployeeDocument: (id: string) => void;
@@ -155,8 +156,10 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
   const [documentsByCenter, setDocumentsByCenter] = useState<DocumentsByCenter>(
     createEmptyDocumentsMap(),
   );
+  const [loading, setLoading] = useState(true);
 
   const loadDocuments = useCallback(async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('employee_documents')
@@ -192,6 +195,8 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
       setDocumentsByCenter(nextMap);
     } catch (err) {
       console.error('❌ Erro inesperado ao carregar documentos de funcionários:', err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -350,11 +355,11 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
           .from('employee_documents')
           .update({ deleted_at: deletedAt })
           .eq('id', id);
-        
+
         if (error) {
           throw error;
         }
-        
+
         // Atualiza o estado marcando como deletado
         setDocumentsByCenter(prev => {
           const updated = { ...prev };
@@ -386,7 +391,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         // Busca todos os documentos do funcionário neste equipamento
         const centerDocs = documentsByCenter[center] ?? {};
         const equipmentDocs = centerDocs[equipmentId] ?? [];
-        const employeeDocs = equipmentDocs.filter(doc => 
+        const employeeDocs = equipmentDocs.filter(doc =>
           doc.employee === employeeName && !doc.deletedAt
         );
 
@@ -398,16 +403,16 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
         // Soft delete: marca todos os documentos como deletados
         const deletedAt = new Date().toISOString();
         const docIds = employeeDocs.map(doc => doc.id);
-        
+
         const { error } = await supabase
           .from('employee_documents')
           .update({ deleted_at: deletedAt })
           .in('id', docIds);
-        
+
         if (error) {
           throw error;
         }
-        
+
         // Atualiza o estado marcando todos os documentos como deletados
         setDocumentsByCenter(prev => {
           const updated = { ...prev };
@@ -464,6 +469,7 @@ export const EmployeeProvider = ({ children }: EmployeeProviderProps) => {
     <EmployeeContext.Provider
       value={{
         documentsByCenter,
+        loading,
         addEmployeeDocument,
         updateEmployeeDocument,
         deleteEmployeeDocument,

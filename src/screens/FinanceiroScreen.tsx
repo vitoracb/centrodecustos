@@ -42,6 +42,7 @@ import { FilePreviewModal } from '../components/FilePreviewModal';
 import { ExpenseStatusModal } from '../components/ExpenseStatusModal';
 import { ReceiptStatusModal } from '../components/ReceiptStatusModal';
 import { ReportPreviewModal } from '../components/ReportPreviewModal';
+import { FinanceListSkeleton } from '../components/skeletons/FinanceListSkeleton';
 import { exportToPDF, exportToExcel, buildReportHTML, ReportData } from '../lib/reportExport';
 import { shareFile } from '../lib/shareUtils';
 import { showSuccess, showError } from '../lib/toast';
@@ -298,6 +299,7 @@ export const FinanceiroScreen = () => {
     addDocumentToExpense,
     deleteExpenseDocument,
     generateFixedExpenses,
+    loading: financialLoading,
   } = useFinancial();
   const { canEdit, canDelete, isAdmin } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);

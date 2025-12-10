@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import dayjs from "dayjs";
 import { Alert } from "react-native";
-import { CostCenter , useCostCenter } from "./CostCenterContext";
+import { CostCenter, useCostCenter } from "./CostCenterContext";
 import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
 import { useAuth } from "./AuthContext";
@@ -128,6 +128,7 @@ const formatCurrency = (value: number): string => {
 interface FinancialContextType {
   receipts: Receipt[];
   expenses: Expense[];
+  loading: boolean;
 
   addReceipt: (receipt: Omit<Receipt, "id">) => void;
   updateReceipt: (receipt: Receipt) => Promise<Receipt>;
@@ -490,13 +491,16 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const { selectedCenter } = useCostCenter();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // ============================================
   // 📦 CARREGAR DESPESAS (Cache + Banco)
   // ============================================
   const loadExpenses = useCallback(async () => {
+    setLoading(true);
     if (!user || !selectedCenter) {
       setExpenses([]);
+      setLoading(false);
       return;
     }
 
@@ -551,6 +555,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
       console.log("[Financial] 💾 Cache de despesas atualizado");
     } catch (e) {
       console.error("[Financial] ❌ Erro ao carregar despesas:", e);
+    } finally {
+      setLoading(false);
     }
   }, [user, selectedCenter]);
 
@@ -3038,6 +3044,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
       value={{
         receipts,
         expenses,
+        loading,
         addReceipt,
         updateReceipt,
         deleteReceipt,
