@@ -15,7 +15,8 @@ interface DashboardCardProps {
   onPress?: () => void;
 }
 
-export const DashboardCard: React.FC<DashboardCardProps> = ({
+// 🚀 COMPONENTE OTIMIZADO COM REACT.MEMO
+export const DashboardCard: React.FC<DashboardCardProps> = React.memo(({
   title,
   value,
   trend,
@@ -66,7 +67,7 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
       </LinearGradient>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

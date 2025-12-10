@@ -8,7 +8,8 @@ type SkeletonPlaceholderProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export const SkeletonPlaceholder = ({
+// 🚀 COMPONENTE OTIMIZADO COM REACT.MEMO
+export const SkeletonPlaceholder = React.memo(({
   width = '100%',
   height = 16,
   borderRadius = 8,
@@ -56,5 +57,5 @@ export const SkeletonPlaceholder = ({
       ]}
     />
   );
-};
+});
 

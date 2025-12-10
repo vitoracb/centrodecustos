@@ -13,7 +13,8 @@ import { supabase } from "@/src/lib/supabaseClient";
 import { uploadMultipleFilesToStorage, uploadFileToStorage } from "@/src/lib/storageUtils";
 import { useAuth } from "./AuthContext";
 import { useRealtimeSync } from "@/src/hooks/useRealtimeSync";
-import { cacheManager } from "@/src/lib/cacheManager";
+import { financialCache } from "../lib/smartCache";
+import usePaginatedQuery from "../hooks/usePaginatedQuery";
 import { sanitizeName, sanitizeText, sanitizeCurrency, validateAndSanitize } from "@/src/lib/security";
 import { logFinancialOperation } from "@/src/lib/auditLogger";
 import { pushEvents } from "@/src/lib/pushEvents";
@@ -131,6 +132,17 @@ interface FinancialContextType {
   expenses: Expense[];
   loading: boolean;
 
+  // 🚀 PAGINAÇÃO
+  loadMoreExpenses: () => Promise<void>;
+  refreshExpenses: () => Promise<void>;
+  expensesLoading: boolean;
+  hasMoreExpenses: boolean;
+
+  loadMoreReceipts: () => Promise<void>;
+  refreshReceipts: () => Promise<void>;
+  receiptsLoading: boolean;
+  hasMoreReceipts: boolean;
+
   addReceipt: (receipt: Omit<Receipt, "id">) => void;
   updateReceipt: (receipt: Receipt) => Promise<Receipt>;
   deleteReceipt: (id: string) => void;
@@ -147,6 +159,9 @@ interface FinancialContextType {
   getAllReceipts: () => Receipt[];
   getAllExpenses: () => Expense[];
   generateFixedExpenses: () => Promise<void>;
+
+  getExpensesForDateRange: (startDate: string, endDate: string, centerId: CostCenter) => Promise<Expense[]>;
+  getReceiptsForDateRange: (startDate: string, endDate: string, centerId: CostCenter) => Promise<Receipt[]>;
 }
 
 // Verifica se já existe uma despesa idêntica no mesmo mês
@@ -495,8 +510,162 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   // ============================================
-  // 📦 CARREGAR DESPESAS (Cache + Banco)
+  // 🚀 QUERIES PAGINADAS
   // ============================================
+
+  // Query paginada para despesas
+  const expenseQuery = useCallback((from: number, to: number) => {
+    let query = supabase
+      .from("financial_transactions")
+      .select(
+        `
+        id,
+        type,
+        status,
+        date,
+        value,
+        category,
+        description,
+        payment_method,
+        reference,
+        equipment_id,
+        is_fixed,
+        sector,
+        fixed_duration_months,
+        installment_number,
+        created_at,
+        cost_center_id
+        `,
+        { count: 'exact' }
+      )
+      .eq("type", "DESPESA")
+      .is("deleted_at", null);
+
+    if (selectedCenter) {
+      query = query.eq("cost_center_id", selectedCenter);
+    }
+
+    return query
+      .order("created_at", { ascending: false })
+      .range(from, to);
+  }, [user, selectedCenter]);
+
+
+  // Hook paginado para despesas
+  const {
+    data: expensesData,
+    loading: expensesLoading,
+    error: expensesError,
+    hasNextPage: hasMoreExpenses,
+    loadMore: loadMoreExpenses,
+    refresh: refreshExpenses,
+  } = usePaginatedQuery(`financial_transactions_expenses:${user?.id}:${selectedCenter}`, expenseQuery, {
+    pageSize: 20,
+    prefetchNext: true,
+    cacheStrategy: 'incremental',
+    cacheTTL: 3 * 60 * 1000,
+  });
+
+  // Query paginada para receitas
+  const receiptQuery = useCallback((from: number, to: number) => {
+    let query = supabase
+      .from("financial_transactions")
+      .select(
+        `
+        id,
+        type,
+        status,
+        date,
+        value,
+        category,
+        description,
+        payment_method,
+        reference,
+        is_fixed,
+        fixed_duration_months,
+        installment_number,
+        created_at,
+        cost_center_id
+        `,
+        { count: 'exact' }
+      )
+      .eq("type", "RECEITA")
+      .is("deleted_at", null);
+
+    if (selectedCenter) {
+      query = query.eq("cost_center_id", selectedCenter);
+    }
+
+    return query
+      .order("created_at", { ascending: false })
+      .range(from, to);
+  }, [user, selectedCenter]);
+
+  // Hook paginado para receitas
+  const {
+    data: receiptsData,
+    loading: receiptsLoading,
+    error: receiptsError,
+    hasNextPage: hasMoreReceipts,
+    loadMore: loadMoreReceipts,
+    refresh: refreshReceipts,
+  } = usePaginatedQuery(`financial_transactions_receipts:${user?.id}:${selectedCenter}`, receiptQuery, {
+    pageSize: 20,
+    prefetchNext: true,
+    cacheStrategy: 'incremental',
+    cacheTTL: 3 * 60 * 1000,
+  });
+
+  // ============================================
+  // 📊 PROCESSAR DADOS PAGINADOS
+  // ============================================
+
+  // Mapear dados de despesas
+  useEffect(() => {
+    const processExpenses = async () => {
+      if (!user || !selectedCenter) {
+        setExpenses([]);
+        setLoading(false);
+        return;
+      }
+
+      if (expensesData && expensesData.length > 0) {
+        const mappedExpenses = await Promise.all(
+          expensesData.map((row: any) => mapRowToExpense(row))
+        );
+        setExpenses(mappedExpenses);
+      } else {
+        setExpenses([]);
+      }
+      setLoading(expensesLoading);
+    };
+
+    processExpenses();
+  }, [expensesData, expensesLoading, user, selectedCenter]);
+
+  // Mapear dados de receitas
+  useEffect(() => {
+    const processReceipts = async () => {
+      if (!user || !selectedCenter) {
+        setReceipts([]);
+        return;
+      }
+
+      if (receiptsData && receiptsData.length > 0) {
+        const mappedReceipts = receiptsData.map((row: any) => mapRowToReceipt(row));
+        setReceipts(mappedReceipts);
+      } else {
+        setReceipts([]);
+      }
+    };
+
+    processReceipts();
+  }, [receiptsData, receiptsLoading, user, selectedCenter]);
+
+  // ============================================
+  // 📦 CARREGAR DESPESAS (Cache + Banco) - COMENTADO (USANDO PAGINAÇÃO)
+  // ============================================
+  /*
   const loadExpenses = useCallback(async () => {
     setLoading(true);
     if (!user || !selectedCenter) {
@@ -509,13 +678,13 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
     try {
       console.log("[Financial] 📦 Tentando carregar despesas do cache...");
-      const cached = await cacheManager.get<Expense[]>(cacheKey);
+      const cached = await financialCache.get<Expense[]>(cacheKey);
       if (cached && cached.length > 0) {
         console.log(`[Financial] ✅ ${cached.length} despesas carregadas do cache`);
         setExpenses(cached);
       }
 
-      console.log("[Financial] 🌐 Carregando despesas do Supabase...");
+      console.log("[Financial] 🌐 Carregando despesas do Supabase com limite otimizado...");
       const { data, error } = await supabase
         .from("financial_transactions")
         .select(
@@ -529,6 +698,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           description,
           payment_method,
           reference,
+          documents,
           equipment_id,
           is_fixed,
           sector,
@@ -539,8 +709,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         `
         )
         .eq("type", "DESPESA")
-        // Removido filtro por centro para carregar TODOS os centros (necessário para gráfico comparativo)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(50); // 🚀 LIMITAR REGISTROS INICIAIS
 
       if (error) {
         console.warn("❌ Erro ao carregar despesas:", error);
@@ -552,7 +722,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
       );
 
       setExpenses(mapped);
-      await cacheManager.set(cacheKey, mapped);
+      await financialCache.set(cacheKey, mapped, 3 * 60 * 1000); // 🚀 TTL 3 minutos
       console.log("[Financial] 💾 Cache de despesas atualizado");
     } catch (e) {
       console.error("[Financial] ❌ Erro ao carregar despesas:", e);
@@ -564,6 +734,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   useEffect(() => {
     loadExpenses();
   }, [loadExpenses]);
+  */
 
   // ============================================
   // 🔄 REALTIME SYNC - DESPESAS
@@ -589,10 +760,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
-        const next = await cacheManager.get<Expense[]>(cacheKey);
+        const next = await financialCache.get<Expense[]>(cacheKey);
         const base = next ?? [];
         const merged = [expense, ...base.filter((e) => e.id !== expense.id)];
-        await cacheManager.set(cacheKey, merged);
+        await financialCache.set(cacheKey, merged, 3 * 60 * 1000);
       }
     },
     onUpdate: async (row) => {
@@ -604,9 +775,9 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
-        const current = (await cacheManager.get<Expense[]>(cacheKey)) ?? [];
+        const current = (await financialCache.get<Expense[]>(cacheKey)) ?? [];
         const merged = current.map((e) => (e.id === expense.id ? expense : e));
-        await cacheManager.set(cacheKey, merged);
+        await financialCache.set(cacheKey, merged, 3 * 60 * 1000);
       }
     },
     onDelete: async (row) => {
@@ -617,16 +788,17 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:DESPESA`;
-        const current = (await cacheManager.get<Expense[]>(cacheKey)) ?? [];
+        const current = (await financialCache.get<Expense[]>(cacheKey)) ?? [];
         const next = current.filter((e) => e.id !== row.id);
-        await cacheManager.set(cacheKey, next);
+        await financialCache.set(cacheKey, next, 3 * 60 * 1000);
       }
     },
   });
 
   // ============================================
-  // 📦 CARREGAR RECEITAS (Cache + Banco)
+  // 📦 CARREGAR RECEITAS (Cache + Banco) - COMENTADO (USANDO PAGINAÇÃO)
   // ============================================
+  /*
   const loadReceipts = useCallback(async () => {
     if (!user || !selectedCenter) {
       setReceipts([]);
@@ -637,13 +809,13 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
     try {
       console.log("[Financial] 📦 Tentando carregar receitas do cache...");
-      const cached = await cacheManager.get<Receipt[]>(cacheKey);
+      const cached = await financialCache.get<Receipt[]>(cacheKey);
       if (cached && cached.length > 0) {
         console.log(`[Financial] ✅ ${cached.length} receitas carregadas do cache`);
         setReceipts(cached);
       }
 
-      console.log("[Financial] 🌐 Carregando receitas do Supabase...");
+      console.log("[Financial] 🌐 Carregando receitas do Supabase com limite otimizado...");
       const { data, error } = await supabase
         .from("financial_transactions")
         .select(
@@ -666,7 +838,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         )
         .eq("type", "RECEITA")
         // Removido filtro por centro para carregar TODOS os centros (necessário para gráfico comparativo)
-        .order("date", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(50); // 🚀 LIMITAR REGISTROS INICIAIS
 
       if (error) {
         console.warn("❌ Erro ao carregar receitas:", error);
@@ -677,7 +850,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         mapRowToReceipt(row)
       );
       setReceipts(mapped);
-      await cacheManager.set(cacheKey, mapped);
+      await financialCache.set(cacheKey, mapped, 3 * 60 * 1000);
       console.log("[Financial] 💾 Cache de receitas atualizado");
     } catch (e) {
       console.error("[Financial] ❌ Erro ao carregar receitas:", e);
@@ -687,6 +860,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   useEffect(() => {
     loadReceipts();
   }, [loadReceipts]);
+  */
 
   // ============================================
   // 🔄 REALTIME SYNC - RECEITAS
@@ -712,10 +886,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
-        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+        financialCache.get<Receipt[]>(cacheKey).then((current) => {
           const base = current ?? [];
           const merged = [receipt, ...base.filter((r) => r.id !== receipt.id)];
-          cacheManager.set(cacheKey, merged);
+          financialCache.set(cacheKey, merged, 3 * 60 * 1000);
         });
       }
     },
@@ -728,10 +902,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
-        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+        financialCache.get<Receipt[]>(cacheKey).then((current) => {
           const list = current ?? [];
           const merged = list.map((r) => (r.id === receipt.id ? receipt : r));
-          cacheManager.set(cacheKey, merged);
+          financialCache.set(cacheKey, merged, 3 * 60 * 1000);
         });
       }
     },
@@ -743,10 +917,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       if (user && selectedCenter) {
         const cacheKey = `financial_transactions:${user.id}:${selectedCenter}:RECEITA`;
-        cacheManager.get<Receipt[]>(cacheKey).then((current) => {
+        financialCache.get<Receipt[]>(cacheKey).then((current) => {
           const list = current ?? [];
           const next = list.filter((r) => r.id !== row.id);
-          cacheManager.set(cacheKey, next);
+          financialCache.set(cacheKey, next, 3 * 60 * 1000);
         });
       }
     },
@@ -3048,12 +3222,85 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     }
   }, []);
 
+
+  // ========================
+  // 📊 DATA FOR CHARTS (FULL PERIOD)
+  // ========================
+
+  const getExpensesForDateRange = useCallback(async (startDate: string, endDate: string, centerId: CostCenter): Promise<Expense[]> => {
+    let query = supabase
+      .from("financial_transactions")
+      .select(`
+        id, type, status, date, value, category, description,
+        payment_method, reference, equipment_id, is_fixed,
+        sector, fixed_duration_months, installment_number,
+        created_at, cost_center_id
+      `)
+      .eq("type", "DESPESA")
+      .eq("cost_center_id", centerId)
+      .is("deleted_at", null)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("❌ Error fetching expenses for charts:", error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    return await Promise.all(
+      data.map((row: any) => mapRowToExpense(row))
+    );
+  }, []);
+
+  const getReceiptsForDateRange = useCallback(async (startDate: string, endDate: string, centerId: CostCenter): Promise<Receipt[]> => {
+    let query = supabase
+      .from("financial_transactions")
+      .select(`
+        id, type, status, date, value, category, description,
+        payment_method, reference, is_fixed, fixed_duration_months,
+        installment_number, created_at, cost_center_id
+      `)
+      .eq("type", "RECEITA")
+      .eq("cost_center_id", centerId)
+      .is("deleted_at", null)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("❌ Error fetching receipts for charts:", error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    return data.map((row: any) => mapRowToReceipt(row));
+  }, []);
+
   return (
     <FinancialContext.Provider
       value={{
         receipts,
         expenses,
         loading,
+
+        // 🚀 PAGINAÇÃO
+        loadMoreExpenses,
+        refreshExpenses,
+        expensesLoading,
+        hasMoreExpenses,
+        loadMoreReceipts,
+        refreshReceipts,
+        receiptsLoading,
+        hasMoreReceipts,
+
         addReceipt,
         updateReceipt,
         deleteReceipt,
@@ -3067,6 +3314,10 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         getAllReceipts,
         getAllExpenses,
         generateFixedExpenses,
+
+        // 📊 CHARTS
+        getExpensesForDateRange,
+        getReceiptsForDateRange,
       }}
     >
       {children}

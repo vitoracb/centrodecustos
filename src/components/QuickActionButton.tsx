@@ -9,7 +9,8 @@ interface QuickActionButtonProps {
   onPress: () => void;
 }
 
-export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
+// 🚀 COMPONENTE OTIMIZADO COM REACT.MEMO
+export const QuickActionButton: React.FC<QuickActionButtonProps> = React.memo(({
   icon: Icon,
   label,
   color,
@@ -27,7 +28,7 @@ export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
       <Text style={styles.label}>{label}</Text>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

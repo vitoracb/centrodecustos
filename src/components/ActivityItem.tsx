@@ -7,7 +7,8 @@ interface ActivityItemProps {
   time: string;
 }
 
-export const ActivityItem: React.FC<ActivityItemProps> = ({
+// 🚀 COMPONENTE OTIMIZADO COM REACT.MEMO
+export const ActivityItem: React.FC<ActivityItemProps> = React.memo(({
   icon,
   title,
   time,
@@ -23,7 +24,7 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

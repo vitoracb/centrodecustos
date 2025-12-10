@@ -8,7 +8,8 @@ interface TopExpenseItemProps {
   percentage: number;
 }
 
-export const TopExpenseItem: React.FC<TopExpenseItemProps> = ({
+// 🚀 COMPONENTE OTIMIZADO COM REACT.MEMO
+export const TopExpenseItem: React.FC<TopExpenseItemProps> = React.memo(({
   rank,
   name,
   value,
@@ -28,7 +29,7 @@ export const TopExpenseItem: React.FC<TopExpenseItemProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

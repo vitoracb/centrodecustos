@@ -207,7 +207,7 @@ export const DashboardScreen = () => {
     refresh: refreshEquipments,
     loading: equipmentLoading,
   } = useEquipment();
-  const { getAllExpenses, getAllReceipts, addExpense } = useFinancial();
+  const { getAllExpenses, getAllReceipts, addExpense, getExpensesForDateRange, getReceiptsForDateRange } = useFinancial();
   const { documentsByCenter, addEmployeeDocument, loadDocuments } = useEmployees();
   const {
     getContractsByCenter,
@@ -230,21 +230,64 @@ export const DashboardScreen = () => {
     data: ReportData;
   } | null>(null);
 
+  // 📊 State for FULL monthly data (for dashboard cards)
+  const [dashboardExpenses, setDashboardExpenses] = useState<any[]>([]);
+  const [dashboardReceipts, setDashboardReceipts] = useState<any[]>([]);
+  const [dashboardDataLoading, setDashboardDataLoading] = useState(true);
+
+  // 📊 Fetch full month data for dashboard cards
+  React.useEffect(() => {
+    const fetchDashboardData = async () => {
+      setDashboardDataLoading(true);
+      try {
+        const now = dayjs();
+        const startDate = now.startOf('month').format('YYYY-MM-DD');
+        const endDate = now.endOf('month').format('YYYY-MM-DD');
+
+        const [expenses, receipts] = await Promise.all([
+          getExpensesForDateRange(startDate, endDate, selectedCenter),
+          getReceiptsForDateRange(startDate, endDate, selectedCenter),
+        ]);
+
+        setDashboardExpenses(expenses);
+        setDashboardReceipts(receipts);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setDashboardExpenses([]);
+        setDashboardReceipts([]);
+      } finally {
+        setDashboardDataLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [selectedCenter, getExpensesForDateRange, getReceiptsForDateRange]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      // Refetch dashboard data
+      const now = dayjs();
+      const startDate = now.startOf('month').format('YYYY-MM-DD');
+      const endDate = now.endOf('month').format('YYYY-MM-DD');
+
+      const [expenses, receipts] = await Promise.all([
+        getExpensesForDateRange(startDate, endDate, selectedCenter),
+        getReceiptsForDateRange(startDate, endDate, selectedCenter),
         refreshEquipments(),
         refreshContracts(),
         refreshOrders(),
         loadDocuments(),
       ]);
+
+      setDashboardExpenses(expenses);
+      setDashboardReceipts(receipts);
     } catch (error) {
       console.error('Erro ao atualizar dados:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshEquipments, refreshContracts, refreshOrders, loadDocuments]);
+  }, [refreshEquipments, refreshContracts, refreshOrders, loadDocuments, selectedCenter, getExpensesForDateRange, getReceiptsForDateRange]);
 
   // Estados para controlar os modais
   const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false);
@@ -344,38 +387,19 @@ export const DashboardScreen = () => {
     return equipments.filter(eq => eq.status === 'ativo').length;
   }, [selectedCenter, getEquipmentsByCenter]);
 
-  // Calcula despesas do mês atual
+  // Calcula despesas do mês atual (using pre-fetched dashboard data)
   const monthlyExpenses = useMemo(() => {
-    const expenses = getAllExpenses();
-    const now = dayjs();
-    const startOfMonth = now.startOf('month');
-    const endOfMonth = now.endOf('month');
-
-    const centerExpenses = expenses.filter(exp => {
-      if (exp.center !== selectedCenter) return false;
-
-      // Extrai ano e mês da despesa no formato DD/MM/YYYY
-      const dateParts = exp.date.split('/');
-      if (dateParts.length !== 3) return false;
-
-      const expenseMonth = `${dateParts[2]}-${dateParts[1]}`; // YYYY-MM
-      const currentMonth = now.format('YYYY-MM');
-
-      return expenseMonth === currentMonth;
-    });
-
-    // Filtra para evitar duplicação de templates e parcelas
-    // Prioriza parcelas geradas (installmentNumber) sobre templates (isFixed)
-    const filteredExpenses = centerExpenses.filter(exp => {
-      // Se tem installmentNumber, é uma parcela gerada - sempre inclui
+    // Filter out duplicates from fixed expenses (template vs installments)
+    const filteredExpenses = dashboardExpenses.filter(exp => {
+      // If has installmentNumber, it's a generated installment - always include
       if (exp.installmentNumber !== undefined && exp.installmentNumber !== null) {
         return true;
       }
 
-      // Se é o template (isFixed: true), verifica se há parcelas geradas NO MESMO MÊS
+      // If it's a template (isFixed: true), check if there are generated installments in the same month
       if (exp.isFixed) {
         const expMonth = dayjs(exp.date, 'DD/MM/YYYY').format('YYYY-MM');
-        const hasGeneratedInstallmentsInSameMonth = centerExpenses.some(
+        const hasGeneratedInstallmentsInSameMonth = dashboardExpenses.some(
           other =>
             other.id !== exp.id &&
             other.name === exp.name &&
@@ -384,38 +408,21 @@ export const DashboardScreen = () => {
             other.installmentNumber !== undefined &&
             other.installmentNumber !== null
         );
-        // Só inclui o template se NÃO houver parcelas geradas no mesmo mês
+        // Only include template if NO generated installments exist in same month
         return !hasGeneratedInstallmentsInSameMonth;
       }
 
-      // Despesas avulsas (não fixas, sem installmentNumber)
+      // Regular expenses (not fixed, no installmentNumber)
       return true;
     });
 
-    const total = filteredExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
-    return total;
-  }, [selectedCenter, getAllExpenses]);
+    return filteredExpenses.reduce((sum, exp) => sum + (exp.value || 0), 0);
+  }, [dashboardExpenses]);
 
-  // Calcula receitas do mês atual
+  // Calcula receitas do mês atual (using pre-fetched dashboard data)
   const monthlyReceipts = useMemo(() => {
-    const receipts = getAllReceipts();
-    const now = dayjs();
-
-    const centerReceipts = receipts.filter(receipt => {
-      if (receipt.center !== selectedCenter) return false;
-
-      const dateParts = receipt.date.split('/');
-      if (dateParts.length !== 3) return false;
-
-      const receiptMonth = `${dateParts[2]}-${dateParts[1]}`;
-      const currentMonth = now.format('YYYY-MM');
-
-      return receiptMonth === currentMonth;
-    });
-
-    const total = centerReceipts.reduce((sum, receipt) => sum + (receipt.value || 0), 0);
-    return total;
-  }, [selectedCenter, getAllReceipts]);
+    return dashboardReceipts.reduce((sum, receipt) => sum + (receipt.value || 0), 0);
+  }, [dashboardReceipts]);
 
   // Calcula saldo do mês (receitas - despesas)
   const monthlyBalance = useMemo(() => {

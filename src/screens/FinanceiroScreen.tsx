@@ -300,6 +300,8 @@ export const FinanceiroScreen = () => {
     deleteExpenseDocument,
     generateFixedExpenses,
     loading: financialLoading,
+    getExpensesForDateRange,
+    getReceiptsForDateRange,
   } = useFinancial();
   const { canEdit, canDelete, isAdmin } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
@@ -308,6 +310,10 @@ export const FinanceiroScreen = () => {
     html: string;
     data: ReportData;
   } | null>(null);
+
+  // 📊 State for FULL period data (for charts)
+  const [chartExpenses, setChartExpenses] = useState<Expense[]>([]);
+  const [chartExpensesLoading, setChartExpensesLoading] = useState(false);
 
   // Para o FinancialContext, os dados são recarregados automaticamente via useEffect
   // Vamos apenas forçar uma atualização do estado
@@ -372,6 +378,35 @@ export const FinanceiroScreen = () => {
 
   // Ref para rastrear se já aplicamos os parâmetros
   const paramsAppliedRef = useRef(false);
+
+  // 📊 Fetch full period data for charts when period/center changes
+  useEffect(() => {
+    const fetchChartData = async () => {
+      setChartExpensesLoading(true);
+      try {
+        let startDate: string;
+        let endDate: string;
+
+        if (expenseMode === 'mensal') {
+          startDate = selectedExpensePeriod.startOf('month').format('YYYY-MM-DD');
+          endDate = selectedExpensePeriod.endOf('month').format('YYYY-MM-DD');
+        } else {
+          startDate = selectedExpensePeriod.startOf('year').format('YYYY-MM-DD');
+          endDate = selectedExpensePeriod.endOf('year').format('YYYY-MM-DD');
+        }
+
+        const data = await getExpensesForDateRange(startDate, endDate, selectedCenter);
+        setChartExpenses(data);
+      } catch (error) {
+        console.error('Error fetching chart expenses:', error);
+        setChartExpenses([]);
+      } finally {
+        setChartExpensesLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, [selectedExpensePeriod, expenseMode, selectedCenter, getExpensesForDateRange]);
 
   // Sincroniza períodos entre abas quando o usuário troca de aba
   const lastActiveTabRef = useRef(activeTab);
@@ -1041,36 +1076,8 @@ export const FinanceiroScreen = () => {
   }, [reportPreview]);
 
   const filteredExpenses = useMemo(() => {
-    let filtered = [...allExpensesForCenter];
-
-    // Filtrar por período (Mensal/Anual)
-    const selectedMonth = selectedExpensePeriod.month();
-    const selectedYear = selectedExpensePeriod.year();
-
-    const filterByPeriod = (dateString: string) => {
-      const [day, month, year] = dateString.split('/').map(Number);
-      if (!day || !month || !year) {
-        const expenseDate = dayjs(dateString, 'DD/MM/YYYY', true);
-        if (!expenseDate.isValid()) {
-          return false;
-        }
-        if (expenseMode === 'anual') {
-          return expenseDate.year() === selectedYear;
-        }
-        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
-      }
-      if (expenseMode === 'anual') {
-        return year === selectedYear;
-      }
-      return month - 1 === selectedMonth && year === selectedYear;
-    };
-
-    filtered = filtered.filter((expense) => {
-      if (!filterByPeriod(expense.date)) {
-        return false;
-      }
-      return true;
-    });
+    // chartExpenses is already filtered by period (month/year) and center
+    let filtered = [...chartExpenses];
 
     // Filtrar por categoria
     if (expenseFilters.category) {
@@ -1100,25 +1107,8 @@ export const FinanceiroScreen = () => {
       filtered = filtered.filter((expense) => expense.sector === expenseFilters.sector);
     }
 
-    // Filtrar por período do filtro (se especificado, aplica filtro adicional dentro do período já selecionado)
-    // Nota: O filtro do modal é aplicado APÓS o filtro Mensal/Anual, então funciona como um refinamento
-    if (expenseFilters.month !== null && expenseFilters.month !== undefined && expenseFilters.year) {
-      filtered = filtered.filter((expense) => {
-        const [day, month, year] = expense.date.split('/').map(Number);
-        if (!day || !month || !year) {
-          const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
-          if (!expenseDate.isValid()) return false;
-          const expenseMonth = expenseDate.month();
-          const expenseYear = expenseDate.year();
-          return expenseMonth === expenseFilters.month && expenseYear === expenseFilters.year;
-        }
-        const expenseMonth = month - 1;
-        return expenseMonth === expenseFilters.month && year === expenseFilters.year;
-      });
-    }
-
     return filtered;
-  }, [allExpensesForCenter, expenseFilters, expenseMode, selectedExpensePeriod]);
+  }, [chartExpenses, expenseFilters]);
 
   const sortedExpenses = useMemo(() => {
     const expenses = [...filteredExpenses];
@@ -1211,13 +1201,13 @@ export const FinanceiroScreen = () => {
     );
   }, [expenseFilters]);
 
-  // Calcular despesas por status para a aba Despesas
+  // Calcular despesas por status para a aba Despesas (using full period data)
   const expensesByStatusForDespesas = useMemo(() => {
     const expensesByStatus = {
-      confirmar: filteredExpenses.filter((e) => e.status === 'confirmar' || !e.status),
-      confirmado: filteredExpenses.filter((e) => e.status === 'confirmado'),
-      a_pagar: filteredExpenses.filter((e) => e.status === 'a_pagar'),
-      pago: filteredExpenses.filter((e) => e.status === 'pago'),
+      confirmar: chartExpenses.filter((e) => e.status === 'confirmar' || !e.status),
+      confirmado: chartExpenses.filter((e) => e.status === 'confirmado'),
+      a_pagar: chartExpenses.filter((e) => e.status === 'a_pagar'),
+      pago: chartExpenses.filter((e) => e.status === 'pago'),
     };
 
     const totalsByStatus = {
@@ -1231,7 +1221,7 @@ export const FinanceiroScreen = () => {
       expensesByStatus,
       totalsByStatus,
     };
-  }, [filteredExpenses]);
+  }, [chartExpenses]);
 
   const periodSummary = useMemo(() => {
     const selectedMonth = selectedPeriod.month();
@@ -1778,13 +1768,13 @@ export const FinanceiroScreen = () => {
               )}
             </View>
             <ExpensePieChart
-              expenses={filteredExpenses}
+              expenses={chartExpenses}
               mode={expenseMode}
               selectedPeriod={selectedExpensePeriod}
             />
-            <ExpenseBarChart expenses={filteredExpenses} />
+            <ExpenseBarChart expenses={chartExpenses} />
             <ExpenseSectorChart
-              expenses={filteredExpenses}
+              expenses={chartExpenses}
               mode={expenseMode}
               selectedPeriod={selectedExpensePeriod}
             />
