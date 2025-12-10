@@ -3,6 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabaseClient';
 import { Alert } from 'react-native';
 import { cacheManager } from '@/src/lib/cacheManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   session: Session | null;
@@ -14,6 +15,26 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/**
+ * Limpa tokens de autenticação corrompidos do AsyncStorage
+ */
+const clearCorruptedTokens = async () => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const supabaseKeys = keys.filter(key =>
+      key.includes('supabase') ||
+      key.includes('sb-') ||
+      key.includes('auth-token')
+    );
+    if (supabaseKeys.length > 0) {
+      await AsyncStorage.multiRemove(supabaseKeys);
+      console.log('[Auth] Tokens corrompidos limpos:', supabaseKeys.length);
+    }
+  } catch (error) {
+    console.warn('[Auth] Erro ao limpar tokens:', error);
+  }
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -29,8 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           // Se o token é inválido, limpa a sessão corrompida
           console.warn('[Auth] Erro ao recuperar sessão:', error.message);
-          if (error.message.includes('Refresh Token') || error.message.includes('Invalid')) {
-            console.log('[Auth] Token inválido detectado, limpando sessão...');
+          if (error.message.includes('Refresh Token') ||
+            error.message.includes('Invalid') ||
+            error.message.includes('Token Not Found')) {
+            console.log('[Auth] Token inválido detectado, limpando...');
+            await clearCorruptedTokens();
             await supabase.auth.signOut();
           }
           setSession(null);
@@ -42,6 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err: any) {
         // Captura erros não tratados (ex: refresh token expirado)
         console.warn('[Auth] Exceção ao recuperar sessão:', err?.message);
+        // Tenta limpar tokens corrompidos
+        if (err?.message?.includes('Refresh Token') ||
+          err?.message?.includes('Invalid') ||
+          err?.message?.includes('Token Not Found')) {
+          await clearCorruptedTokens();
+        }
         setSession(null);
         setUser(null);
       } finally {
@@ -51,10 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initSession();
 
-    // Escuta mudanças de autenticação
+    // Escuta mudanças de autenticação com tratamento de erro
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Se o evento for de erro de token, limpa silenciosamente
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('[Auth] Falha no refresh do token, limpando...');
+        await clearCorruptedTokens();
+        setSession(null);
+        setUser(null);
+        return;
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
     });
