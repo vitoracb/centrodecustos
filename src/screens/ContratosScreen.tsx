@@ -15,13 +15,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
-import { useContracts , ContractDocument } from '../context/ContractContext';
+import { useContracts, ContractDocument } from '../context/ContractContext';
 import type { Contract } from '../context/ContractContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { FilePlus, FileText, ChevronRight, Filter, Image as ImageIcon, Trash2, Edit3, ChevronDown, Plus } from 'lucide-react-native';
 import { ContractFormModal } from '../components/ContractFormModal';
 import { ContractFilterModal, ContractFilters } from '../components/ContractFilterModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
+import { ContractListSkeleton } from '../components/skeletons/ContractListSkeleton';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import dayjs from 'dayjs';
@@ -54,7 +55,7 @@ export const ContratosScreen = () => {
   const { getContractsByCenter, addContract, updateContract, deleteContract, addDocumentToContract, deleteDocumentFromContract, loading, refresh } = useContracts();
   const { canCreate, canUploadFiles, canDelete } = usePermissions();
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -193,7 +194,7 @@ export const ContratosScreen = () => {
       mimeType: d.mimeType || null,
     }));
     const currentIndex = selectedContractDocuments.findIndex((d) => d.fileUri === document.fileUri);
-    
+
     // Só passa files se houver mais de 1 documento para navegação
     if (allFiles.length > 1) {
       setPreviewFile({
@@ -251,7 +252,7 @@ export const ContratosScreen = () => {
       setAttachmentModalVisible(true);
       return;
     }
-    
+
     // Solicita permissão da câmera
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     if (!cameraPermission.granted) {
@@ -305,7 +306,7 @@ export const ContratosScreen = () => {
       setAttachmentModalVisible(true);
       return;
     }
-    
+
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para selecionar fotos.');
@@ -400,9 +401,9 @@ export const ContratosScreen = () => {
             </Text>
           </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Contratos</Text>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Contratos</Text>
               <View style={styles.headerActions}>
                 {canCreate && (
                   <TouchableOpacity
@@ -414,11 +415,11 @@ export const ContratosScreen = () => {
                 )}
                 {canCreate && (
                   <TouchableOpacity
-                  style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
-                  onPress={() => setFilterModalVisible(true)}
-                >
-                  <Filter size={16} color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'} />
-                </TouchableOpacity>
+                    style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
+                    onPress={() => setFilterModalVisible(true)}
+                  >
+                    <Filter size={16} color={hasActiveFilters ? '#FFFFFF' : '#0A84FF'} />
+                  </TouchableOpacity>
                 )}
                 <TouchableOpacity
                   style={styles.sortButton}
@@ -427,358 +428,356 @@ export const ContratosScreen = () => {
                   <ChevronDown size={16} color="#0A84FF" />
                 </TouchableOpacity>
               </View>
-          </View>
-
-          {isContractsSortDropdownOpen && (
-            <View style={styles.sortDropdown}>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'name_asc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('name_asc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'name_asc' && styles.sortOptionTextActive]}>
-                  Nome (A-Z)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'category_asc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('category_asc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'category_asc' && styles.sortOptionTextActive]}>
-                  Categoria
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'date_desc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('date_desc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'date_desc' && styles.sortOptionTextActive]}>
-                  Data (Mais recente)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'date_asc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('date_asc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'date_asc' && styles.sortOptionTextActive]}>
-                  Data (Mais antiga)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'value_desc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('value_desc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'value_desc' && styles.sortOptionTextActive]}>
-                  Valor (Maior)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortOption, contractsSortOption === 'value_asc' && styles.sortOptionActive]}
-                onPress={() => {
-                  setContractsSortOption('value_asc');
-                  setIsContractsSortDropdownOpen(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, contractsSortOption === 'value_asc' && styles.sortOptionTextActive]}>
-                  Valor (Menor)
-                </Text>
-              </TouchableOpacity>
             </View>
-          )}
 
-          {Object.keys(filters).length > 0 && (
-            <Text style={styles.filterInfo}>
-              {filteredContracts.length} contrato(s) encontrado(s)
-            </Text>
-          )}
-
-          {loading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>Carregando contratos...</Text>
-            </View>
-          ) : filteredContracts.length > 0 ? (
-            filteredContracts.map((contract) => (
-            <View key={contract.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardTitle}>{contract.name}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    Categoria: {categoryLabels[contract.category as keyof typeof categoryLabels] ?? 'Outros'}
-                  </Text>
-                </View>
-                <View style={styles.cardHeaderRight}>
-                  {canUploadFiles && (
-                    <TouchableOpacity
-                      style={styles.cardIconWrapper}
-                      onPress={() => openAttachmentOptions(contract.id)}
-                    >
-                      <FileText size={18} color="#0A84FF" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-              <View style={styles.cardMeta}>
-                <View>
-                  <Text style={styles.metaLabel}>Data</Text>
-                  <Text style={styles.metaValue}>{contract.date}</Text>
-                </View>
-                <View>
-                  <Text style={styles.metaLabel}>Valor</Text>
-                  <Text style={styles.metaValue}>{formatCurrency(contract.value)}</Text>
-                </View>
-              </View>
-              <View style={styles.actionsRow}>
-                <TouchableOpacity 
-                  style={styles.actionPill}
-                  onPress={() => openDocumentsList(contract.id)}
+            {isContractsSortDropdownOpen && (
+              <View style={styles.sortDropdown}>
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'name_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('name_asc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
                 >
-                  <FileText size={16} color="#0A84FF" />
-                  <Text style={styles.actionText}>Documentos ({contract.docs})</Text>
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'name_asc' && styles.sortOptionTextActive]}>
+                    Nome (A-Z)
+                  </Text>
                 </TouchableOpacity>
-                {canCreate && (
-                  <TouchableOpacity
-                    style={styles.actionPill}
-                    onPress={() => setEditingContract(contract)}
-                  >
-                    <Edit3 size={16} color="#0A84FF" />
-                    <Text style={styles.actionText}>Editar</Text>
-                  </TouchableOpacity>
-                )}
-                {canDelete && (
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() =>
-                      Alert.alert(
-                        'Excluir contrato',
-                        `Tem certeza que deseja excluir o contrato "${contract.name}"?`,
-                        [
-                          { text: 'Cancelar', style: 'cancel' },
-                          {
-                            text: 'Excluir',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await deleteContract(contract.id);
-                              } catch (error) {
-                                // Erro já foi tratado no contexto
-                                console.error('Erro ao excluir contrato:', error);
-                              }
-                            },
-                          },
-                        ]
-                      )
-                    }
-                  >
-                    <Trash2 size={16} color="#FF3B30" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'category_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('category_asc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'category_asc' && styles.sortOptionTextActive]}>
+                    Categoria
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'date_desc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('date_desc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'date_desc' && styles.sortOptionTextActive]}>
+                    Data (Mais recente)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'date_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('date_asc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'date_asc' && styles.sortOptionTextActive]}>
+                    Data (Mais antiga)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'value_desc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('value_desc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'value_desc' && styles.sortOptionTextActive]}>
+                    Valor (Maior)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, contractsSortOption === 'value_asc' && styles.sortOptionActive]}
+                  onPress={() => {
+                    setContractsSortOption('value_asc');
+                    setIsContractsSortDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.sortOptionText, contractsSortOption === 'value_asc' && styles.sortOptionTextActive]}>
+                    Valor (Menor)
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                Nenhum contrato encontrado para os filtros aplicados.
+            )}
+
+            {Object.keys(filters).length > 0 && (
+              <Text style={styles.filterInfo}>
+                {filteredContracts.length} contrato(s) encontrado(s)
               </Text>
-            </View>
-          )}
-        </View>
-        </ScrollView>
-      {canCreate && (
-        <ContractFormModal
-          visible={isModalVisible}
-          onClose={() => setModalVisible(false)}
-          onSubmit={async (data) => {
-            try {
-              await addContract({
-                name: data.name,
-                category: data.category,
-                date: data.date,
-                value: data.value,
-                center: selectedCenter,
-                documents: data.documents,
-              });
-              setModalVisible(false);
-            } catch (error) {
-              console.error('Erro ao adicionar contrato:', error);
-            }
-          }}
-        />
-      )}
-      {canCreate && editingContract && (
-        <ContractFormModal
-          visible={!!editingContract}
-          onClose={() => setEditingContract(null)}
-          title="Editar Contrato"
-          initialData={{
-            name: editingContract.name,
-            category: editingContract.category,
-            date: editingContract.date,
-            value: editingContract.value,
-            documents: (editingContract.documents ?? []).map(doc => ({
-              fileName: doc.fileName,
-              fileUri: doc.fileUri,
-              mimeType: doc.mimeType ?? null,
-            })),
-            docs: editingContract.docs,
-          }}
-          onSubmit={async (data) => {
-            if (!editingContract) return;
-            try {
-              await updateContract(editingContract.id, {
-                name: data.name,
-                category: data.category,
-                date: data.date,
-                value: data.value,
-              });
-              setEditingContract(null);
-            } catch (error) {
-              console.error('Erro ao atualizar contrato:', error);
-            }
-          }}
-        />
-      )}
-      <ContractFilterModal
-        visible={isFilterModalVisible}
-        onClose={() => setFilterModalVisible(false)}
-        onApply={(newFilters) => setFilters(newFilters)}
-        initialFilters={filters}
-      />
-      <Modal transparent animationType="fade" visible={attachmentModalVisible}>
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={closeAttachmentOptions}
-          />
-          <View style={styles.optionSheet}>
-            <View style={styles.optionHandle} />
-            <Text style={styles.optionTitle}>Adicionar documento</Text>
-            <TouchableOpacity
-              style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
-              onPress={handleContractDocumentUpload}
-              disabled={isPickingFile}
-            >
-              <FileText size={18} color="#0A84FF" />
-              <Text style={styles.optionButtonText}>Selecionar documento</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
-              onPress={handleContractPhotoUpload}
-              disabled={isPickingFile}
-            >
-              <ImageIcon size={18} color="#0A84FF" />
-              <Text style={styles.optionButtonText}>Selecionar foto</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.optionCancel} onPress={closeAttachmentOptions}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-      <Modal transparent animationType="slide" visible={documentsModalVisible}>
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={closeDocumentsList}
-          />
-          <View style={styles.documentsSheet}>
-            <View style={styles.optionHandle} />
-            <Text style={styles.optionTitle}>Documentos do Contrato</Text>
-            <ScrollView style={styles.documentsList}>
-              {selectedContractDocuments.length > 0 ? (
-                selectedContractDocuments.map((doc, index) => (
-                  <View
-                    key={`${doc.fileUri}-${index}`}
-                    style={styles.documentItem}
-                  >
+            )}
+
+            {loading && !refreshing ? (
+              <ContractListSkeleton />
+            ) : filteredContracts.length > 0 ? (
+              filteredContracts.map((contract) => (
+                <View key={contract.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <Text style={styles.cardTitle}>{contract.name}</Text>
+                      <Text style={styles.cardSubtitle}>
+                        Categoria: {categoryLabels[contract.category as keyof typeof categoryLabels] ?? 'Outros'}
+                      </Text>
+                    </View>
+                    <View style={styles.cardHeaderRight}>
+                      {canUploadFiles && (
+                        <TouchableOpacity
+                          style={styles.cardIconWrapper}
+                          onPress={() => openAttachmentOptions(contract.id)}
+                        >
+                          <FileText size={18} color="#0A84FF" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.cardMeta}>
+                    <View>
+                      <Text style={styles.metaLabel}>Data</Text>
+                      <Text style={styles.metaValue}>{contract.date}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.metaLabel}>Valor</Text>
+                      <Text style={styles.metaValue}>{formatCurrency(contract.value)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.actionsRow}>
                     <TouchableOpacity
-                      style={styles.documentItemContent}
-                      onPress={() => openDocumentPreview(doc)}
+                      style={styles.actionPill}
+                      onPress={() => openDocumentsList(contract.id)}
                     >
-                      <FileText size={20} color="#0A84FF" />
-                      <View style={styles.documentItemText}>
-                        <Text style={styles.documentItemName} numberOfLines={1}>
-                          {doc.fileName}
-                        </Text>
-                      </View>
-                      <ChevronRight size={18} color="#C7C7CC" />
+                      <FileText size={16} color="#0A84FF" />
+                      <Text style={styles.actionText}>Documentos ({contract.docs})</Text>
                     </TouchableOpacity>
+                    {canCreate && (
+                      <TouchableOpacity
+                        style={styles.actionPill}
+                        onPress={() => setEditingContract(contract)}
+                      >
+                        <Edit3 size={16} color="#0A84FF" />
+                        <Text style={styles.actionText}>Editar</Text>
+                      </TouchableOpacity>
+                    )}
                     {canDelete && (
                       <TouchableOpacity
-                        style={styles.deleteDocumentButton}
-                        onPress={() => {
+                        style={styles.deleteButton}
+                        onPress={() =>
                           Alert.alert(
-                            'Excluir documento',
-                            `Tem certeza que deseja excluir "${doc.fileName}"?`,
+                            'Excluir contrato',
+                            `Tem certeza que deseja excluir o contrato "${contract.name}"?`,
                             [
                               { text: 'Cancelar', style: 'cancel' },
                               {
                                 text: 'Excluir',
                                 style: 'destructive',
                                 onPress: async () => {
-                                  if (!activeContractId || !doc.id) return;
                                   try {
-                                    await deleteDocumentFromContract(activeContractId, doc.id);
-                                    // Atualiza a lista local de documentos
-                                    setSelectedContractDocuments((prev) =>
-                                      prev.filter((d) => d.id !== doc.id)
-                                    );
+                                    await deleteContract(contract.id);
                                   } catch (error) {
-                                    Alert.alert('Erro', 'Não foi possível excluir o documento.');
+                                    // Erro já foi tratado no contexto
+                                    console.error('Erro ao excluir contrato:', error);
                                   }
                                 },
                               },
                             ]
-                          );
-                        }}
+                          )
+                        }
                       >
-                        <Trash2 size={18} color="#FF3B30" />
+                        <Trash2 size={16} color="#FF3B30" />
                       </TouchableOpacity>
                     )}
                   </View>
-                ))
-              ) : (
-                <View style={styles.emptyDocuments}>
-                  <Text style={styles.emptyDocumentsText}>
-                    Nenhum documento adicionado ainda.
-                  </Text>
                 </View>
-              )}
-            </ScrollView>
-            <TouchableOpacity style={styles.optionCancel} onPress={closeDocumentsList}>
-              <Text style={styles.optionCancelText}>Fechar</Text>
-            </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Nenhum contrato encontrado para os filtros aplicados.
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
-      </Modal>
-      <FilePreviewModal
-        visible={previewVisible}
-        onClose={() => {
-          setPreviewVisible(false);
-          setPreviewFile(null);
-        }}
-        fileUri={previewFile?.uri}
-        fileName={previewFile?.name}
-        mimeType={previewFile?.mimeType}
-        files={previewFile?.files}
-        initialIndex={previewFile?.initialIndex}
-      />
+        </ScrollView>
+        {canCreate && (
+          <ContractFormModal
+            visible={isModalVisible}
+            onClose={() => setModalVisible(false)}
+            onSubmit={async (data) => {
+              try {
+                await addContract({
+                  name: data.name,
+                  category: data.category,
+                  date: data.date,
+                  value: data.value,
+                  center: selectedCenter,
+                  documents: data.documents,
+                });
+                setModalVisible(false);
+              } catch (error) {
+                console.error('Erro ao adicionar contrato:', error);
+              }
+            }}
+          />
+        )}
+        {canCreate && editingContract && (
+          <ContractFormModal
+            visible={!!editingContract}
+            onClose={() => setEditingContract(null)}
+            title="Editar Contrato"
+            initialData={{
+              name: editingContract.name,
+              category: editingContract.category,
+              date: editingContract.date,
+              value: editingContract.value,
+              documents: (editingContract.documents ?? []).map(doc => ({
+                fileName: doc.fileName,
+                fileUri: doc.fileUri,
+                mimeType: doc.mimeType ?? null,
+              })),
+              docs: editingContract.docs,
+            }}
+            onSubmit={async (data) => {
+              if (!editingContract) return;
+              try {
+                await updateContract(editingContract.id, {
+                  name: data.name,
+                  category: data.category,
+                  date: data.date,
+                  value: data.value,
+                });
+                setEditingContract(null);
+              } catch (error) {
+                console.error('Erro ao atualizar contrato:', error);
+              }
+            }}
+          />
+        )}
+        <ContractFilterModal
+          visible={isFilterModalVisible}
+          onClose={() => setFilterModalVisible(false)}
+          onApply={(newFilters) => setFilters(newFilters)}
+          initialFilters={filters}
+        />
+        <Modal transparent animationType="fade" visible={attachmentModalVisible}>
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={closeAttachmentOptions}
+            />
+            <View style={styles.optionSheet}>
+              <View style={styles.optionHandle} />
+              <Text style={styles.optionTitle}>Adicionar documento</Text>
+              <TouchableOpacity
+                style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
+                onPress={handleContractDocumentUpload}
+                disabled={isPickingFile}
+              >
+                <FileText size={18} color="#0A84FF" />
+                <Text style={styles.optionButtonText}>Selecionar documento</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.optionButton, isPickingFile && styles.optionButtonDisabled]}
+                onPress={handleContractPhotoUpload}
+                disabled={isPickingFile}
+              >
+                <ImageIcon size={18} color="#0A84FF" />
+                <Text style={styles.optionButtonText}>Selecionar foto</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.optionCancel} onPress={closeAttachmentOptions}>
+                <Text style={styles.optionCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+        <Modal transparent animationType="slide" visible={documentsModalVisible}>
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={closeDocumentsList}
+            />
+            <View style={styles.documentsSheet}>
+              <View style={styles.optionHandle} />
+              <Text style={styles.optionTitle}>Documentos do Contrato</Text>
+              <ScrollView style={styles.documentsList}>
+                {selectedContractDocuments.length > 0 ? (
+                  selectedContractDocuments.map((doc, index) => (
+                    <View
+                      key={`${doc.fileUri}-${index}`}
+                      style={styles.documentItem}
+                    >
+                      <TouchableOpacity
+                        style={styles.documentItemContent}
+                        onPress={() => openDocumentPreview(doc)}
+                      >
+                        <FileText size={20} color="#0A84FF" />
+                        <View style={styles.documentItemText}>
+                          <Text style={styles.documentItemName} numberOfLines={1}>
+                            {doc.fileName}
+                          </Text>
+                        </View>
+                        <ChevronRight size={18} color="#C7C7CC" />
+                      </TouchableOpacity>
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteDocumentButton}
+                          onPress={() => {
+                            Alert.alert(
+                              'Excluir documento',
+                              `Tem certeza que deseja excluir "${doc.fileName}"?`,
+                              [
+                                { text: 'Cancelar', style: 'cancel' },
+                                {
+                                  text: 'Excluir',
+                                  style: 'destructive',
+                                  onPress: async () => {
+                                    if (!activeContractId || !doc.id) return;
+                                    try {
+                                      await deleteDocumentFromContract(activeContractId, doc.id);
+                                      // Atualiza a lista local de documentos
+                                      setSelectedContractDocuments((prev) =>
+                                        prev.filter((d) => d.id !== doc.id)
+                                      );
+                                    } catch (error) {
+                                      Alert.alert('Erro', 'Não foi possível excluir o documento.');
+                                    }
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                        >
+                          <Trash2 size={18} color="#FF3B30" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.emptyDocuments}>
+                    <Text style={styles.emptyDocumentsText}>
+                      Nenhum documento adicionado ainda.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+              <TouchableOpacity style={styles.optionCancel} onPress={closeDocumentsList}>
+                <Text style={styles.optionCancelText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+        <FilePreviewModal
+          visible={previewVisible}
+          onClose={() => {
+            setPreviewVisible(false);
+            setPreviewFile(null);
+          }}
+          fileUri={previewFile?.uri}
+          fileName={previewFile?.name}
+          mimeType={previewFile?.mimeType}
+          files={previewFile?.files}
+          initialIndex={previewFile?.initialIndex}
+        />
       </View>
     </SafeAreaView>
   );
