@@ -314,6 +314,11 @@ export const FinanceiroScreen = () => {
 
   // 📊 State for FULL period data (for charts)
   const [serverExpenses, setServerExpenses] = useState<Expense[]>([]);
+  // 📊 State for FULL period data (for fechamneto/closure)
+  const [closureServerExpenses, setClosureServerExpenses] = useState<Expense[]>([]);
+  const [closureServerReceipts, setClosureServerReceipts] = useState<Receipt[]>([]);
+  const [closureLoading, setClosureLoading] = useState(false);
+
   const [localDeletedIds, setLocalDeletedIds] = useState<Set<string>>(new Set());
   const [chartExpensesLoading, setChartExpensesLoading] = useState(false);
 
@@ -409,6 +414,109 @@ export const FinanceiroScreen = () => {
 
     fetchChartData();
   }, [selectedExpensePeriod, expenseMode, selectedCenter, getExpensesForDateRange]);
+
+  // 📊 Fetch full period data for closure when tab/period/center changes
+  useEffect(() => {
+    const fetchClosureData = async () => {
+      if (activeTab !== 'Fechamento') return;
+
+      setClosureLoading(true);
+      try {
+        let startDate: string;
+        let endDate: string;
+
+        // Determina o intervalo de datas baseado no modo (mensal/anual)
+        if (closureMode === 'mensal') {
+          startDate = selectedPeriod.startOf('month').format('YYYY-MM-DD');
+          endDate = selectedPeriod.endOf('month').format('YYYY-MM-DD');
+        } else {
+          startDate = selectedPeriod.startOf('year').format('YYYY-MM-DD');
+          endDate = selectedPeriod.endOf('year').format('YYYY-MM-DD');
+        }
+
+        // Busca despesas e recebimentos em paralelo
+        // Passamos undefined como center para pegar DE TODOS os centros (para o gráfico comparativo)
+        const [expensesData, receiptsData] = await Promise.all([
+          getExpensesForDateRange(startDate, endDate, undefined),
+          getReceiptsForDateRange(startDate, endDate, undefined)
+        ]);
+
+        // Verifica se o usuário tem permissão para ver todos os dados
+        // Se não for admin, talvez devessemos filtrar aqui? 
+        // Mas a regra de negócio diz que Admin vê tudo. Se User normal, a query do Supabase já filtra por user_id. 
+        // O app parece ser single-tenant ou multi-user onde cada user vê seus dados.
+        // A filtragem por centro é visual/organizacional.
+
+        setClosureServerExpenses(expensesData);
+        setClosureServerReceipts(receiptsData);
+      } catch (error) {
+        console.error('Error fetching closure data:', error);
+      } finally {
+        setClosureLoading(false);
+      }
+    };
+
+    fetchClosureData();
+  }, [selectedPeriod, closureMode, activeTab, getExpensesForDateRange, getReceiptsForDateRange]);
+
+  // Mescla dados do servidor com dados otimistas para o Fechamento (Despesas)
+  const closureExpenses = useMemo(() => {
+    if (activeTab !== 'Fechamento') return [];
+
+    const serverIds = new Set(closureServerExpenses.map(e => e.id));
+
+    // Itens do contexto (otimistas/recentes) que não estão no servidor
+    const pendingItems = expenses.filter((e) => {
+      // Para o fechamento, queremos itens de TODOS os centros se eles forem novos
+      // mas se o usuário acabou de criar num centro específico, ele aparecerá aqui
+
+      if (serverIds.has(e.id)) return false; // Já está na lista do servidor
+      if (localDeletedIds.has(e.id)) return false; // Foi deletado localmente
+
+      const [day, month, year] = e.date.split('/').map(Number);
+      const expenseDate = dayjs(`${year}-${month}-${day}`);
+      if (!expenseDate.isValid()) return false;
+
+      if (closureMode === 'mensal') {
+        return expenseDate.isSame(selectedPeriod, 'month');
+      } else {
+        return expenseDate.isSame(selectedPeriod, 'year');
+      }
+    });
+
+    const visibleServerExpenses = closureServerExpenses.filter(e => !localDeletedIds.has(e.id));
+    return [...pendingItems, ...visibleServerExpenses];
+  }, [closureServerExpenses, expenses, localDeletedIds, selectedPeriod, closureMode, activeTab]);
+
+  // Mescla dados do servidor com dados otimistas para o Fechamento (Recebimentos)
+  const closureReceipts = useMemo(() => {
+    if (activeTab !== 'Fechamento') return [];
+
+    // Receipt não tem "receipts" context optimista exposto separadamente no provider da mesma forma que expenses?
+    // Verificando useFinancial... Sim, tem `receipts`.
+    // Mas Receipts geralmente usamos `allReceipts`. Vamos usar a mesma lógica.
+
+    const serverIds = new Set(closureServerReceipts.map(r => r.id));
+
+    const pendingItems = getAllReceipts().filter((r) => {
+      // getAllReceipts pega do contexto (paginado). 
+      // Se tivermos itens criados recentemente (temp-), estarão lá.
+
+      if (serverIds.has(r.id)) return false;
+
+      const [day, month, year] = r.date.split('/').map(Number);
+      const receiptDate = dayjs(`${year}-${month}-${day}`);
+      if (!receiptDate.isValid()) return false;
+
+      if (closureMode === 'mensal') {
+        return receiptDate.isSame(selectedPeriod, 'month');
+      } else {
+        return receiptDate.isSame(selectedPeriod, 'year');
+      }
+    });
+
+    return [...pendingItems, ...closureServerReceipts];
+  }, [closureServerReceipts, getAllReceipts, selectedPeriod, closureMode, activeTab]);
 
   // Deriva a lista final mesclando dados do servidor com estado otimista (contexto)
   // Isso roda síncronamente sem disparar novos fetches de rede
@@ -1276,37 +1384,41 @@ export const FinanceiroScreen = () => {
     const selectedMonth = selectedPeriod.month();
     const selectedYear = selectedPeriod.year();
 
-    const receiptsInPeriod = allReceipts.filter((receipt) => {
-      const [day, month, year] = receipt.date.split('/').map(Number);
-      if (!day || !month || !year) {
-        const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
-        if (!receiptDate.isValid()) return false;
-        if (closureMode === 'anual') {
-          return receiptDate.year() === selectedYear;
+    const receiptsInPeriod = activeTab === 'Fechamento'
+      ? closureReceipts.filter(r => r.center === selectedCenter) // Filtra por centro para o resumo
+      : allReceipts.filter((receipt) => {
+        const [day, month, year] = receipt.date.split('/').map(Number);
+        if (!day || !month || !year) {
+          const receiptDate = dayjs(receipt.date, 'DD/MM/YYYY', true);
+          if (!receiptDate.isValid()) return false;
+          if (closureMode === 'anual') {
+            return receiptDate.year() === selectedYear;
+          }
+          return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
         }
-        return receiptDate.month() === selectedMonth && receiptDate.year() === selectedYear;
-      }
-      if (closureMode === 'anual') {
-        return year === selectedYear;
-      }
-      return month - 1 === selectedMonth && year === selectedYear;
-    });
+        if (closureMode === 'anual') {
+          return year === selectedYear;
+        }
+        return month - 1 === selectedMonth && year === selectedYear;
+      });
 
-    const expensesInPeriod = allExpenses.filter((expense) => {
-      const [day, month, year] = expense.date.split('/').map(Number);
-      if (!day || !month || !year) {
-        const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
-        if (!expenseDate.isValid()) return false;
-        if (closureMode === 'anual') {
-          return expenseDate.year() === selectedYear;
+    const expensesInPeriod = activeTab === 'Fechamento'
+      ? closureExpenses.filter(e => e.center === selectedCenter) // Filtra por centro para o resumo
+      : allExpenses.filter((expense) => {
+        const [day, month, year] = expense.date.split('/').map(Number);
+        if (!day || !month || !year) {
+          const expenseDate = dayjs(expense.date, 'DD/MM/YYYY', true);
+          if (!expenseDate.isValid()) return false;
+          if (closureMode === 'anual') {
+            return expenseDate.year() === selectedYear;
+          }
+          return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
         }
-        return expenseDate.month() === selectedMonth && expenseDate.year() === selectedYear;
-      }
-      if (closureMode === 'anual') {
-        return year === selectedYear;
-      }
-      return month - 1 === selectedMonth && year === selectedYear;
-    });
+        if (closureMode === 'anual') {
+          return year === selectedYear;
+        }
+        return month - 1 === selectedMonth && year === selectedYear;
+      });
 
     const totalReceipts = receiptsInPeriod.reduce((sum, receipt) => sum + receipt.value, 0);
     const totalExpenses = expensesInPeriod.reduce((sum, expense) => sum + expense.value, 0);
@@ -1340,7 +1452,7 @@ export const FinanceiroScreen = () => {
       expensesByStatus,
       totalsByStatus,
     };
-  }, [allReceipts, allExpenses, selectedPeriod, closureMode]);
+  }, [allReceipts, allExpenses, selectedPeriod, closureMode, activeTab, closureExpenses, closureReceipts, selectedCenter]);
 
   const filteredReceipts = useMemo(() => {
     let filtered = [...allReceiptsForCenter];
@@ -2363,8 +2475,8 @@ export const FinanceiroScreen = () => {
 
               {/* Gráfico */}
               <CostCenterComparisonChart
-                expenses={getAllExpenses()}
-                receipts={getAllReceipts()}
+                expenses={closureExpenses} // Passa TODAS as despesas (não filtradas por centro)
+                receipts={closureReceipts} // Passa TODOS os recebimentos (não filtrados por centro)
                 mode={comparisonMode}
                 period={{
                   month: closureMode === 'mensal' ? selectedPeriod.month() : undefined,

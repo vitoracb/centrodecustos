@@ -1,6 +1,11 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View } from "react-native";
+import { View, LogBox } from "react-native";
+
+// Ignora erros específicos de Auth que são tratados silenciosamente
+LogBox.ignoreLogs([
+  'AuthApiError: Invalid Refresh Token: Refresh Token Not Found',
+]);
 import Toast from "react-native-toast-message";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";

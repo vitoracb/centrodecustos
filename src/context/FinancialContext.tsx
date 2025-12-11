@@ -3300,7 +3300,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   // 📊 DATA FOR CHARTS (FULL PERIOD)
   // ========================
 
-  const getExpensesForDateRange = useCallback(async (startDate: string, endDate: string, centerId: CostCenter): Promise<Expense[]> => {
+  const getExpensesForDateRange = useCallback(async (startDate: string, endDate: string, centerId?: CostCenter): Promise<Expense[]> => {
     let query = supabase
       .from("financial_transactions")
       .select(`
@@ -3310,11 +3310,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         created_at, cost_center_id
       `)
       .eq("type", "DESPESA")
-      .eq("cost_center_id", centerId)
       .is("deleted_at", null)
       .gte("date", startDate)
       .lte("date", endDate)
       .order("date", { ascending: false });
+
+    if (centerId) {
+      query = query.eq("cost_center_id", centerId);
+    }
 
     const { data, error } = await query;
 
@@ -3330,7 +3333,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
     );
   }, []);
 
-  const getReceiptsForDateRange = useCallback(async (startDate: string, endDate: string, centerId: CostCenter): Promise<Receipt[]> => {
+  const getReceiptsForDateRange = useCallback(async (startDate: string, endDate: string, centerId?: CostCenter): Promise<Receipt[]> => {
     let query = supabase
       .from("financial_transactions")
       .select(`
@@ -3339,11 +3342,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         installment_number, created_at, cost_center_id
       `)
       .eq("type", "RECEITA")
-      .eq("cost_center_id", centerId)
       .is("deleted_at", null)
       .gte("date", startDate)
       .lte("date", endDate)
       .order("date", { ascending: false });
+
+    if (centerId) {
+      query = query.eq("cost_center_id", centerId);
+    }
 
     const { data, error } = await query;
 

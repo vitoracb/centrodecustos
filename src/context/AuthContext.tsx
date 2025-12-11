@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error.message.includes('Token Not Found')) {
             console.log('[Auth] Token inválido detectado, limpando...');
             await clearCorruptedTokens();
-            await supabase.auth.signOut();
+            // Não chamamos signOut() aqui pois os tokens já eram inválidos/foram limpos
           }
           setSession(null);
           setUser(null);
