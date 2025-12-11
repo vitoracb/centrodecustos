@@ -75,7 +75,7 @@ export const OrderFilterModal = ({
 
   const statusOptions = [
     { value: '', label: 'Todos os status' },
-    { value: 'orcamento_pendente', label: 'Orçamento pendente' },
+    { value: 'orcamento_solicitado', label: 'Orçamento solicitado' },
     { value: 'orcamento_enviado', label: 'Orçamento enviado' },
     { value: 'orcamento_aprovado', label: 'Orçamento aprovado' },
     { value: 'orcamento_reprovado', label: 'Orçamento reprovado' },
@@ -186,7 +186,7 @@ export const OrderFilterModal = ({
                           style={[
                             styles.dropdownItemText,
                             selectedEquipmentId === equipment.id &&
-                              styles.dropdownItemTextSelected,
+                            styles.dropdownItemTextSelected,
                           ]}
                         >
                           {equipment.name}
@@ -256,7 +256,7 @@ export const OrderFilterModal = ({
                         style={[
                           styles.dropdownItemText,
                           selectedStatus === option.value &&
-                            styles.dropdownItemTextSelected,
+                          styles.dropdownItemTextSelected,
                         ]}
                       >
                         {option.label}

@@ -80,6 +80,8 @@ const AnimatedTabIcon = ({
 export default function TabLayout() {
   // Usa useContext diretamente com fallback seguro para todos os contexts
   const orderContext = useContext(OrderContext);
+  // Usa o length do orders para forçar re-render quando orders mudam
+  const ordersLength = orderContext?.orders?.length ?? 0;
   const notificationCount = orderContext?.getUnreadNotificationsCount ? orderContext.getUnreadNotificationsCount() : 0;
   const equipmentContext = useContext(EquipmentContext);
   const costCenterContext = useContext(CostCenterContext);

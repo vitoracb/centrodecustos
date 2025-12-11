@@ -17,6 +17,14 @@ import { toastConfig } from "@/src/components/ToastConfig";
 import { ReviewNotificationsWrapper } from "@/src/components/ReviewNotificationsWrapper";
 import { OfflineBanner } from "@/src/components/OfflineBanner";
 import { queryClient } from "@/src/lib/queryClient";
+import dayjs from 'dayjs';
+import 'dayjs/locale/pt-br';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+
+dayjs.locale('pt-br');
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 // Componente que envolve as telas autenticadas com todos os providers
 function AuthenticatedProviders({ children }: { children: React.ReactNode }) {

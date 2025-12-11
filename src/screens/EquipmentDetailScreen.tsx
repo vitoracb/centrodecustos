@@ -88,7 +88,6 @@ type ReviewItem = {
   title: string;
   date: string; // DD/MM/YYYY
   description?: string;
-  next?: string; // DD/MM/YYYY
 };
 
 type ExpenseItem = {
@@ -100,6 +99,8 @@ type ExpenseItem = {
   documents?: ExpenseDocument[];
   expenseId?: string;
   isFixed?: boolean;
+  installmentNumber?: number;
+  fixedDurationMonths?: number;
 };
 
 /**
@@ -126,6 +127,104 @@ const isoToBr = (value?: string | null): string => {
   const yyyy = d.getUTCFullYear();
   return `${dd}/${mm}/${yyyy}`;
 };
+
+/**
+ * Calcula informações de parcela/despesa fixa para exibir no badge
+ */
+const getExpenseFixedInfoForEquipment = (
+  expense: { name: string; date: string; isFixed?: boolean; installmentNumber?: number; fixedDurationMonths?: number; id: string; center?: string },
+  allExpenses: { name: string; date: string; isFixed?: boolean; installmentNumber?: number; fixedDurationMonths?: number; id: string; center?: string }[]
+): { isFixed: boolean; isInstallment: boolean; label?: string } => {
+  // Busca a despesa template (isFixed = true) com a mesma descrição
+  const template = allExpenses.find(
+    (e) => e.isFixed && e.name === expense.name
+  );
+
+  // Se encontrou template com duração definida - é despesa fixa
+  if (template && template.fixedDurationMonths) {
+    // Se esta é o template, mostra como primeira parcela
+    if (expense.isFixed && expense.id === template.id) {
+      return {
+        isFixed: true,
+        isInstallment: false,
+        label: `1/${template.fixedDurationMonths}`,
+      };
+    }
+
+    // Se não é o template, calcula a parcela baseado na diferença de meses
+    const templateDate = dayjs(template.date, 'DD/MM/YYYY');
+    const expenseDate = dayjs(expense.date, 'DD/MM/YYYY');
+
+    if (templateDate.isValid() && expenseDate.isValid()) {
+      const templateYear = templateDate.year();
+      const templateMonth = templateDate.month();
+      const expenseYear = expenseDate.year();
+      const expenseMonth = expenseDate.month();
+
+      const monthsDiff = (expenseYear - templateYear) * 12 + (expenseMonth - templateMonth);
+      const installment = monthsDiff + 1;
+
+      if (installment >= 1 && installment <= template.fixedDurationMonths) {
+        return {
+          isFixed: true,
+          isInstallment: false,
+          label: `${installment}/${template.fixedDurationMonths}`,
+        };
+      }
+    }
+  }
+
+  // Despesa fixa sem duração definida
+  if (expense.isFixed) {
+    return { isFixed: true, isInstallment: false };
+  }
+
+  // Despesa parcelada (não fixa, mas com installmentNumber)
+  if (expense.installmentNumber != null) {
+    // Verifica se existe template de despesa fixa - se sim, não mostra badge de parcela
+    const hasFixedTemplate = allExpenses.some(
+      (e) =>
+        e.isFixed &&
+        e.name === expense.name &&
+        e.fixedDurationMonths != null &&
+        e.fixedDurationMonths > 0
+    );
+
+    if (hasFixedTemplate) {
+      return { isFixed: false, isInstallment: false };
+    }
+
+    // Busca todas as parcelas com mesmo nome para calcular o total
+    const siblings = allExpenses.filter(
+      (e) =>
+        e.name === expense.name &&
+        e.installmentNumber != null
+    );
+
+    if (siblings.length === 0) {
+      return { isInstallment: true, isFixed: false, label: `${expense.installmentNumber}` };
+    }
+
+    // Encontra o maior número de parcela para determinar o total
+    const totalInstallments = siblings.reduce((max, e) => {
+      const n = e.installmentNumber ?? 0;
+      return n > max ? n : max;
+    }, 0);
+
+    if (!totalInstallments) {
+      return { isInstallment: true, isFixed: false, label: `${expense.installmentNumber}` };
+    }
+
+    return {
+      isFixed: false,
+      isInstallment: true,
+      label: `${expense.installmentNumber}/${totalInstallments}`,
+    };
+  }
+
+  return { isFixed: false, isInstallment: false };
+};
+
 
 export const EquipmentDetailScreen = () => {
   const router = useRouter();
@@ -244,6 +343,8 @@ export const EquipmentDetailScreen = () => {
       documents: exp.documents || [],
       expenseId: exp.id,
       isFixed: exp.isFixed,
+      installmentNumber: exp.installmentNumber,
+      fixedDurationMonths: exp.fixedDurationMonths,
     }));
   }, [equipment?.id, getAllExpenses]);
 
@@ -317,7 +418,6 @@ export const EquipmentDetailScreen = () => {
             id: rev.id,
             title: rev.type || 'Revisão',
             date: isoToBr(rev.date),
-            next: isoToBr(rev.next_date),
             description: rev.description ?? '',
           }));
           setReviews(mappedReviews);
@@ -707,7 +807,7 @@ export const EquipmentDetailScreen = () => {
                       </TouchableOpacity>
                     )}
                   </View>
-                ) : (activeTab === 'despesas' || activeTab === 'documentos' || activeTab === 'fotos') ? (
+                ) : (activeTab === 'documentos' || activeTab === 'fotos') ? (
                   <TouchableOpacity
                     style={styles.iconButton}
                     onPress={handleAction}
@@ -715,16 +815,11 @@ export const EquipmentDetailScreen = () => {
                   >
                     {activeTab === 'documentos' ? (
                       <FileText size={18} color="#0A84FF" />
-                    ) : activeTab === 'despesas' ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Plus size={16} color="#0A84FF" />
-                        <CreditCard size={16} color="#0A84FF" />
-                      </View>
                     ) : (
                       <Camera size={18} color="#0A84FF" />
                     )}
                   </TouchableOpacity>
-                ) : (
+                ) : activeTab === 'despesas' ? null : (
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={handleAction}
@@ -741,8 +836,7 @@ export const EquipmentDetailScreen = () => {
               const allowEditActions = canEdit && (
                 activeTab === 'documentos' ||
                 activeTab === 'fotos' ||
-                activeTab === 'revisoes' ||
-                activeTab === 'despesas'
+                activeTab === 'revisoes'
               );
 
               return (
@@ -793,12 +887,56 @@ export const EquipmentDetailScreen = () => {
                         </Text>
                       ) : null}
                     </View>
-                    {/* Mostra "Despesa fixa" se for despesa fixa */}
-                    {activeTab === 'despesas' && 'isFixed' in item && item.isFixed ? (
-                      <View style={styles.fixedBadge}>
-                        <Text style={styles.fixedText}>Despesa fixa</Text>
-                      </View>
-                    ) : null}
+                    {/* Mostra badge de despesa fixa ou parcelada */}
+                    {activeTab === 'despesas' && (() => {
+                      const exp = item as ExpenseItem;
+                      // Buscar todas as despesas do contexto para calcular parcela
+                      const allExps = getAllExpenses().map(e => ({
+                        id: e.id,
+                        name: e.name,
+                        date: e.date,
+                        isFixed: e.isFixed,
+                        installmentNumber: e.installmentNumber,
+                        fixedDurationMonths: e.fixedDurationMonths,
+                        center: e.center,
+                      }));
+                      const expForCalc = {
+                        id: exp.expenseId || exp.id,
+                        name: exp.title,
+                        date: exp.date,
+                        isFixed: exp.isFixed,
+                        installmentNumber: exp.installmentNumber,
+                        fixedDurationMonths: exp.fixedDurationMonths,
+                      };
+                      const info = getExpenseFixedInfoForEquipment(expForCalc, allExps);
+
+                      if (info.isFixed && info.label) {
+                        return (
+                          <View style={styles.fixedBadge}>
+                            <Text style={styles.fixedText}>
+                              Despesa fixa - {info.label}
+                            </Text>
+                          </View>
+                        );
+                      }
+                      if (info.isFixed) {
+                        return (
+                          <View style={styles.fixedBadge}>
+                            <Text style={styles.fixedText}>Despesa fixa</Text>
+                          </View>
+                        );
+                      }
+                      if (info.isInstallment && info.label) {
+                        return (
+                          <View style={[styles.fixedBadge, { backgroundColor: '#E6F2FF' }]}>
+                            <Text style={[styles.fixedText, { color: '#0A84FF' }]}>
+                              Parcela {info.label}
+                            </Text>
+                          </View>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {'fileName' in item && item.fileName ? (
                       <Text style={styles.cardMeta}>
@@ -810,11 +948,7 @@ export const EquipmentDetailScreen = () => {
                       <Text style={styles.cardMeta} numberOfLines={2}>{item.description}</Text>
                     ) : null}
 
-                    {'next' in item && item.next ? (
-                      <Text style={styles.cardMeta}>
-                        Próxima revisão: {item.next}
-                      </Text>
-                    ) : null}
+
 
                     {activeTab === 'despesas' &&
                       'documents' in item &&
@@ -829,7 +963,7 @@ export const EquipmentDetailScreen = () => {
                       )}
                   </TouchableOpacity>
 
-                  {canDelete && (
+                  {canDelete && activeTab !== 'despesas' && (
                     <TouchableOpacity
                       style={styles.deleteButtonBottomRight}
                       onPress={event => handleDeleteCard(item, event)}
@@ -1326,14 +1460,12 @@ export const EquipmentDetailScreen = () => {
                   type: editingReview.title,
                   description: editingReview.description ?? '',
                   date: editingReview.date,
-                  next: editingReview.next,
                 }
                 : undefined
             }
             onSubmit={async data => {
               try {
                 const isoDate = brToIso(data.date);
-                const isoNext = brToIso(data.next ?? undefined);
 
                 if (!isoDate) {
                   Alert.alert(
@@ -1348,7 +1480,6 @@ export const EquipmentDetailScreen = () => {
                   type: data.type,
                   description: data.description,
                   date: isoDate,
-                  next_date: isoNext,
                 };
 
                 if (editingReview) {
@@ -1367,7 +1498,6 @@ export const EquipmentDetailScreen = () => {
                           title: data.type,
                           date: data.date,
                           description: data.description,
-                          next: data.next ?? undefined,
                         }
                         : review,
                     ),
@@ -1386,7 +1516,6 @@ export const EquipmentDetailScreen = () => {
                     id: inserted.id,
                     title: inserted.type || data.type,
                     date: isoToBr(inserted.date),
-                    next: isoToBr(inserted.next_date),
                     description: inserted.description ?? data.description,
                   };
 

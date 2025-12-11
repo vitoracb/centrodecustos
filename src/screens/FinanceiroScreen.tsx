@@ -286,6 +286,7 @@ export const FinanceiroScreen = () => {
   const params = useLocalSearchParams();
   const { selectedCenter, costCenters } = useCostCenter();
   const {
+    expenses, // 🚀 OPTIMISTIC: Adiciona expenses para atualizar UI imediatamente
     getReceiptsByCenter,
     getExpensesByCenter,
     getAllExpenses,
@@ -312,7 +313,8 @@ export const FinanceiroScreen = () => {
   } | null>(null);
 
   // 📊 State for FULL period data (for charts)
-  const [chartExpenses, setChartExpenses] = useState<Expense[]>([]);
+  const [serverExpenses, setServerExpenses] = useState<Expense[]>([]);
+  const [localDeletedIds, setLocalDeletedIds] = useState<Set<string>>(new Set());
   const [chartExpensesLoading, setChartExpensesLoading] = useState(false);
 
   // Para o FinancialContext, os dados são recarregados automaticamente via useEffect
@@ -380,6 +382,7 @@ export const FinanceiroScreen = () => {
   const paramsAppliedRef = useRef(false);
 
   // 📊 Fetch full period data for charts when period/center changes
+  // Otimização: Separa o fetch de dados do servidor da atualização otimista
   useEffect(() => {
     const fetchChartData = async () => {
       setChartExpensesLoading(true);
@@ -396,10 +399,9 @@ export const FinanceiroScreen = () => {
         }
 
         const data = await getExpensesForDateRange(startDate, endDate, selectedCenter);
-        setChartExpenses(data);
+        setServerExpenses(data);
       } catch (error) {
         console.error('Error fetching chart expenses:', error);
-        setChartExpenses([]);
       } finally {
         setChartExpensesLoading(false);
       }
@@ -407,6 +409,41 @@ export const FinanceiroScreen = () => {
 
     fetchChartData();
   }, [selectedExpensePeriod, expenseMode, selectedCenter, getExpensesForDateRange]);
+
+  // Deriva a lista final mesclando dados do servidor com estado otimista (contexto)
+  // Isso roda síncronamente sem disparar novos fetches de rede
+  const chartExpenses = useMemo(() => {
+    // Cria um Set com os IDs que já estão no servido (para busca rápida O(1))
+    const serverIds = new Set(serverExpenses.map(e => e.id));
+
+    // 1. Itens do Contexto que NÃO estão ne lista do servidor
+    // Isso inclui:
+    // a) Itens otimistas (temp-*)
+    // b) Itens recém-confirmados que ainda não foram buscados novamente do servidor
+    const pendingOrRecentItems = expenses.filter((e) => {
+      // Deve ser do centro atual
+      if (e.center !== selectedCenter) return false;
+
+      // Se já está na lista do servidor, ignora (usa a versão do servidor)
+      if (serverIds.has(e.id)) return false;
+
+      // Verifica se está no período visualizado
+      const [day, month, year] = e.date.split('/').map(Number);
+      const expenseDate = dayjs(`${year}-${month}-${day}`);
+
+      if (expenseMode === 'mensal') {
+        return expenseDate.isSame(selectedExpensePeriod, 'month');
+      } else {
+        return expenseDate.isSame(selectedExpensePeriod, 'year');
+      }
+    });
+
+    // 2. Dados do servidor, excluindo itens removidos localmente
+    const visibleServerExpenses = serverExpenses.filter(e => !localDeletedIds.has(e.id));
+
+    // Retorna a combinação (Recentes do Contexto + Servidor Filtrado)
+    return [...pendingOrRecentItems, ...visibleServerExpenses];
+  }, [serverExpenses, expenses, localDeletedIds, selectedCenter, selectedExpensePeriod, expenseMode]);
 
   // Sincroniza períodos entre abas quando o usuário troca de aba
   const lastActiveTabRef = useRef(activeTab);
@@ -919,6 +956,18 @@ export const FinanceiroScreen = () => {
       ...expense,
       status: newStatus,
     });
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    // Atualiza imediatamente a UI (Set state é muito rápido)
+    setLocalDeletedIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+
+    // Chama a função do contexto (que também faz optimistic update no contexto global)
+    await deleteExpense(id);
   };
 
   // Aplica parâmetros da navegação (vindo do dashboard) - apenas uma vez
@@ -2082,7 +2131,7 @@ export const FinanceiroScreen = () => {
                                   {
                                     text: 'Excluir',
                                     style: 'destructive',
-                                    onPress: () => deleteExpense(item.id),
+                                    onPress: () => handleDeleteExpense(item.id),
                                   },
                                 ]
                               );
@@ -2644,6 +2693,7 @@ export const FinanceiroScreen = () => {
                 fixedDurationMonths: expenseData.fixedDurationMonths,
                 id: expenseData.id,
                 debitAdjustment: expenseData.debitAdjustment,
+                method: expenseData.method,
                 isInstallment,
                 installments,
                 installmentsCount,

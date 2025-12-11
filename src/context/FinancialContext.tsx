@@ -633,9 +633,16 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const mappedExpenses = await Promise.all(
           expensesData.map((row: any) => mapRowToExpense(row))
         );
-        setExpenses(mappedExpenses);
+        // 🚀 OPTIMISTIC: Preserva itens temporários ao mesclar com dados do servidor
+        setExpenses((prev) => {
+          // Mantém itens otimistas (com ID temp-)
+          const optimisticItems = prev.filter((e) => e.id.startsWith('temp-'));
+          // Mescla: otimistas primeiro, depois os dados do servidor
+          return [...optimisticItems, ...mappedExpenses];
+        });
       } else {
-        setExpenses([]);
+        // Preserva itens otimistas mesmo quando não há dados do servidor
+        setExpenses((prev) => prev.filter((e) => e.id.startsWith('temp-')));
       }
       setLoading(expensesLoading);
     };
@@ -754,8 +761,14 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
       const expense = await mapRowToExpense(row);
       setExpenses((prev) => {
+        // Se já existe com mesmo ID, ignora
         if (prev.some((e) => e.id === expense.id)) return prev;
-        return [expense, ...prev];
+        // 🚀 OPTIMISTIC: Remove itens temporários com mesmo nome (o servidor confirmou)
+        const withoutOptimistic = prev.filter((e) => {
+          if (!e.id.startsWith('temp-')) return true;
+          return e.name !== expense.name || e.date !== expense.date;
+        });
+        return [expense, ...withoutOptimistic];
       });
 
       if (user && selectedCenter) {
@@ -1590,11 +1603,26 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   // ========================
 
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
+    // 🚀 OPTIMISTIC UPDATE: Adiciona imediatamente com ID temporário
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticExpense: Expense = {
+      ...expense,
+      id: tempId,
+      createdAt: Date.now(),
+    };
+
+    // Adiciona imediatamente ao estado (feedback instantâneo)
+    if (!expense.isFixed || !expense.fixedDurationMonths || expense.fixedDurationMonths <= 1) {
+      setExpenses((prev) => [optimisticExpense, ...prev]);
+    }
+
     (async () => {
       try {
         // Validação e sanitização de entrada
         const validation = validateAndSanitizeExpense(expense);
         if (!validation.isValid) {
+          // Remove o item otimista se validação falhar
+          setExpenses((prev) => prev.filter((e) => e.id !== tempId));
           Alert.alert("Erro de Validação", validation.error || "Dados inválidos");
           return;
         }
@@ -1602,7 +1630,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
         const sanitizedExpense = validation.sanitizedExpense!;
 
         // Evita cadastrar despesas duplicadas no mesmo mês
-        const allExpenses = getAllExpenses();
+        const allExpenses = getAllExpenses().filter((e) => e.id !== tempId); // Exclui o otimista da verificação
         if (
           isDuplicateExpense(allExpenses, {
             name: sanitizedExpense.name,
@@ -1613,6 +1641,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
             center: sanitizedExpense.center,
           })
         ) {
+          // Remove o item otimista
+          setExpenses((prev) => prev.filter((e) => e.id !== tempId));
           Alert.alert(
             "Despesa Duplicada",
             `Já existe uma despesa idêntica cadastrada em ${expense.date}:\n\n` +
@@ -1627,6 +1657,7 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
 
         const dbDate = toDbDate(expense.date);
         if (!dbDate) {
+          setExpenses((prev) => prev.filter((e) => e.id !== tempId));
           console.error("❌ Data de despesa inválida:", expense.date);
           return;
         }
@@ -1702,6 +1733,8 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           .single();
 
         if (error || !data) {
+          // 🚀 OPTIMISTIC ROLLBACK: Remove o item temporário em caso de erro
+          setExpenses((prev) => prev.filter((e) => e.id !== tempId));
           console.error("❌ Erro ao criar despesa:", error);
 
           // Verifica se é erro de rede
@@ -1917,10 +1950,11 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           }
         }
 
-        // Só adiciona ao estado se não gerou parcelas (para evitar duplicatas)
+        // Só atualiza ao estado se não gerou parcelas (para evitar duplicatas)
         if (!expense.isFixed || !expense.fixedDurationMonths || expense.fixedDurationMonths <= 1) {
           const newExpense = await mapRowToExpense(data);
-          setExpenses((prev) => [newExpense, ...prev]);
+          // 🚀 OPTIMISTIC UPDATE: Substitui o item temporário pelo real
+          setExpenses((prev) => prev.map((e) => e.id === tempId ? newExpense : e));
 
           // Audit logging para operação crítica
           if (user?.id) {
@@ -1934,8 +1968,13 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
               sanitizedExpense // newData
             );
           }
+        } else {
+          // Se gerou parcelas, remove o otimista (as parcelas serão carregadas via realtime)
+          setExpenses((prev) => prev.filter((e) => e.id !== tempId));
         }
       } catch (e) {
+        // 🚀 OPTIMISTIC ROLLBACK: Remove o item temporário em caso de erro
+        setExpenses((prev) => prev.filter((exp) => exp.id !== tempId));
         console.error("❌ Erro inesperado ao criar despesa:", e);
       }
     })();
@@ -2844,6 +2883,34 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
   }, []);
 
   const deleteExpense = useCallback((id: string) => {
+    // Otimização: Encontra o alvo apenas uma vez
+    const target = expenses.find((exp) => exp.id === id);
+
+    // Identifica IDs para remover (otimizado para O(N))
+    const idsToRemove = new Set<string>();
+    if (target) {
+      if (target.isFixed || target.installmentNumber != null) {
+        // Se for grupo, adiciona todos do grupo
+        expenses.forEach((e) => {
+          if (e.center === target.center && e.name === target.name) {
+            idsToRemove.add(e.id);
+          }
+        });
+      } else {
+        // Se for única, apenas ela
+        idsToRemove.add(id);
+      }
+    } else {
+      // Fallback se não encontrar (raro), tenta remover pelo ID passado
+      idsToRemove.add(id);
+    }
+
+    // 🚀 OPTIMISTIC UPDATE: Guarda snapshot para rollback
+    const expensesSnapshot = expenses.filter((e) => idsToRemove.has(e.id));
+
+    // Remove imediatamente da UI (Set.has é O(1))
+    setExpenses((prev) => prev.filter((e) => !idsToRemove.has(e.id)));
+
     (async () => {
       try {
         // Primeiro, busca a despesa alvo para entender se faz parte de um conjunto de parcelas
@@ -2893,16 +2960,22 @@ export const FinancialProvider = ({ children }: FinancialProviderProps) => {
           .in("id", idsToDelete);
 
         if (error) {
+          // 🚀 OPTIMISTIC ROLLBACK: Restaura os itens em caso de erro
+          setExpenses((prev) => [...expensesSnapshot, ...prev]);
           console.error("❌ Erro ao deletar despesa(s):", error);
+          Alert.alert('Erro', 'Não foi possível excluir a despesa. Tente novamente.');
           return;
         }
 
-        setExpenses((prev) => prev.filter((e) => !idsToDelete.includes(e.id)));
+        // Sucesso - os itens já foram removidos otimisticamente
       } catch (e) {
+        // 🚀 OPTIMISTIC ROLLBACK: Restaura os itens em caso de erro
+        setExpenses((prev) => [...expensesSnapshot, ...prev]);
         console.error("❌ Erro inesperado ao deletar despesa:", e);
+        Alert.alert('Erro', 'Não foi possível excluir a despesa. Tente novamente.');
       }
     })();
-  }, []);
+  }, [expenses]);
 
   const addDocumentToExpense = useCallback(
     async (expenseId: string, document: Omit<ExpenseDocument, "type"> & { type: "nota_fiscal" | "recibo" | "comprovante_pagamento" | "boleto" }): Promise<ExpenseDocument> => {

@@ -317,7 +317,7 @@ export const GlobalSearch = () => {
       if (maxRelevance > 0) {
         const statusLabels: Record<string, string> = {
           orcamento_solicitado: 'Orçamento solicitado',
-          orcamento_pendente: 'Orçamento pendente',
+
           orcamento_enviado: 'Orçamento enviado',
           orcamento_aprovado: 'Orçamento aprovado',
           orcamento_reprovado: 'Orçamento reprovado',

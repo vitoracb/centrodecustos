@@ -126,10 +126,10 @@ export const ExpenseFormModal = ({
   const formatCurrency = (text: string, negative: boolean = false): string => {
     const numbers = text.replace(/\D/g, '');
     if (!numbers) return '';
-    
+
     const amount = Number(numbers) / 100;
     const finalAmount = negative ? -Math.abs(amount) : Math.abs(amount);
-    
+
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -168,17 +168,17 @@ export const ExpenseFormModal = ({
     // Detecta se o valor formatado é negativo
     // No formato brasileiro pode ser: "R$ -100,00" ou "-R$ 100,00" ou contém "−"
     const trimmed = formattedValue.trim();
-    const hasNegativeSign = 
-      trimmed.startsWith('-') || 
-      trimmed.includes('−') || 
+    const hasNegativeSign =
+      trimmed.startsWith('-') ||
+      trimmed.includes('−') ||
       trimmed.includes('R$ -') ||
       trimmed.includes('-R$');
-    
+
     // Se o parâmetro useNegativeState for true, usa o estado isNegative
     if (useNegativeState) {
       return isNegative ? -Math.abs(amount) : Math.abs(amount);
     }
-    
+
     return hasNegativeSign ? -Math.abs(amount) : Math.abs(amount);
   };
 
@@ -222,7 +222,7 @@ export const ExpenseFormModal = ({
           if (initialData.debitAdjustment && initialData.debitAdjustment.amount > 0) {
             baseValue = initialData.value + initialData.debitAdjustment.amount;
           }
-          
+
           const formattedValue = new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
@@ -241,7 +241,7 @@ export const ExpenseFormModal = ({
         setIsFixed(initialData.isFixed || false);
         setSector(initialData.sector || '');
         setFixedDurationMonths(initialData.fixedDurationMonths ? String(initialData.fixedDurationMonths) : '');
-        
+
         // Inicializa débito se houver
         if (initialData.debitAdjustment && initialData.debitAdjustment.amount > 0) {
           setAddDebit(true);
@@ -276,6 +276,9 @@ export const ExpenseFormModal = ({
           setInstallmentsCount('');
           setInstallments([]);
         }
+
+        // Inicializa método de pagamento
+        setPaymentMethod(initialData.method || null);
       } else {
         // Valores padrão quando não há initialData
         setName('');
@@ -312,7 +315,7 @@ export const ExpenseFormModal = ({
     });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -405,7 +408,7 @@ export const ExpenseFormModal = ({
 
     if (result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -451,7 +454,7 @@ export const ExpenseFormModal = ({
     });
     if (!result.canceled && result.assets.length) {
       const asset = result.assets[0];
-      
+
       // Valida tamanho do arquivo (80MB)
       const isValidSize = await checkFileSizeAndAlert(asset.uri, 80);
       if (!isValidSize) {
@@ -592,14 +595,14 @@ export const ExpenseFormModal = ({
     const parsedValue = parseCurrency(value);
     const parsedDebit = parseCurrency(debitValue);
     const hasValidDebit = addDebit && parsedDebit > 0;
-    
+
     if (!isInstallment) {
       if (!value || (parsedValue === 0 && !isNegative && !hasValidDebit)) {
         Alert.alert('Campo obrigatório', 'Por favor, preencha o valor da despesa (pode ser negativo ou zero se houver abatimento).');
         return;
       }
     }
-    
+
     // Validações específicas por categoria
     // Equipamento é obrigatório para "manutenção", "funcionário" e "equipamentos"
     // Permite "all" (Todos os equipamentos) como valor válido
@@ -668,13 +671,13 @@ export const ExpenseFormModal = ({
     // Calcula valor final (valor base - débito)
     // Usa o estado isNegative para garantir que valores negativos sejam preservados
     let baseValue = parseCurrency(value, true); // Usa o estado isNegative para interpretar o valor
-    
+
     // Se o checkbox de débito está desmarcado, garante que não há débito
     let debitAmount = 0;
     if (!isInstallment && addDebit && debitValue) {
       debitAmount = parseCurrency(debitValue, false); // Débito sempre positivo
     }
-    
+
     const finalValue = baseValue - debitAmount;
 
     // Validação: se não for negativo e tiver débito, valor final não pode ser negativo
@@ -688,9 +691,9 @@ export const ExpenseFormModal = ({
     // Se o checkbox está desmarcado, não deve haver debitAdjustment
     const debitAdjustment: ExpenseDebitAdjustment | undefined = !isInstallment && addDebit && debitAmount > 0
       ? {
-          amount: debitAmount,
-          description: debitDescription.trim() || undefined,
-        }
+        amount: debitAmount,
+        description: debitDescription.trim() || undefined,
+      }
       : undefined;
 
     // Sanitização de segurança dos campos de texto
@@ -886,8 +889,8 @@ export const ExpenseFormModal = ({
                     {selectedEquipmentId === 'all'
                       ? 'Todos os equipamentos'
                       : selectedEquipmentId
-                      ? equipments.find((eq) => eq.id === selectedEquipmentId)?.name || 'Selecione um equipamento'
-                      : 'Selecione um equipamento'}
+                        ? equipments.find((eq) => eq.id === selectedEquipmentId)?.name || 'Selecione um equipamento'
+                        : 'Selecione um equipamento'}
                   </Text>
                   <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
                 </TouchableOpacity>
@@ -1168,8 +1171,8 @@ export const ExpenseFormModal = ({
                       {paymentMethod === 'BOLETO'
                         ? 'Boleto'
                         : paymentMethod === 'TRANSFERENCIA'
-                        ? 'Transferência'
-                        : 'Selecione o meio de pagamento'}
+                          ? 'Transferência'
+                          : 'Selecione o meio de pagamento'}
                     </Text>
                     <ChevronDown size={18} color="#6C6C70" style={styles.dropdownIcon} />
                   </TouchableOpacity>
@@ -1340,12 +1343,12 @@ export const ExpenseFormModal = ({
                             {doc.type === 'nota_fiscal'
                               ? 'Nota Fiscal'
                               : doc.type === 'recibo'
-                              ? 'Recibo'
-                              : doc.type === 'comprovante_pagamento'
-                              ? 'Comprovante de Pagamento'
-                              : doc.type === 'boleto'
-                              ? 'Boleto'
-                              : doc.type}
+                                ? 'Recibo'
+                                : doc.type === 'comprovante_pagamento'
+                                  ? 'Comprovante de Pagamento'
+                                  : doc.type === 'boleto'
+                                    ? 'Boleto'
+                                    : doc.type}
                           </Text>
                         </View>
                       </View>
@@ -1383,7 +1386,7 @@ export const ExpenseFormModal = ({
                   !sector ||
                   (isFixed && !fixedDurationMonths) ||
                   isSaving) &&
-                  styles.disabledButton,
+                styles.disabledButton,
               ]}
               disabled={
                 !name.trim() ||

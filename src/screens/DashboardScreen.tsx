@@ -1094,7 +1094,7 @@ export const DashboardScreen = () => {
               status: 'ativo',
               center: selectedCenter,
               currentHours: 0,
-              hoursUntilRevision: 0,
+              hoursUntilRevision: data.hoursUntilRevision,
             });
             setIsEquipmentModalVisible(false);
             showSuccess('Equipamento adicionado', data.name);
@@ -1148,6 +1148,9 @@ export const DashboardScreen = () => {
                   debitAdjustment: data.debitAdjustment,
                   method: data.method,
                   installmentNumber: inst.installmentNumber,
+                  sector: data.sector,
+                  gestaoSubcategory: data.gestaoSubcategory,
+                  observations: data.observations,
                 });
               }
             } else {
@@ -1161,6 +1164,11 @@ export const DashboardScreen = () => {
                 documents: data.documents || [],
                 debitAdjustment: data.debitAdjustment,
                 method: data.method,
+                isFixed: data.isFixed,
+                fixedDurationMonths: data.fixedDurationMonths,
+                sector: data.sector,
+                gestaoSubcategory: data.gestaoSubcategory,
+                observations: data.observations,
               });
             }
             setExpenseModalVisible(false);

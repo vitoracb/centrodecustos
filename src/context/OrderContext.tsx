@@ -20,7 +20,7 @@ import { logAuditEvent } from "@/src/lib/auditLogger";
 
 export type OrderStatus =
   | "orcamento_solicitado"
-  | "orcamento_pendente"
+
   | "orcamento_enviado"
   | "orcamento_aprovado"
   | "orcamento_reprovado"
@@ -113,7 +113,7 @@ const isoToBr = (iso?: string | null) => {
 
 const allowedStatuses: OrderStatus[] = [
   "orcamento_solicitado",
-  "orcamento_pendente",
+
   "orcamento_enviado",
   "orcamento_aprovado",
   "orcamento_reprovado",
@@ -122,7 +122,7 @@ const allowedStatuses: OrderStatus[] = [
 ];
 
 const normalizeStatus = (status?: string | null): OrderStatus => {
-  if (!status) return "orcamento_pendente";
+  if (!status) return "orcamento_solicitado";
 
   const cleaned = status
     .toLowerCase()
@@ -132,7 +132,7 @@ const normalizeStatus = (status?: string | null): OrderStatus => {
     .replace(/[^a-z_]/g, "");
 
   const match = allowedStatuses.find((item) => item === cleaned);
-  return match ?? "orcamento_pendente";
+  return match ?? "orcamento_solicitado";
 };
 
 // ============================
@@ -673,7 +673,7 @@ const OrderProviderComponent = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const getUnreadNotificationsCount = useCallback(() => {
-    return orders.filter((o) => o.status === "orcamento_pendente").length;
+    return orders.filter((o) => o.status === "orcamento_solicitado").length;
   }, [orders]);
 
   // ----------------------------

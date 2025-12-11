@@ -41,7 +41,7 @@ const PAGE_SIZE = 10;
 
 const statusLabels: Record<OrderStatus, string> = {
   orcamento_solicitado: 'Orçamento solicitado',
-  orcamento_pendente: 'Orçamento pendente',
+
   orcamento_enviado: 'Orçamento enviado',
   orcamento_aprovado: 'Orçamento aprovado',
   orcamento_reprovado: 'Orçamento reprovado',
@@ -57,10 +57,7 @@ const statusStyles: Record<
     backgroundColor: '#E3F2FD',
     color: '#0A84FF',
   },
-  orcamento_pendente: {
-    backgroundColor: '#FFF3D6',
-    color: '#FF9500',
-  },
+
   orcamento_enviado: {
     backgroundColor: '#E9FAF0',
     color: '#34C759',
@@ -621,7 +618,7 @@ export default function PedidosScreen() {
                     )}
 
                     <View style={styles.actionsRow}>
-                      {canEdit && (order.status === 'orcamento_pendente' || order.status === 'orcamento_enviado') && (
+                      {canEdit && (order.status === 'orcamento_solicitado' || order.status === 'orcamento_enviado') && (
                         <View style={styles.actionWithStatusContainer}>
                           <View style={styles.actionButtonsRow}>
                             <TouchableOpacity
@@ -755,7 +752,7 @@ export default function PedidosScreen() {
               name: data.name,
               description: data.observations || '',
               orderDate: data.date,
-              status: 'orcamento_pendente',
+              status: 'orcamento_solicitado',
               costCenter: selectedCenter,
               equipmentId: data.equipmentId,
             });

@@ -19,13 +19,11 @@ interface ReviewFormModalProps {
     type: string;
     description: string;
     date: string;
-    next?: string;
   }) => void;
   initialData?: {
     type: string;
     description: string;
     date: string;
-    next?: string;
   };
 }
 
@@ -38,8 +36,7 @@ export const ReviewFormModal = ({
   const [type, setType] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date());
-  const [nextDate, setNextDate] = useState<Date | undefined>(undefined);
-  const [datePicker, setDatePicker] = useState<'current' | 'next' | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -48,17 +45,10 @@ export const ReviewFormModal = ({
       setDescription(initialData.description);
       const parsedDate = dayjs(initialData.date, 'DD/MM/YYYY');
       setDate(parsedDate.isValid() ? parsedDate.toDate() : new Date());
-      if (initialData.next) {
-        const parsedNext = dayjs(initialData.next, 'DD/MM/YYYY');
-        setNextDate(parsedNext.isValid() ? parsedNext.toDate() : undefined);
-      } else {
-        setNextDate(undefined);
-      }
     } else {
       setType('');
       setDescription('');
       setDate(new Date());
-      setNextDate(undefined);
     }
   }, [visible, initialData]);
 
@@ -72,12 +62,10 @@ export const ReviewFormModal = ({
       type,
       description,
       date: dayjs(date).format('DD/MM/YYYY'),
-      next: nextDate ? dayjs(nextDate).format('DD/MM/YYYY') : undefined,
     });
     setType('');
     setDescription('');
     setDate(new Date());
-    setNextDate(undefined);
     onClose();
   };
 
@@ -115,27 +103,15 @@ export const ReviewFormModal = ({
             />
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.field, styles.rowItem]}>
-              <Text style={styles.label}>Data</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setDatePicker('current')}
-              >
-                <Text style={styles.inputText}>{dayjs(date).format('DD/MM/YYYY')}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.field, styles.rowItem]}>
-              <Text style={styles.label}>Próxima (opcional)</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setDatePicker('next')}
-              >
-                <Text style={styles.inputText}>
-                  {nextDate ? dayjs(nextDate).format('DD/MM/YYYY') : 'Definir'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Data</Text>
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.inputText}>{dayjs(date).format('DD/MM/YYYY')}</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.actions}>
@@ -158,18 +134,17 @@ export const ReviewFormModal = ({
         </View>
       </KeyboardAvoidingView>
 
-      {datePicker && (
+      {showDatePicker && (
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerContainer}>
             <DateTimePicker
               mode="date"
               display="spinner"
-              value={datePicker === 'current' ? date : nextDate ?? new Date()}
+              value={date}
               onChange={(_, selectedDate) => {
-                setDatePicker(null);
+                setShowDatePicker(false);
                 if (selectedDate) {
-                  if (datePicker === 'current') setDate(selectedDate);
-                  else setNextDate(selectedDate);
+                  setDate(selectedDate);
                 }
               }}
             />
