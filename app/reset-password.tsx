@@ -24,7 +24,7 @@ export default function ResetPasswordScreen() {
   const [debugInfo, setDebugInfo] = useState<string>('');
   const router = useRouter();
 
-  // Função para processar a URL do deep link (método tradicional)
+  // Função para processar a URL do deep link (suporta PKCE e Implicit Flow)
   const processDeepLinkUrl = useCallback(async (url: string | null) => {
     try {
       setDebugInfo(prev => prev + `\nURL: ${url?.substring(0, 100) || 'null'}...`);
@@ -37,6 +37,31 @@ export default function ResetPasswordScreen() {
       console.log('[ResetPassword] ===== PROCESSANDO DEEP LINK =====');
       console.log('[ResetPassword] URL completa:', url);
 
+      // Verificação de PKCE (code) - Prioritário
+      const urlObj = new URL(url);
+      const code = urlObj.searchParams.get('code');
+
+      if (code) {
+        console.log('[ResetPassword] Código PKCE encontrado:', code);
+        setDebugInfo(prev => prev + '\nCódigo PKCE encontrado');
+
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          console.log('[ResetPassword] Erro ao trocar código por sessão:', error.message);
+          setDebugInfo(prev => prev + `\nErro PKCE: ${error.message}`);
+
+          // Se falhar o PKCE, não tenta o Implicit Flow pois o código já foi consumido ou é inválido
+          return false;
+        }
+
+        console.log('[ResetPassword] Sessão estabelecida via PKCE');
+        setDebugInfo(prev => prev + '\nSessão via PKCE ✓');
+        setSessionReady(true);
+        return true;
+      }
+
+      // Fallback: Implicit Flow (access_token/refresh_token)
       // Supabase envia tokens no fragmento (#) ou como query params (?)
       const hasFragment = url.includes('#');
       const hasQuery = url.includes('?');
@@ -55,21 +80,20 @@ export default function ResetPasswordScreen() {
         type = urlParams.get('type');
       } else if (hasQuery) {
         // Tenta pegar dos query params como fallback
-        const urlObj = new URL(url);
         access_token = urlObj.searchParams.get('access_token');
         refresh_token = urlObj.searchParams.get('refresh_token');
         type = urlObj.searchParams.get('type');
       }
 
-      console.log('[ResetPassword] Tokens encontrados:', {
+      console.log('[ResetPassword] Tokens encontrados (Implicit):', {
         hasAccessToken: !!access_token,
         hasRefreshToken: !!refresh_token,
         type
       });
 
       if (!access_token || !refresh_token) {
-        console.log('[ResetPassword] Tokens não encontrados na URL');
-        setDebugInfo(prev => prev + '\nTokens não encontrados na URL');
+        console.log('[ResetPassword] Nenhum token ou código encontrado na URL');
+        setDebugInfo(prev => prev + '\nSem tokens/código na URL');
         return false;
       }
 
@@ -79,18 +103,18 @@ export default function ResetPasswordScreen() {
       });
 
       if (error) {
-        console.log('[ResetPassword] Erro ao aplicar sessão:', error.message);
-        setDebugInfo(prev => prev + `\nErro: ${error.message}`);
+        console.log('[ResetPassword] Erro ao aplicar sessão (Implicit):', error.message);
+        setDebugInfo(prev => prev + `\nErro Implicit: ${error.message}`);
         return false;
       }
 
-      console.log('[ResetPassword] Sessão aplicada com sucesso via URL');
-      setDebugInfo(prev => prev + '\nSessão aplicada via URL ✓');
+      console.log('[ResetPassword] Sessão aplicada com sucesso via Implicit Flow');
+      setDebugInfo(prev => prev + '\nSessão via Implicit Flow ✓');
       setSessionReady(true);
       return true;
     } catch (error: any) {
       console.log('[ResetPassword] Erro ao processar URL:', error);
-      setDebugInfo(prev => prev + `\nErro: ${error?.message}`);
+      setDebugInfo(prev => prev + `\nErro geral: ${error?.message}`);
       return false;
     }
   }, []);
