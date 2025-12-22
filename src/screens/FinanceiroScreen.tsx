@@ -185,8 +185,7 @@ export const FinanceiroScreen = () => {
   useEffect(() => {
     const fetchChartData = async () => {
       setChartExpensesLoading(true);
-      // ✅ CORREÇÃO: Limpa dados antigos antes de buscar novos para evitar flicker
-      setServerExpenses([]);
+      // Mantém dados antigos visíveis (com opacidade) enquanto carrega novos
       try {
         let startDate: string;
         let endDate: string;
@@ -217,9 +216,7 @@ export const FinanceiroScreen = () => {
       if (activeTab !== 'Fechamento') return;
 
       setClosureLoading(true);
-      // ✅ CORREÇÃO: Limpa dados antigos antes de buscar novos para evitar flicker
-      setClosureServerExpenses([]);
-      setClosureServerReceipts([]);
+      // Mantém dados antigos visíveis enquanto carrega novos
       try {
         let startDate: string;
         let endDate: string;
@@ -1714,26 +1711,20 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            {/* Gráficos de Despesas */}
-            {chartExpensesLoading ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#8E8E93', fontSize: 14 }}>Carregando dados...</Text>
-              </View>
-            ) : (
-              <>
-                <ExpensePieChart
-                  expenses={chartExpenses}
-                  mode={expenseMode}
-                  selectedPeriod={selectedExpensePeriod}
-                />
-                <ExpenseBarChart expenses={chartExpenses} />
-                <ExpenseSectorChart
-                  expenses={chartExpenses}
-                  mode={expenseMode}
-                  selectedPeriod={selectedExpensePeriod}
-                />
-              </>
-            )}
+            {/* Gráficos de Despesas - mantém visível com opacidade durante loading */}
+            <View style={{ opacity: chartExpensesLoading ? 0.5 : 1 }}>
+              <ExpensePieChart
+                expenses={chartExpenses}
+                mode={expenseMode}
+                selectedPeriod={selectedExpensePeriod}
+              />
+              <ExpenseBarChart expenses={chartExpenses} />
+              <ExpenseSectorChart
+                expenses={chartExpenses}
+                mode={expenseMode}
+                selectedPeriod={selectedExpensePeriod}
+              />
+            </View>
 
             {/* Despesas agrupadas por status */}
             {filteredExpenses.length > 0 && (
@@ -2203,58 +2194,40 @@ export const FinanceiroScreen = () => {
                 {closureLoading ? 'Carregando...' : `${periodSummary.receiptsCount} recebimento(s) • ${periodSummary.expensesCount} despesa(s)`}
               </Text>
             </View>
-            {closureLoading ? (
-              <View style={styles.summaryGrid}>
-                <View style={[styles.summaryCard, { opacity: 0.6 }]}>
-                  <Text style={styles.summaryLabel}>Recebimentos</Text>
-                  <Text style={[styles.summaryValue, { color: '#C7C7CC' }]}>--</Text>
-                  <Text style={styles.summaryCount}>carregando...</Text>
-                </View>
-                <View style={[styles.summaryCard, { opacity: 0.6 }]}>
-                  <Text style={styles.summaryLabel}>Despesas Total</Text>
-                  <Text style={[styles.summaryValue, { color: '#C7C7CC' }]}>--</Text>
-                  <Text style={styles.summaryCount}>carregando...</Text>
-                </View>
-                <View style={[styles.summaryCard, styles.balanceCardPositive, { opacity: 0.6 }]}>
-                  <Calculator size={20} color="#FFFFFF" />
-                  <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>--</Text>
-                  <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>Saldo do período</Text>
-                </View>
+            {/* Cartões de resumo - mantém valores visíveis com opacidade durante loading */}
+            <View style={[styles.summaryGrid, { opacity: closureLoading ? 0.5 : 1 }]}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Recebimentos</Text>
+                <Text style={styles.summaryValue}>{periodSummary.received}</Text>
+                <Text style={styles.summaryCount}>
+                  {periodSummary.receiptsCount} {periodSummary.receiptsCount === 1 ? 'item' : 'itens'}
+                </Text>
               </View>
-            ) : (
-              <View style={styles.summaryGrid}>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Recebimentos</Text>
-                  <Text style={styles.summaryValue}>{periodSummary.received}</Text>
-                  <Text style={styles.summaryCount}>
-                    {periodSummary.receiptsCount} {periodSummary.receiptsCount === 1 ? 'item' : 'itens'}
-                  </Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Despesas Total</Text>
-                  <Text style={styles.summaryValue}>{periodSummary.expenses}</Text>
-                  <Text style={styles.summaryCount}>
-                    {periodSummary.expensesCount} {periodSummary.expensesCount === 1 ? 'item' : 'itens'}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.summaryCard,
-                    periodSummary.balanceValue >= 0
-                      ? styles.balanceCardPositive
-                      : styles.balanceCardNegative,
-                  ]}
-                >
-                  <Calculator size={20} color="#FFFFFF" />
-                  <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>
-                    {periodSummary.balance}
-                  </Text>
-                  <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>
-                    Saldo do período
-                  </Text>
-                </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryLabel}>Despesas Total</Text>
+                <Text style={styles.summaryValue}>{periodSummary.expenses}</Text>
+                <Text style={styles.summaryCount}>
+                  {periodSummary.expensesCount} {periodSummary.expensesCount === 1 ? 'item' : 'itens'}
+                </Text>
               </View>
-            )}
+              <View
+                style={[
+                  styles.summaryCard,
+                  periodSummary.balanceValue >= 0
+                    ? styles.balanceCardPositive
+                    : styles.balanceCardNegative,
+                ]}
+              >
+                <Calculator size={20} color="#FFFFFF" />
+                <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>
+                  {periodSummary.balance}
+                </Text>
+                <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>
+                  Saldo do período
+                </Text>
+              </View>
+            </View>
+
 
             {/* Gráfico Comparativo entre Centros */}
             <View style={styles.comparisonSection}>
