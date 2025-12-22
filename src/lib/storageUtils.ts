@@ -8,7 +8,7 @@ import { supabase } from './supabaseClient';
 function base64ToUint8Array(base64: string): Uint8Array {
   // Remove possíveis espaços e quebras de linha
   const cleanBase64 = base64.replace(/\s/g, '');
-  
+
   // Usa atob se disponível (navegador/Web), senão usa implementação manual
   let binaryString: string;
   if (typeof atob !== 'undefined') {
@@ -23,16 +23,16 @@ function base64ToUint8Array(base64: string): Uint8Array {
       const encoded2 = chars.indexOf(cleanBase64.charAt(i++));
       const encoded3 = chars.indexOf(cleanBase64.charAt(i++));
       const encoded4 = chars.indexOf(cleanBase64.charAt(i++));
-      
+
       const bitmap = (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
-      
+
       result += String.fromCharCode((bitmap >> 16) & 255);
       if (encoded3 !== 64) result += String.fromCharCode((bitmap >> 8) & 255);
       if (encoded4 !== 64) result += String.fromCharCode(bitmap & 255);
     }
     binaryString = result;
   }
-  
+
   // Converte string binária para Uint8Array
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
@@ -57,6 +57,29 @@ export async function uploadFileToStorage(
   folder: string = 'expenses'
 ): Promise<string | null> {
   try {
+    // Verifica se é uma URL remota (http/https)
+    if (fileUri.startsWith('http://') || fileUri.startsWith('https://')) {
+      console.log('🔄 Arquivo remoto detectado, baixando para cache antes do upload:', fileUri);
+      try {
+        // Cria um nome de arquivo seguro para o cache
+        const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_') || 'temp_file';
+        const downloadDest = `${FileSystem.cacheDirectory}${Date.now()}_${safeFileName}`;
+
+        const downloadResult = await FileSystem.downloadAsync(fileUri, downloadDest);
+
+        if (downloadResult.status === 200) {
+          fileUri = downloadResult.uri;
+          console.log('✅ Arquivo baixado para cache locais:', fileUri);
+        } else {
+          console.warn('⚠️ Falha ao baixar arquivo remoto, status:', downloadResult.status);
+          return fileUri; // Retorna a URL original em caso de falha no download
+        }
+      } catch (downloadError) {
+        console.error('❌ Erro ao baixar arquivo remoto:', downloadError);
+        return fileUri; // Retorna a URL original em caso de erro
+      }
+    }
+
     // Lê o arquivo como base64
     const base64 = await FileSystem.readAsStringAsync(fileUri, {
       encoding: (FileSystem as any).EncodingType?.Base64 || 'base64' as any,
@@ -84,7 +107,7 @@ export async function uploadFileToStorage(
 
     if (error) {
       console.error('❌ Erro ao fazer upload do arquivo:', error);
-      
+
       // Erro de RLS (Row-Level Security)
       if (error.message?.includes('row-level security') || error.message?.includes('violates row-level security')) {
         console.error('🔒 Erro de política RLS. Execute o arquivo supabase_storage_policies.sql no Supabase SQL Editor para configurar as políticas de acesso.');
@@ -94,7 +117,7 @@ export async function uploadFileToStorage(
         );
         return null;
       }
-      
+
       // Se o bucket não existir
       if (error.message?.includes('Bucket not found') || error.message?.includes('not found')) {
         console.warn('⚠️ Bucket não encontrado. Verifique se o bucket configurado existe no Supabase Storage.');
@@ -104,7 +127,7 @@ export async function uploadFileToStorage(
         );
         return null;
       }
-      
+
       return null;
     }
 
