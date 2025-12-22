@@ -8,4 +8,3 @@ CREATE INDEX IF NOT EXISTS idx_orders_equipment_id
 
 
 
-

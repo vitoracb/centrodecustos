@@ -108,9 +108,13 @@ export const FinanceiroScreen = () => {
 
   // 📊 State for FULL period data (for charts)
   const [serverExpenses, setServerExpenses] = useState<Expense[]>([]);
+  // Rastreia qual período os dados do servidor representam (para evitar exibir dados de outro período)
+  const [serverExpensesPeriodKey, setServerExpensesPeriodKey] = useState<string>('');
+
   // 📊 State for FULL period data (for fechamneto/closure)
   const [closureServerExpenses, setClosureServerExpenses] = useState<Expense[]>([]);
   const [closureServerReceipts, setClosureServerReceipts] = useState<Receipt[]>([]);
+  const [closurePeriodKey, setClosurePeriodKey] = useState<string>('');
   const [closureLoading, setClosureLoading] = useState(false);
 
   const [localDeletedIds, setLocalDeletedIds] = useState<Set<string>>(new Set());
@@ -183,9 +187,13 @@ export const FinanceiroScreen = () => {
   // 📊 Fetch full period data for charts when period/center changes
   // Otimização: Separa o fetch de dados do servidor da atualização otimista
   useEffect(() => {
+    // Calcula a chave do período ANTES de iniciar o fetch
+    const currentPeriodKey = expenseMode === 'mensal'
+      ? `${selectedExpensePeriod.format('YYYY-MM')}-${selectedCenter}-mensal`
+      : `${selectedExpensePeriod.format('YYYY')}-${selectedCenter}-anual`;
+
     const fetchChartData = async () => {
       setChartExpensesLoading(true);
-      // Mantém dados antigos visíveis (com opacidade) enquanto carrega novos
       try {
         let startDate: string;
         let endDate: string;
@@ -199,7 +207,9 @@ export const FinanceiroScreen = () => {
         }
 
         const data = await getExpensesForDateRange(startDate, endDate, selectedCenter);
+        // Atualiza dados E a chave do período juntos para manter sincronizado
         setServerExpenses(data);
+        setServerExpensesPeriodKey(currentPeriodKey);
       } catch (error) {
         console.error('Error fetching chart expenses:', error);
       } finally {
@@ -327,16 +337,23 @@ export const FinanceiroScreen = () => {
   // Deriva a lista final mesclando dados do servidor com estado otimista (contexto)
   // Isso roda síncronamente sem disparar novos fetches de rede
   const chartExpenses = useMemo(() => {
-    // ✅ Durante loading, usa apenas dados do servidor para evitar valores incorretos
-    // Os dados de contexto podem conter itens de outros períodos que causam flicker
-    if (chartExpensesLoading) {
+    // Cria um Set com os IDs que já estão no servidor (para busca rápida O(1))
+    const serverIds = new Set(serverExpenses.map(e => e.id));
+
+    // Calcula a chave do período atual para comparar com os dados do servidor
+    const currentPeriodKey = expenseMode === 'mensal'
+      ? `${selectedExpensePeriod.format('YYYY-MM')}-${selectedCenter}-mensal`
+      : `${selectedExpensePeriod.format('YYYY')}-${selectedCenter}-anual`;
+
+    // ✅ Se os dados do servidor NÃO correspondem ao período atual,
+    // retorna apenas os dados do servidor (do período anterior) para manter visibilidade com fade
+    // Isso evita o flicker de mostrar dados incorretos mesclados
+    if (serverExpensesPeriodKey !== currentPeriodKey) {
+      // Retorna dados do servidor anterior filtrados - serão mostrados com opacidade reduzida
       return serverExpenses.filter(e => !localDeletedIds.has(e.id));
     }
 
-    // Cria um Set com os IDs que já estão no servido (para busca rápida O(1))
-    const serverIds = new Set(serverExpenses.map(e => e.id));
-
-    // 1. Itens do Contexto que NÃO estão ne lista do servidor
+    // 1. Itens do Contexto que NÃO estão na lista do servidor
     // Isso inclui:
     // a) Itens otimistas (temp-*)
     // b) Itens recém-confirmados que ainda não foram buscados novamente do servidor
@@ -363,7 +380,15 @@ export const FinanceiroScreen = () => {
 
     // Retorna a combinação (Recentes do Contexto + Servidor Filtrado)
     return [...pendingOrRecentItems, ...visibleServerExpenses];
-  }, [serverExpenses, expenses, localDeletedIds, selectedCenter, selectedExpensePeriod, expenseMode, chartExpensesLoading]);
+  }, [serverExpenses, expenses, localDeletedIds, selectedCenter, selectedExpensePeriod, expenseMode, serverExpensesPeriodKey]);
+
+  // Verifica se os dados do gráfico são do período atual (para controle de opacidade)
+  const isChartDataCurrent = useMemo(() => {
+    const currentPeriodKey = expenseMode === 'mensal'
+      ? `${selectedExpensePeriod.format('YYYY-MM')}-${selectedCenter}-mensal`
+      : `${selectedExpensePeriod.format('YYYY')}-${selectedCenter}-anual`;
+    return serverExpensesPeriodKey === currentPeriodKey;
+  }, [expenseMode, selectedExpensePeriod, selectedCenter, serverExpensesPeriodKey]);
 
   // Sincroniza períodos entre abas quando o usuário troca de aba
   const lastActiveTabRef = useRef(activeTab);
@@ -1727,8 +1752,8 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            {/* Gráficos de Despesas - mantém visível com opacidade durante loading */}
-            <View style={{ opacity: chartExpensesLoading ? 0.5 : 1 }}>
+            {/* Gráficos de Despesas - mantém dados anteriores visíveis com fade durante transição */}
+            <View style={{ opacity: isChartDataCurrent ? 1 : 0.5 }}>
               <ExpensePieChart
                 expenses={chartExpenses}
                 mode={expenseMode}
