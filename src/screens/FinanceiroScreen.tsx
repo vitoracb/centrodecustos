@@ -1130,27 +1130,14 @@ export const FinanceiroScreen = () => {
     const selectedMonth = selectedPeriod.month();
     const selectedYear = selectedPeriod.year();
 
-    const filterByPeriod = (dateString: string) => {
-      const [day, month, year] = dateString.split('/').map(Number);
-      if (!day || !month || !year) {
-        const parsed = dayjs(dateString, 'DD/MM/YYYY', true);
-        if (!parsed.isValid()) return false;
-        if (closureMode === 'anual') {
-          return parsed.year() === selectedYear;
-        }
-        return parsed.month() === selectedMonth && parsed.year() === selectedYear;
-      }
-      if (closureMode === 'anual') {
-        return year === selectedYear;
-      }
-      return month - 1 === selectedMonth && year === selectedYear;
-    };
-
-    const expensesInPeriod = allExpenses.filter(
-      expense => expense.center === selectedCenter && filterByPeriod(expense.date),
+    // ✅ CORREÇÃO: Usa closureExpenses e closureReceipts (dados completos do período)
+    // ao invés de allExpenses/allReceipts (dados paginados que podem estar incompletos)
+    // closureExpenses/closureReceipts já vêm filtrados por período do getExpensesForDateRange
+    const expensesInPeriod = closureExpenses.filter(
+      expense => expense.center === selectedCenter,
     );
-    const receiptsInPeriod = allReceipts.filter(
-      receipt => receipt.center === selectedCenter && filterByPeriod(receipt.date),
+    const receiptsInPeriod = closureReceipts.filter(
+      receipt => receipt.center === selectedCenter,
     );
 
     return {
@@ -1162,7 +1149,7 @@ export const FinanceiroScreen = () => {
       },
       center: selectedCenter,
     };
-  }, [allExpenses, allReceipts, closureMode, selectedPeriod, selectedCenter]);
+  }, [closureExpenses, closureReceipts, closureMode, selectedPeriod, selectedCenter]);
 
   const handleOpenClosureReportPreview = useCallback(
     (type: 'pdf' | 'excel') => {

@@ -809,34 +809,17 @@ export const DashboardScreen = () => {
     const currentMonth = dayjs().month();
     const currentYear = dayjs().year();
 
-    const allExpenses = getAllExpenses();
-    const allReceipts = getAllReceipts();
-
-    const filterByPeriod = (dateString: string) => {
-      const [day, month, year] = dateString.split('/').map(Number);
-      if (!day || !month || !year) {
-        const parsed = dayjs(dateString, 'DD/MM/YYYY', true);
-        if (!parsed.isValid()) return false;
-        return parsed.month() === currentMonth && parsed.year() === currentYear;
-      }
-      return month - 1 === currentMonth && year === currentYear;
-    };
-
-    // Filtra por período E por centro de custo selecionado
-    const expensesInPeriod = allExpenses.filter(
-      expense => expense.center === selectedCenter && filterByPeriod(expense.date),
-    );
-    const receiptsInPeriod = allReceipts.filter(
-      receipt => receipt.center === selectedCenter && filterByPeriod(receipt.date),
-    );
+    // ✅ CORREÇÃO: Usa dashboardExpenses e dashboardReceipts (dados completos do mês atual)
+    // ao invés de getAllExpenses/getAllReceipts (dados paginados que podem estar incompletos)
+    // dashboardExpenses/dashboardReceipts já vêm filtrados por centro e período do getExpensesForDateRange
 
     return {
-      expenses: expensesInPeriod,
-      receipts: receiptsInPeriod,
+      expenses: dashboardExpenses,
+      receipts: dashboardReceipts,
       period: { month: currentMonth, year: currentYear },
       center: selectedCenter,
     };
-  }, [getAllExpenses, getAllReceipts, selectedCenter]);
+  }, [dashboardExpenses, dashboardReceipts, selectedCenter]);
 
   const handleOpenReportPreview = useCallback(
     (type: 'pdf' | 'excel') => {
