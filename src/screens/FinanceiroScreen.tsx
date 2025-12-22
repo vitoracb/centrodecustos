@@ -185,6 +185,8 @@ export const FinanceiroScreen = () => {
   useEffect(() => {
     const fetchChartData = async () => {
       setChartExpensesLoading(true);
+      // ✅ CORREÇÃO: Limpa dados antigos antes de buscar novos para evitar flicker
+      setServerExpenses([]);
       try {
         let startDate: string;
         let endDate: string;
@@ -215,6 +217,9 @@ export const FinanceiroScreen = () => {
       if (activeTab !== 'Fechamento') return;
 
       setClosureLoading(true);
+      // ✅ CORREÇÃO: Limpa dados antigos antes de buscar novos para evitar flicker
+      setClosureServerExpenses([]);
+      setClosureServerReceipts([]);
       try {
         let startDate: string;
         let endDate: string;
@@ -1709,17 +1714,26 @@ export const FinanceiroScreen = () => {
                 </View>
               )}
             </View>
-            <ExpensePieChart
-              expenses={chartExpenses}
-              mode={expenseMode}
-              selectedPeriod={selectedExpensePeriod}
-            />
-            <ExpenseBarChart expenses={chartExpenses} />
-            <ExpenseSectorChart
-              expenses={chartExpenses}
-              mode={expenseMode}
-              selectedPeriod={selectedExpensePeriod}
-            />
+            {/* Gráficos de Despesas */}
+            {chartExpensesLoading ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#8E8E93', fontSize: 14 }}>Carregando dados...</Text>
+              </View>
+            ) : (
+              <>
+                <ExpensePieChart
+                  expenses={chartExpenses}
+                  mode={expenseMode}
+                  selectedPeriod={selectedExpensePeriod}
+                />
+                <ExpenseBarChart expenses={chartExpenses} />
+                <ExpenseSectorChart
+                  expenses={chartExpenses}
+                  mode={expenseMode}
+                  selectedPeriod={selectedExpensePeriod}
+                />
+              </>
+            )}
 
             {/* Despesas agrupadas por status */}
             {filteredExpenses.length > 0 && (
