@@ -698,6 +698,18 @@ export default function PedidosScreen() {
                         </View>
                       )}
 
+                      {order.status === 'orcamento_aprovado' && (
+                        <TouchableOpacity
+                          style={[styles.actionPill, styles.successPill]}
+                          onPress={() => handleCreateExpenseFromOrder(order)}
+                        >
+                          <DollarSign size={16} color="#1B8A2F" />
+                          <Text style={[styles.actionText, styles.successText]}>
+                            Gerar Despesa
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
                       <TouchableOpacity
                         style={[styles.actionPill, styles.destructivePill, styles.deletePill]}
                         onPress={() => handleDeleteOrder(order)}
