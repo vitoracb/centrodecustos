@@ -364,6 +364,9 @@ export const FinanceiroScreen = () => {
       // Se já está na lista do servidor, ignora (usa a versão do servidor)
       if (serverIds.has(e.id)) return false;
 
+      // Se foi deletado localmente (optimistic UI), ignora
+      if (localDeletedIds.has(e.id)) return false;
+
       // Verifica se está no período visualizado
       const [day, month, year] = e.date.split('/').map(Number);
       const expenseDate = dayjs(`${year}-${month}-${day}`);
