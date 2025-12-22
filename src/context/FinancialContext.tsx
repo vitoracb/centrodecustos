@@ -160,8 +160,8 @@ interface FinancialContextType {
   getAllExpenses: () => Expense[];
   generateFixedExpenses: () => Promise<void>;
 
-  getExpensesForDateRange: (startDate: string, endDate: string, centerId: CostCenter) => Promise<Expense[]>;
-  getReceiptsForDateRange: (startDate: string, endDate: string, centerId: CostCenter) => Promise<Receipt[]>;
+  getExpensesForDateRange: (startDate: string, endDate: string, centerId?: CostCenter) => Promise<Expense[]>;
+  getReceiptsForDateRange: (startDate: string, endDate: string, centerId?: CostCenter) => Promise<Receipt[]>;
 }
 
 // Verifica se já existe uma despesa idêntica no mesmo mês
