@@ -21,13 +21,16 @@ import {
   X,
   Filter,
   ShoppingCart,
+  DollarSign,
 } from 'lucide-react-native';
 import { CostCenterSelector } from '../components/CostCenterSelector';
 import { useCostCenter } from '../context/CostCenterContext';
 import { useOrders, Order, OrderStatus } from '../context/OrderContext';
+import { useFinancial } from '../context/FinancialContext';
 import { usePermissions } from '../context/PermissionsContext';
 import { useEquipment } from '../context/EquipmentContext';
 import { OrderFormModal } from '../components/OrderFormModal';
+import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { OrderBudgetModal } from '../components/OrderBudgetModal';
 import { FilePreviewModal } from '../components/FilePreviewModal';
 import { OrderFilterModal, OrderFilters } from '../components/OrderFilterModal';
@@ -98,6 +101,7 @@ export default function PedidosScreen() {
     getOrdersByCenter,
     refresh,
   } = useOrders();
+  const { addExpense } = useFinancial();
   const { canCreate, canEdit, canDelete, isAdmin } = usePermissions();
   const { getEquipmentsByCenter } = useEquipment();
 
@@ -136,6 +140,13 @@ export default function PedidosScreen() {
     'date_desc' | 'date_asc' | 'name_asc' | 'equipment_asc'
   >('date_desc');
   const [isOrdersSortDropdownOpen, setIsOrdersSortDropdownOpen] = useState(false);
+  const [isExpenseFormVisible, setIsExpenseFormVisible] = useState(false);
+  const [selectedOrderForExpense, setSelectedOrderForExpense] = useState<Order | null>(null);
+
+  const handleCreateExpenseFromOrder = (order: Order) => {
+    setSelectedOrderForExpense(order);
+    setIsExpenseFormVisible(true);
+  };
 
   const hasActiveFilters = useMemo(
     () => Object.values(orderFilters).some(value => value && value !== ''),
@@ -794,6 +805,41 @@ export default function PedidosScreen() {
         }}
       />
 
+      <ExpenseFormModal
+        visible={isExpenseFormVisible}
+        onClose={() => {
+          setIsExpenseFormVisible(false);
+          setSelectedOrderForExpense(null);
+        }}
+        initialData={selectedOrderForExpense ? {
+          name: selectedOrderForExpense.name,
+          date: selectedOrderForExpense.date,
+          value: 0,
+          category: 'manutencao', // Padrão seguro
+          documents: selectedOrderForExpense.documents?.filter(doc => doc.approved).map(doc => ({
+            type: 'recibo', // Assume como recibo/comprovante
+            fileUri: doc.fileUri,
+            fileName: doc.fileName,
+            mimeType: doc.mimeType
+          })) || [],
+          equipmentId: selectedOrderForExpense.equipmentId || undefined
+        } : undefined}
+        onSubmit={async (data) => {
+          try {
+            await addExpense({
+              ...data,
+              center: selectedCenter,
+            });
+            setIsExpenseFormVisible(false);
+            setSelectedOrderForExpense(null);
+            Alert.alert('Sucesso', 'Despesa criada com sucesso!');
+          } catch (error) {
+            console.error('Erro ao adicionar despesa:', error);
+            Alert.alert('Erro', 'Não foi possível criar a despesa.');
+          }
+        }}
+      />
+
       {previewFile && previewFile.uri && (
         <FilePreviewModal
           visible={previewVisible}
@@ -1089,6 +1135,9 @@ const styles = StyleSheet.create({
   destructivePill: {
     backgroundColor: '#FDECEC',
   },
+  successPill: {
+    backgroundColor: '#E6FEEA',
+  },
   actionText: {
     fontSize: 13,
     fontWeight: '600',
@@ -1096,6 +1145,9 @@ const styles = StyleSheet.create({
   },
   destructiveText: {
     color: '#FF3B30',
+  },
+  successText: {
+    color: '#1B8A2F',
   },
   dropdownChevron: {
     marginLeft: 4,
