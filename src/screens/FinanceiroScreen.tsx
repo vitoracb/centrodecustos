@@ -259,6 +259,11 @@ export const FinanceiroScreen = () => {
   const closureExpenses = useMemo(() => {
     if (activeTab !== 'Fechamento') return [];
 
+    // ✅ Durante loading, usa apenas dados do servidor para evitar valores incorretos
+    if (closureLoading) {
+      return closureServerExpenses.filter(e => !localDeletedIds.has(e.id));
+    }
+
     const serverIds = new Set(closureServerExpenses.map(e => e.id));
 
     // Itens do contexto (otimistas/recentes) que não estão no servidor
@@ -282,11 +287,16 @@ export const FinanceiroScreen = () => {
 
     const visibleServerExpenses = closureServerExpenses.filter(e => !localDeletedIds.has(e.id));
     return [...pendingItems, ...visibleServerExpenses];
-  }, [closureServerExpenses, expenses, localDeletedIds, selectedPeriod, closureMode, activeTab]);
+  }, [closureServerExpenses, expenses, localDeletedIds, selectedPeriod, closureMode, activeTab, closureLoading]);
 
   // Mescla dados do servidor com dados otimistas para o Fechamento (Recebimentos)
   const closureReceipts = useMemo(() => {
     if (activeTab !== 'Fechamento') return [];
+
+    // ✅ Durante loading, usa apenas dados do servidor para evitar valores incorretos
+    if (closureLoading) {
+      return closureServerReceipts;
+    }
 
     // Receipt não tem "receipts" context optimista exposto separadamente no provider da mesma forma que expenses?
     // Verificando useFinancial... Sim, tem `receipts`.
@@ -312,11 +322,17 @@ export const FinanceiroScreen = () => {
     });
 
     return [...pendingItems, ...closureServerReceipts];
-  }, [closureServerReceipts, getAllReceipts, selectedPeriod, closureMode, activeTab]);
+  }, [closureServerReceipts, getAllReceipts, selectedPeriod, closureMode, activeTab, closureLoading]);
 
   // Deriva a lista final mesclando dados do servidor com estado otimista (contexto)
   // Isso roda síncronamente sem disparar novos fetches de rede
   const chartExpenses = useMemo(() => {
+    // ✅ Durante loading, usa apenas dados do servidor para evitar valores incorretos
+    // Os dados de contexto podem conter itens de outros períodos que causam flicker
+    if (chartExpensesLoading) {
+      return serverExpenses.filter(e => !localDeletedIds.has(e.id));
+    }
+
     // Cria um Set com os IDs que já estão no servido (para busca rápida O(1))
     const serverIds = new Set(serverExpenses.map(e => e.id));
 
@@ -347,7 +363,7 @@ export const FinanceiroScreen = () => {
 
     // Retorna a combinação (Recentes do Contexto + Servidor Filtrado)
     return [...pendingOrRecentItems, ...visibleServerExpenses];
-  }, [serverExpenses, expenses, localDeletedIds, selectedCenter, selectedExpensePeriod, expenseMode]);
+  }, [serverExpenses, expenses, localDeletedIds, selectedCenter, selectedExpensePeriod, expenseMode, chartExpensesLoading]);
 
   // Sincroniza períodos entre abas quando o usuário troca de aba
   const lastActiveTabRef = useRef(activeTab);
