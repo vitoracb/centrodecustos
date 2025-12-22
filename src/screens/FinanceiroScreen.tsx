@@ -2186,41 +2186,61 @@ export const FinanceiroScreen = () => {
                 Período: {periodSummary.period}
               </Text>
               <Text style={styles.periodInfoSubtext}>
-                {periodSummary.receiptsCount} recebimento(s) • {periodSummary.expensesCount} despesa(s)
+                {closureLoading ? 'Carregando...' : `${periodSummary.receiptsCount} recebimento(s) • ${periodSummary.expensesCount} despesa(s)`}
               </Text>
             </View>
-            <View style={styles.summaryGrid}>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryLabel}>Recebimentos</Text>
-                <Text style={styles.summaryValue}>{periodSummary.received}</Text>
-                <Text style={styles.summaryCount}>
-                  {periodSummary.receiptsCount} {periodSummary.receiptsCount === 1 ? 'item' : 'itens'}
-                </Text>
+            {closureLoading ? (
+              <View style={styles.summaryGrid}>
+                <View style={[styles.summaryCard, { opacity: 0.6 }]}>
+                  <Text style={styles.summaryLabel}>Recebimentos</Text>
+                  <Text style={[styles.summaryValue, { color: '#C7C7CC' }]}>--</Text>
+                  <Text style={styles.summaryCount}>carregando...</Text>
+                </View>
+                <View style={[styles.summaryCard, { opacity: 0.6 }]}>
+                  <Text style={styles.summaryLabel}>Despesas Total</Text>
+                  <Text style={[styles.summaryValue, { color: '#C7C7CC' }]}>--</Text>
+                  <Text style={styles.summaryCount}>carregando...</Text>
+                </View>
+                <View style={[styles.summaryCard, styles.balanceCardPositive, { opacity: 0.6 }]}>
+                  <Calculator size={20} color="#FFFFFF" />
+                  <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>--</Text>
+                  <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>Saldo do período</Text>
+                </View>
               </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryLabel}>Despesas Total</Text>
-                <Text style={styles.summaryValue}>{periodSummary.expenses}</Text>
-                <Text style={styles.summaryCount}>
-                  {periodSummary.expensesCount} {periodSummary.expensesCount === 1 ? 'item' : 'itens'}
-                </Text>
+            ) : (
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>Recebimentos</Text>
+                  <Text style={styles.summaryValue}>{periodSummary.received}</Text>
+                  <Text style={styles.summaryCount}>
+                    {periodSummary.receiptsCount} {periodSummary.receiptsCount === 1 ? 'item' : 'itens'}
+                  </Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>Despesas Total</Text>
+                  <Text style={styles.summaryValue}>{periodSummary.expenses}</Text>
+                  <Text style={styles.summaryCount}>
+                    {periodSummary.expensesCount} {periodSummary.expensesCount === 1 ? 'item' : 'itens'}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.summaryCard,
+                    periodSummary.balanceValue >= 0
+                      ? styles.balanceCardPositive
+                      : styles.balanceCardNegative,
+                  ]}
+                >
+                  <Calculator size={20} color="#FFFFFF" />
+                  <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>
+                    {periodSummary.balance}
+                  </Text>
+                  <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>
+                    Saldo do período
+                  </Text>
+                </View>
               </View>
-              <View
-                style={[
-                  styles.summaryCard,
-                  periodSummary.balanceValue >= 0
-                    ? styles.balanceCardPositive
-                    : styles.balanceCardNegative,
-                ]}
-              >
-                <Calculator size={20} color="#FFFFFF" />
-                <Text style={[styles.summaryValue, { color: '#FFFFFF' }]}>
-                  {periodSummary.balance}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: '#E5E5EA' }]}>
-                  Saldo do período
-                </Text>
-              </View>
-            </View>
+            )}
 
             {/* Gráfico Comparativo entre Centros */}
             <View style={styles.comparisonSection}>
